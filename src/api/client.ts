@@ -269,6 +269,9 @@ export interface BatchHistoryRow {
   linea_codigo: string;
   responsable_nombre: string;
   rectificaciones: number;
+  anulacion_justificacion?: string | null;
+  anulado_at?: string | null;
+  anulado_por?: string | null;
 }
 
 export const fetchBatchHistory = (limit = 100) =>
@@ -317,3 +320,38 @@ export async function fetchAuditLogs(): Promise<AuditLogEntry[]> {
     };
   });
 }
+
+export interface BatchDetail extends BatchHistoryRow {
+  producto_ui_id: string | null;
+  estado_ui: { batch?: any; stage?: string } | null;
+}
+
+export const fetchBatchDetail = (idOrCode: string) =>
+  apiFetch<BatchDetail>(`/workspace/batches/${encodeURIComponent(idOrCode)}`);
+
+export const annulBatchRequest = (idOrCode: string, justification: string) =>
+  apiFetch<{ message: string }>(`/workspace/batches/${encodeURIComponent(idOrCode)}/anular`, {
+    method: 'POST',
+    body: JSON.stringify({ justification }),
+  });
+
+export async function fetchInactiveUsers(): Promise<UserProfile[]> {
+  const rows = await apiFetch<ApiUser[]>('/users?estado=inactivos');
+  return rows.map(toProfile);
+}
+
+export const reactivateUserRequest = (id: string) =>
+  apiFetch<{ message: string }>(`/users/${id}/reactivar`, { method: 'POST' });
+
+export interface InactiveLine {
+  id: string;
+  codigo: string;
+  nombre: string;
+  tipo_linea: LineType;
+  capacidad_litros: string | number;
+}
+
+export const fetchInactiveLines = () => apiFetch<InactiveLine[]>('/catalogs/lines/inactive');
+
+export const reactivateLineRequest = (code: string) =>
+  apiFetch<{ message: string }>(`/catalogs/lines/${encodeURIComponent(code)}/reactivar`, { method: 'POST' });

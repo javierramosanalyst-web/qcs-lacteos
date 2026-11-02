@@ -7,7 +7,7 @@ interface BatchSummaryModalProps {
   onClose: () => void;
   batch: BatchData;
   users?: UserProfile[];
-  onFinalizeBatch: () => void;
+  onFinalizeBatch?: () => void;
   onChangeObservaciones?: (observaciones: string) => void;
   onChangeOperariosIntervinientes?: (operarios: string[]) => void;
 }
@@ -127,7 +127,7 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
       onChangeOperariosIntervinientes(operariosList);
     }
     setShowConfirmAlert(false);
-    onFinalizeBatch();
+    if (onFinalizeBatch) onFinalizeBatch();
     onClose();
   };
 
@@ -367,13 +367,15 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
               <span className="material-symbols-outlined text-[16px]">close</span>
               <span>Cerrar Resumen</span>
             </button>
-            <button
-              className="h-10 px-5 bg-emerald-700 text-white font-bold rounded-xl hover:bg-emerald-800 transition-all shadow-md text-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
-              onClick={() => setShowConfirmAlert(true)}
-            >
-              {!is7Cueros && <span className="material-symbols-outlined text-[17px]">task_alt</span>}
-              <span>{is7Cueros ? '✅ Confirmar proceso terminado' : 'Confirmar Proceso Terminado'}</span>
-            </button>
+            {onFinalizeBatch && batch.status !== 'COMPLETADO' && (
+              <button
+                className="h-10 px-5 bg-emerald-700 text-white font-bold rounded-xl hover:bg-emerald-800 transition-all shadow-md text-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                onClick={() => setShowConfirmAlert(true)}
+              >
+                {!is7Cueros && <span className="material-symbols-outlined text-[17px]">task_alt</span>}
+                <span>{is7Cueros ? '✅ Confirmar proceso terminado' : 'Confirmar Proceso Terminado'}</span>
+              </button>
+            )}
           </div>
         </div>
       }

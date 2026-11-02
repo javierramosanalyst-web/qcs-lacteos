@@ -16,13 +16,19 @@ async function resolveLine(identifier: unknown): Promise<string | null> {
   return res.rows[0]?.id ?? null;
 }
 
-export async function listUsers(_req: Request, res: Response): Promise<void> {
+export async function listUsers(req: Request, res: Response): Promise<void> {
   try {
+    const inactivos = req.query.estado === 'inactivos';
+    if (inactivos && req.user?.rol === 'operador') {
+      res.status(403).json({ error: 'FORBIDDEN_ROLE', message: 'Tu rol no tiene permiso para esta acción.' });
+      return;
+    }
     const { rows } = await pool.query(
       `SELECT ${USER_COLUMNS}
        FROM usuarios u LEFT JOIN lineas_produccion l ON l.id = u.linea_asignada_id
-       WHERE u.activo = TRUE
-       ORDER BY u.rol, u.nombre_completo;`
+       WHERE u.activo = $1
+       ORDER BY u.rol, u.nombre_completo;`,
+      [!inactivos]
     );
     res.json(rows);
   } catch (error) {
@@ -142,5 +148,25 @@ export async function deactivateUser(req: Request, res: Response): Promise<void>
   } catch (error) {
     console.error('[users] Error al dar de baja usuario:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al dar de baja el usuario.' });
+  }
+}
+
+export async function reactivateUser(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const target = await pool.query(`SELECT rol FROM usuarios WHERE id::text = $1 AND activo = FALSE;`, [id]);
+    if (target.rows.length === 0) {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'Usuario inactivo no encontrado.' });
+      return;
+    }
+    if (target.rows[0].rol !== 'operador' && req.user?.rol !== 'superadmin') {
+      res.status(403).json({ error: 'FORBIDDEN_ROLE', message: 'Solo el superadmin puede reactivar administradores.' });
+      return;
+    }
+    await pool.query(`UPDATE usuarios SET activo = TRUE, updated_at = NOW() WHERE id::text = $1;`, [id]);
+    res.json({ message: 'Usuario reactivado.' });
+  } catch (error) {
+    console.error('[users] Error al reactivar usuario:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al reactivar el usuario.' });
   }
 }

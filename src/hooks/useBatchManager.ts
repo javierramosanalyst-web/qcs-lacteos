@@ -1515,6 +1515,8 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
     parentBatch,
     setParentBatch,
     showToast,
+    onDraftRemoved: (productId: string) =>
+      setStagesByProduct((prev) => ({ ...prev, [productId]: DEFAULT_STAGES[productId] ?? 'acidificar' })),
   });
   const { resetIfCompleted, resetParentSaved } = persistence;
 
@@ -1854,5 +1856,6 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
     syncStatus: persistence.syncStatus,
     hydrated: persistence.hydrated,
     markRectified: persistence.markRectified,
+    refreshFromServer: persistence.refreshFromServer,
   };
 }

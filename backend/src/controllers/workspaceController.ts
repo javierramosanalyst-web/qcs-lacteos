@@ -159,7 +159,8 @@ async function syncBatch(
   client: PoolClient,
   loteId: string,
   userId: string,
-  body: { estado: unknown; etapaActual?: string; volumen?: number; stageStatuses?: Record<string, string> }
+  body: { estado: unknown; etapaActual?: string; volumen?: number; stageStatuses?: Record<string, string> },
+  supervisorId: string | null = null
 ): Promise<void> {
   await client.query(
     `UPDATE lotes_produccion SET
@@ -196,6 +197,13 @@ async function syncBatch(
      VALUES ($1, $2, 'Operador de Etapa') ON CONFLICT (lote_id, usuario_id) DO NOTHING;`,
     [loteId, userId]
   );
+  if (supervisorId && supervisorId !== userId) {
+    await client.query(
+      `INSERT INTO lote_operarios_intervinientes (lote_id, usuario_id, rol_en_proceso)
+       VALUES ($1, $2, 'Supervisor (intervención)') ON CONFLICT (lote_id, usuario_id) DO NOTHING;`,
+      [loteId, supervisorId]
+    );
+  }
 
   await client.query('SAVEPOINT trazabilidad');
   try {
@@ -291,7 +299,16 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
     }
 
     if (loteId) {
-      await syncBatch(client, loteId, userId, { estado, etapaActual, volumen: Number(volumen), stageStatuses });
+      let actorId = userId;
+      let supervisorId: string | null = null;
+      if (req.user?.rol !== 'operador') {
+        const owner = await client.query(`SELECT responsable_id FROM lotes_produccion WHERE id = $1;`, [loteId]);
+        if (owner.rows[0]?.responsable_id && owner.rows[0].responsable_id !== userId) {
+          actorId = owner.rows[0].responsable_id;
+          supervisorId = userId;
+        }
+      }
+      await syncBatch(client, loteId, actorId, { estado, etapaActual, volumen: Number(volumen), stageStatuses }, supervisorId);
     }
 
     if (completed && loteId) {
@@ -367,11 +384,21 @@ export async function getBatchHistory(req: Request, res: Response): Promise<void
               p.nombre AS producto_nombre, p.codigo AS producto_codigo,
               l.nombre AS linea_nombre, l.codigo AS linea_codigo,
               u.nombre_completo AS responsable_nombre,
-              (SELECT COUNT(*) FROM auditoria_rectificaciones ar WHERE ar.lote_id = lp.id)::int AS rectificaciones
+              (SELECT COUNT(*) FROM auditoria_rectificaciones ar WHERE ar.lote_id = lp.id)::int AS rectificaciones,
+              an.justificacion_tecnica AS anulacion_justificacion,
+              an.registrado_at AS anulado_at,
+              an.autor AS anulado_por
        FROM lotes_produccion lp
        JOIN productos p ON p.id = lp.producto_id
        JOIN lineas_produccion l ON l.id = lp.linea_id
        JOIN usuarios u ON u.id = lp.responsable_id
+       LEFT JOIN LATERAL (
+         SELECT ar.justificacion_tecnica, ar.registrado_at, ua.nombre_completo AS autor
+         FROM auditoria_rectificaciones ar
+         JOIN usuarios ua ON ua.id = ar.autorizado_por_id
+         WHERE ar.lote_id = lp.id AND ar.categoria_motivo = 'Anulación de lote'
+         ORDER BY ar.registrado_at DESC LIMIT 1
+       ) an ON lp.estado = 'ANULADO'
        ORDER BY lp.iniciado_at DESC
        LIMIT $1;`,
       [limit]
@@ -387,8 +414,17 @@ export async function getBatchHistory(req: Request, res: Response): Promise<void
 export async function getBatchDetail(req: Request, res: Response): Promise<void> {
   try {
     const { rows } = await pool.query(
-      `SELECT lp.id, lp.codigo_lote, lp.estado, lp.producto_ui_id, lp.estado_ui
-       FROM lotes_produccion lp WHERE lp.id::text = $1 OR lp.codigo_lote = $1 LIMIT 1;`,
+      `SELECT lp.id, lp.codigo_lote, lp.estado, lp.producto_ui_id, lp.estado_ui,
+              lp.etapa_actual_codigo, lp.iniciado_at, lp.finalizado_at, lp.duracion_total_segundos,
+              p.nombre AS producto_nombre, p.codigo AS producto_codigo,
+              l.nombre AS linea_nombre, l.codigo AS linea_codigo,
+              u.nombre_completo AS responsable_nombre,
+              (SELECT COUNT(*) FROM auditoria_rectificaciones ar WHERE ar.lote_id = lp.id)::int AS rectificaciones
+       FROM lotes_produccion lp
+       JOIN productos p ON p.id = lp.producto_id
+       JOIN lineas_produccion l ON l.id = lp.linea_id
+       JOIN usuarios u ON u.id = lp.responsable_id
+       WHERE lp.id::text = $1 OR lp.codigo_lote = $1 LIMIT 1;`,
       [req.params.loteId]
     );
     if (rows.length === 0) {
@@ -435,7 +471,7 @@ export async function rectifyBatchField(req: Request, res: Response): Promise<vo
   const client = await pool.connect();
   try {
     const lote = await client.query(
-      `SELECT id, producto_ui_id, estado FROM lotes_produccion WHERE codigo_lote = $1 OR id::text = $1 LIMIT 1;`,
+      `SELECT id, producto_ui_id, estado, responsable_id FROM lotes_produccion WHERE codigo_lote = $1 OR id::text = $1 LIMIT 1;`,
       [String(codigoLote)]
     );
     if (lote.rows.length === 0) {
@@ -456,6 +492,14 @@ export async function rectifyBatchField(req: Request, res: Response): Promise<vo
          WHERE producto_ui_id = $1 AND lote_id = $3;`,
         [target.producto_ui_id, estado, target.id]
       );
+    }
+    await client.query('SAVEPOINT trazabilidad');
+    try {
+      await normalizeBatchTraceability(client, target.id, target.responsable_id, estado);
+      await client.query('RELEASE SAVEPOINT trazabilidad');
+    } catch (normError) {
+      await client.query('ROLLBACK TO SAVEPOINT trazabilidad');
+      console.error('[workspace] Error al normalizar trazabilidad tras rectificar:', normError);
     }
     const ip = req.ip || req.socket.remoteAddress || null;
     const audit = await client.query(
@@ -512,5 +556,59 @@ export async function listAuditLogs(_req: Request, res: Response): Promise<void>
   } catch (error) {
     console.error('[workspace] Error al consultar auditoría:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al consultar la auditoría.' });
+  }
+}
+
+/**
+ * POST /api/workspace/batches/:loteId/anular  { justification }
+ * Anula un lote en proceso (p. ej. iniciado por error): libera el borrador del producto y deja la pista de auditoría.
+ */
+export async function annulBatch(req: Request, res: Response): Promise<void> {
+  const adminId = req.user?.id;
+  const justificacion = String(req.body.justification ?? '').trim();
+  if (justificacion.length < 15) {
+    res.status(400).json({ error: 'INVALID_JUSTIFICATION', message: 'La justificación debe tener al menos 15 caracteres.' });
+    return;
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const lote = await client.query(
+      `SELECT id, estado, producto_ui_id, codigo_lote FROM lotes_produccion
+       WHERE id::text = $1 OR codigo_lote = $1 LIMIT 1 FOR UPDATE;`,
+      [req.params.loteId]
+    );
+    if (lote.rows.length === 0) {
+      await client.query('ROLLBACK');
+      res.status(404).json({ error: 'BATCH_NOT_FOUND', message: 'Lote no encontrado.' });
+      return;
+    }
+    const target = lote.rows[0];
+    if (target.estado !== 'EN_PROCESO') {
+      await client.query('ROLLBACK');
+      res.status(409).json({ error: 'BATCH_NOT_ACTIVE', message: 'Solo se pueden anular lotes en proceso. Para un lote cerrado usa una rectificación.' });
+      return;
+    }
+    await client.query(`UPDATE lotes_produccion SET estado = 'ANULADO', anulado_at = NOW(), anulado_por_id = $2, motivo_anulacion = $3, updated_at = NOW() WHERE id = $1;`, [target.id, adminId, justificacion]);
+    await client.query(`DELETE FROM borradores_lote WHERE lote_id = $1;`, [target.id]);
+    const audit = await client.query(
+      `INSERT INTO auditoria_rectificaciones (
+         accion, lote_id, etapa_codigo, etapa_label, tabla_destino, registro_destino_id,
+         campo_modificado, campo_label, valor_anterior, valor_nuevo, unidad,
+         categoria_motivo, justificacion_tecnica, autorizado_por_id, ip_address
+       ) VALUES ('ANULACION', $1, 'lote', 'Lote completo', 'lotes_produccion', $1,
+                 'estado', 'Estado del lote', 'EN_PROCESO', 'ANULADO', NULL,
+                 'Anulación de lote', $2, $3, $4)
+       RETURNING id, registrado_at;`,
+      [target.id, justificacion, adminId, req.ip || req.socket.remoteAddress || null]
+    );
+    await client.query('COMMIT');
+    res.json({ message: `Lote ${target.codigo_lote} anulado.`, ...audit.rows[0] });
+  } catch (error: any) {
+    await client.query('ROLLBACK');
+    console.error('[workspace] Error al anular lote:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message ?? 'Error al anular el lote.' });
+  } finally {
+    client.release();
   }
 }

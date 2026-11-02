@@ -112,6 +112,7 @@ interface Params {
   parentBatch: ParentMilkBatch;
   setParentBatch: (value: ParentMilkBatch) => void;
   showToast: (message: string, type?: 'success' | 'info' | 'warning') => void;
+  onDraftRemoved?: (productId: string) => void;
 }
 
 export function useBatchPersistence({
@@ -122,6 +123,7 @@ export function useBatchPersistence({
   parentBatch,
   setParentBatch,
   showToast,
+  onDraftRemoved,
 }: Params) {
   const [hydrated, setHydrated] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
@@ -142,6 +144,9 @@ export function useBatchPersistence({
   const parentInflight = useRef(false);
   const errorNotified = useRef(false);
   const retryTimer = useRef<number | null>(null);
+  const missingCount = useRef<Record<string, number>>({});
+  const onDraftRemovedRef = useRef(onDraftRemoved);
+  onDraftRemovedRef.current = onDraftRemoved;
 
   const pristineSig = useCallback((p: PersistedProduct) => {
     return JSON.stringify(stripOperator(p.createTemplate()));
@@ -201,6 +206,26 @@ export function useBatchPersistence({
             if (initial) restoreBackup(d.producto_ui_id);
           }
         }
+        if (!initial) {
+          const present = new Set(data.drafts.map((d) => d.producto_ui_id));
+          for (const p of productsRef.current) {
+            const pid = p.productId;
+            if (p.lineCode !== lineCode) continue;
+            if (present.has(pid) || versions.current[pid] === undefined || completed.current[pid] || inflight.current[pid]) {
+              missingCount.current[pid] = 0;
+              continue;
+            }
+            missingCount.current[pid] = (missingCount.current[pid] ?? 0) + 1;
+            if (missingCount.current[pid] < 2) continue;
+            missingCount.current[pid] = 0;
+            delete versions.current[pid];
+            delete lastSaved.current[pid];
+            clearBackup(pid);
+            p.setState(() => p.createTemplate());
+            onDraftRemovedRef.current?.(pid);
+            showToast('Un supervisor anuló este lote. El producto quedó libre para iniciar uno nuevo.', 'warning');
+          }
+        }
         if (lineCode === FERMENT_LINE && data.workspace?.estado?.id) {
           const ws = data.workspace;
           const parentDirty = JSON.stringify(parentRef.current) !== parentSaved.current;
@@ -217,7 +242,7 @@ export function useBatchPersistence({
         }
       }
     },
-    [adopt, restoreBackup, setParentBatch]
+    [adopt, restoreBackup, setParentBatch, showToast]
   );
 
   useEffect(() => {
@@ -439,5 +464,13 @@ export function useBatchPersistence({
     parentSaved.current = JSON.stringify(fresh);
   }, []);
 
-  return { hydrated, syncStatus, resetIfCompleted, markRectified, resetParentSaved };
+  const refreshFromServer = useCallback(async () => {
+    try {
+      await loadFromServer(false);
+    } catch {
+      setSyncStatus('offline');
+    }
+  }, [loadFromServer]);
+
+  return { hydrated, syncStatus, resetIfCompleted, markRectified, resetParentSaved, refreshFromServer };
 }

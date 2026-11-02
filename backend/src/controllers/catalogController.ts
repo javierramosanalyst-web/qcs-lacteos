@@ -232,3 +232,35 @@ export async function deactivateLine(req: Request, res: Response): Promise<void>
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al dar de baja la línea.' });
   }
 }
+
+/** GET /api/catalogs/lines/inactive */
+export async function getInactiveLines(_req: Request, res: Response): Promise<void> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, codigo, nombre, tipo_linea, capacidad_litros FROM lineas_produccion WHERE activo = FALSE ORDER BY codigo;`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('[catalogs] Error al listar líneas inactivas:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al listar líneas inactivas.' });
+  }
+}
+
+/** POST /api/catalogs/lines/:lineId/reactivar */
+export async function reactivateLine(req: Request, res: Response): Promise<void> {
+  try {
+    const { lineId } = req.params;
+    const { rowCount } = await pool.query(
+      `UPDATE lineas_produccion SET activo = TRUE, updated_at = NOW() WHERE (id::text = $1 OR codigo = $1) AND activo = FALSE;`,
+      [lineId]
+    );
+    if (!rowCount) {
+      res.status(404).json({ error: 'LINE_NOT_FOUND', message: 'Línea inactiva no encontrada.' });
+      return;
+    }
+    res.json({ message: 'Línea reactivada.' });
+  } catch (error) {
+    console.error('[catalogs] Error al reactivar línea:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al reactivar la línea.' });
+  }
+}

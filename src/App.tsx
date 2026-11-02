@@ -4,6 +4,7 @@ import { Toast } from './components/ui/Toast';
 import { LoginScreen } from './pages/auth/LoginScreen';
 import { AdminGlobalDashboard } from './pages/admin/AdminGlobalDashboard';
 import { AdminCorrectionModal } from './pages/admin/modals/AdminCorrectionModal';
+import { AdminBatchCorrectionModal, BatchCorrectionPayload } from './pages/admin/modals/AdminBatchCorrectionModal';
 import { AdminLineModal } from './pages/admin/modals/AdminLineModal';
 import { AdminUserModal } from './pages/admin/modals/AdminUserModal';
 import { AuditTrailModal } from './pages/admin/modals/AuditTrailModal';
@@ -17,11 +18,14 @@ import { YogurGriegoSummaryModal } from './features/fermentados/modals/YogurGrie
 import { INITIAL_LINES, INITIAL_PRODUCTS } from './data/initialData';
 import {
   ApiError,
+  annulBatchRequest,
+  BatchDetail,
   BatchHistoryRow,
   clearToken,
   deactivateLineRequest,
   deactivateUserRequest,
   fetchAuditLogs,
+  fetchBatchDetail,
   fetchBatchHistory,
   fetchLines,
   fetchProducts,
@@ -120,6 +124,9 @@ export default function App() {
   // 5. Modales de Navegación y Administración
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
+  const [viewerDetail, setViewerDetail] = useState<BatchDetail | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [viewerCorrectOpen, setViewerCorrectOpen] = useState(false);
   const [createLineModalOpen, setCreateLineModalOpen] = useState(false);
   const [createUserModalOpen, setCreateUserModalOpen] = useState(false);
   const [auditTrailModalOpen, setAuditTrailModalOpen] = useState(false);
@@ -325,6 +332,76 @@ export default function App() {
     }
   };
 
+  const loadViewerDetail = async (row: BatchHistoryRow): Promise<BatchDetail | null> => {
+    try {
+      const detail = await fetchBatchDetail(row.id);
+      if (!detail.estado_ui?.batch) {
+        showToast('Este lote no tiene datos de proceso registrados.', 'warning');
+        return null;
+      }
+      setViewerDetail(detail);
+      return detail;
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'No se pudo cargar el lote.', 'warning');
+      return null;
+    }
+  };
+
+  const handleViewBatchDetail = async (row: BatchHistoryRow) => {
+    if (await loadViewerDetail(row)) setViewerOpen(true);
+  };
+
+  const handleCorrectBatchDetail = async (row: BatchHistoryRow) => {
+    if (await loadViewerDetail(row)) setViewerCorrectOpen(true);
+  };
+
+  const handleAnnulBatch = async (row: BatchHistoryRow, justification: string): Promise<string | null> => {
+    try {
+      await annulBatchRequest(row.id, justification.trim());
+    } catch (err) {
+      return err instanceof Error ? err.message : 'No se pudo anular el lote.';
+    }
+    showToast(`Lote ${row.codigo_lote} anulado.`, 'success');
+    await loadCatalogs(userRole, true);
+    return null;
+  };
+
+  const handleRefreshDashboard = async () => {
+    await loadCatalogs(userRole);
+    showToast('Datos actualizados.', 'success');
+  };
+
+  const handleApplyViewerCorrection = async (payload: BatchCorrectionPayload): Promise<string | null> => {
+    if (!viewerDetail?.estado_ui?.batch) return 'No hay lote cargado.';
+    const nextBatch = JSON.parse(JSON.stringify(viewerDetail.estado_ui.batch));
+    const keys = payload.path.split('.');
+    let cursor = nextBatch;
+    for (let i = 0; i < keys.length - 1; i += 1) cursor = cursor?.[keys[i]];
+    if (cursor === undefined || cursor === null) return 'No se encontró la variable en el lote.';
+    cursor[keys[keys.length - 1]] = payload.newValue;
+    const estado = { ...viewerDetail.estado_ui, batch: nextBatch };
+    try {
+      await rectifyRequest({
+        codigoLote: viewerDetail.codigo_lote,
+        estado,
+        stageId: keys[0],
+        stageLabel: payload.stageLabel,
+        fieldKey: payload.path,
+        fieldLabel: payload.label,
+        oldValue: payload.oldValue,
+        newValue: payload.newValue,
+        reasonCategory: payload.reasonCategory,
+        justification: payload.justification,
+      });
+    } catch (err) {
+      return err instanceof Error ? err.message : 'No se pudo registrar la corrección.';
+    }
+    setViewerDetail({ ...viewerDetail, estado_ui: estado });
+    void loadCatalogs(userRole, true);
+    showToast(`Corrección guardada: ${payload.label} ajustado a ${payload.newValue}.`, 'success');
+    return null;
+  };
+
   const openBatchFromDashboard = (productUiId: string, correct = false) => {
     selectProductBatch(productUiId, true);
     setCurrentView('batch_process');
@@ -392,7 +469,7 @@ export default function App() {
           auditLogsCount={auditLogs.length}
           history={batchHistory}
           loading={loadingData}
-          onRefresh={() => void loadCatalogs(userRole)}
+          onRefresh={() => void handleRefreshDashboard()}
           onCreateLine={() => {
             setEditingLine(null);
             setCreateLineModalOpen(true);
@@ -415,6 +492,9 @@ export default function App() {
           onOpenLine={handleSelectLine}
           onOpenBatch={(pid) => openBatchFromDashboard(pid)}
           onCorrectBatch={(pid) => openBatchFromDashboard(pid, true)}
+          onViewBatchDetail={handleViewBatchDetail}
+          onCorrectBatchDetail={handleCorrectBatchDetail}
+          onAnnulBatch={handleAnnulBatch}
         />
       )}
 
@@ -529,6 +609,49 @@ export default function App() {
         onChangeOperariosIntervinientes={(operarios) =>
           setBatch((prev) => ({ ...prev, operariosIntervinientes: operarios }))
         }
+      />
+
+      {viewerDetail?.estado_ui?.batch && viewerDetail.producto_ui_id === 'prod-yogur' && (
+        <YogurSummaryModal
+          isOpen={viewerOpen}
+          onClose={() => setViewerOpen(false)}
+          batch={{ ...viewerDetail.estado_ui.batch, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
+          users={users}
+        />
+      )}
+      {viewerDetail?.estado_ui?.batch && viewerDetail.producto_ui_id === 'prod-kumis' && (
+        <KumisSummaryModal
+          isOpen={viewerOpen}
+          onClose={() => setViewerOpen(false)}
+          batch={{ ...viewerDetail.estado_ui.batch, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
+          users={users}
+        />
+      )}
+      {viewerDetail?.estado_ui?.batch && viewerDetail.producto_ui_id === 'prod-yogur-griego' && (
+        <YogurGriegoSummaryModal
+          isOpen={viewerOpen}
+          onClose={() => setViewerOpen(false)}
+          batch={{ ...viewerDetail.estado_ui.batch, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
+          users={users}
+        />
+      )}
+      {viewerDetail?.estado_ui?.batch &&
+        !['prod-yogur', 'prod-kumis', 'prod-yogur-griego'].includes(viewerDetail.producto_ui_id ?? '') && (
+          <BatchSummaryModal
+            isOpen={viewerOpen}
+            onClose={() => setViewerOpen(false)}
+            batch={{ ...viewerDetail.estado_ui.batch, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
+            users={users}
+          />
+        )}
+
+      <AdminBatchCorrectionModal
+        isOpen={viewerCorrectOpen}
+        onClose={() => setViewerCorrectOpen(false)}
+        batch={viewerDetail?.estado_ui?.batch ?? {}}
+        title={viewerDetail ? `Lote ${viewerDetail.codigo_lote} · ${viewerDetail.producto_nombre}` : ''}
+        adminName={activeUser.name}
+        onApply={handleApplyViewerCorrection}
       />
 
       {/* Modales Administrativos */}

@@ -234,7 +234,7 @@ export const YogurGriegoSummaryModal: React.FC<YogurGriegoSummaryModalProps> = (
               <span>Cerrar Resumen</span>
             </button>
 
-            {onFinalizeBatch && (
+            {onFinalizeBatch && batch.status !== 'COMPLETADO' && (
               <button
                 onClick={() => setShowConfirmAlert(true)}
                 className="h-10 px-5 bg-[#5FAF32] hover:bg-[#4E9628] text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 flex items-center gap-1.5"

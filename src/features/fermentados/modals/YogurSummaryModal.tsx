@@ -357,13 +357,15 @@ export const YogurSummaryModal: React.FC<YogurSummaryModalProps> = ({
               <span className="material-symbols-outlined text-[16px]">close</span>
               <span>Cerrar Resumen</span>
             </button>
-            <button
-              className="h-10 px-5 bg-emerald-700 text-white font-bold rounded-xl hover:bg-emerald-800 transition-all shadow-md text-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
-              onClick={() => setShowConfirmAlert(true)}
-            >
-              <span className="material-symbols-outlined text-[17px]">task_alt</span>
-              <span>Confirmar Proceso Terminado</span>
-            </button>
+            {onFinalizeBatch && batch.status !== 'COMPLETADO' && (
+              <button
+                className="h-10 px-5 bg-emerald-700 text-white font-bold rounded-xl hover:bg-emerald-800 transition-all shadow-md text-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                onClick={() => setShowConfirmAlert(true)}
+              >
+                <span className="material-symbols-outlined text-[17px]">task_alt</span>
+                <span>Confirmar Proceso Terminado</span>
+              </button>
+            )}
           </div>
         </div>
       }
