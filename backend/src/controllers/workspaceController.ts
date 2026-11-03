@@ -5,12 +5,22 @@ import { pool } from '../db';
 
 const STAGE_STATES = ['pendiente', 'en_proceso', 'completada'];
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function findLine(client: PoolClient, identifier: string) {
-  const res = await client.query(
-    `SELECT id, codigo, tipo_linea FROM lineas_produccion WHERE (id::text = $1 OR codigo = $1) LIMIT 1;`,
-    [identifier]
-  );
+  const res = UUID_RE.test(identifier)
+    ? await client.query(`SELECT id, codigo, tipo_linea FROM lineas_produccion WHERE id = $1 LIMIT 1;`, [identifier])
+    : await client.query(`SELECT id, codigo, tipo_linea FROM lineas_produccion WHERE codigo = $1 LIMIT 1;`, [identifier]);
   return res.rows[0] as { id: string; codigo: string; tipo_linea: string } | undefined;
+}
+
+function lineForbidden(req: Request, res: Response, lineId: string): boolean {
+  const user = req.user;
+  if (user && user.rol === 'operador' && user.lineaAsignadaId && user.lineaAsignadaId !== lineId) {
+    res.status(403).json({ error: 'LINE_FORBIDDEN', message: 'No tienes asignada esta línea de producción.' });
+    return true;
+  }
+  return false;
 }
 
 /** GET /api/workspace/:lineCode */
@@ -22,6 +32,7 @@ export async function getWorkspace(req: Request, res: Response): Promise<void> {
       res.status(404).json({ error: 'LINE_NOT_FOUND', message: 'Línea no encontrada.' });
       return;
     }
+    if (lineForbidden(req, res, line.id)) return;
     const ws = await client.query(
       `SELECT estado, version FROM espacio_trabajo_linea WHERE linea_id = $1;`,
       [line.id]
@@ -34,7 +45,13 @@ export async function getWorkspace(req: Request, res: Response): Promise<void> {
        WHERE b.linea_id = $1;`,
       [line.id]
     );
-    res.json({ line, workspace: ws.rows[0] ?? null, drafts: drafts.rows });
+    const cerrados = await client.query(
+      `SELECT codigo_lote, estado FROM lotes_produccion
+       WHERE linea_id = $1 AND estado IN ('COMPLETADO', 'ANULADO')
+         AND COALESCE(finalizado_at, anulado_at, iniciado_at) > NOW() - INTERVAL '3 days';`,
+      [line.id]
+    );
+    res.json({ line, workspace: ws.rows[0] ?? null, drafts: drafts.rows, cerrados: cerrados.rows });
   } catch (error) {
     console.error('[workspace] Error al cargar espacio de trabajo:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al cargar el espacio de trabajo.' });
@@ -52,6 +69,7 @@ export async function saveWorkspace(req: Request, res: Response): Promise<void> 
       res.status(404).json({ error: 'LINE_NOT_FOUND', message: 'Línea no encontrada.' });
       return;
     }
+    if (lineForbidden(req, res, line.id)) return;
     const version = Number(req.body.version ?? 0);
     await client.query('BEGIN');
     const current = await client.query(
@@ -255,6 +273,7 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
       res.status(404).json({ error: 'LINE_NOT_FOUND', message: 'Línea no encontrada.' });
       return;
     }
+    if (lineForbidden(req, res, line.id)) return;
 
     await client.query('BEGIN');
     const currentRes = await client.query(
@@ -349,7 +368,7 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[workspace] Error al guardar lote:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message ?? 'Error al guardar el lote.' });
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al guardar el lote.' });
   } finally {
     client.release();
   }
@@ -396,7 +415,7 @@ export async function getBatchHistory(req: Request, res: Response): Promise<void
          SELECT ar.justificacion_tecnica, ar.registrado_at, ua.nombre_completo AS autor
          FROM auditoria_rectificaciones ar
          JOIN usuarios ua ON ua.id = ar.autorizado_por_id
-         WHERE ar.lote_id = lp.id AND ar.categoria_motivo = 'Anulación de lote'
+         WHERE ar.lote_id = lp.id AND ar.accion = 'ANULACION'
          ORDER BY ar.registrado_at DESC LIMIT 1
        ) an ON lp.estado = 'ANULADO'
        ORDER BY lp.iniciado_at DESC
@@ -471,7 +490,9 @@ export async function rectifyBatchField(req: Request, res: Response): Promise<vo
   const client = await pool.connect();
   try {
     const lote = await client.query(
-      `SELECT id, producto_ui_id, estado, responsable_id FROM lotes_produccion WHERE codigo_lote = $1 OR id::text = $1 LIMIT 1;`,
+      `SELECT id, producto_ui_id, estado, responsable_id, estado_ui FROM lotes_produccion WHERE ${
+        UUID_RE.test(String(codigoLote)) ? 'id = $1' : 'codigo_lote = $1'
+      } LIMIT 1;`,
       [String(codigoLote)]
     );
     if (lote.rows.length === 0) {
@@ -483,19 +504,37 @@ export async function rectifyBatchField(req: Request, res: Response): Promise<vo
     }
     const target = lote.rows[0];
 
+    let estadoFinal = estado;
+    let valorAnterior: unknown = oldValue;
+    const currentUi = target.estado_ui;
+    if (currentUi && typeof currentUi === 'object' && currentUi.batch && typeof fieldKey === 'string') {
+      const keys = fieldKey.split('.');
+      let cursor: any = currentUi.batch;
+      for (let i = 0; i < keys.length - 1 && cursor !== undefined && cursor !== null; i += 1) cursor = cursor[keys[i]];
+      const last = keys[keys.length - 1];
+      if (cursor !== undefined && cursor !== null && typeof cursor === 'object' && last in cursor) {
+        valorAnterior = typeof cursor[last] === 'object' ? JSON.stringify(cursor[last]) : cursor[last];
+        const next = JSON.parse(JSON.stringify(currentUi));
+        let nc: any = next.batch;
+        for (let i = 0; i < keys.length - 1; i += 1) nc = nc[keys[i]];
+        nc[last] = newValue;
+        estadoFinal = next;
+      }
+    }
+
     await client.query('BEGIN');
     await client.query("SET LOCAL app.allow_admin_override = 'true'");
-    await client.query(`UPDATE lotes_produccion SET estado_ui = $2, updated_at = NOW() WHERE id = $1;`, [target.id, estado]);
+    await client.query(`UPDATE lotes_produccion SET estado_ui = $2, updated_at = NOW() WHERE id = $1;`, [target.id, estadoFinal]);
     if (target.estado === 'EN_PROCESO' && target.producto_ui_id) {
       await client.query(
         `UPDATE borradores_lote SET estado = $2, version = version + 1, updated_at = NOW()
          WHERE producto_ui_id = $1 AND lote_id = $3;`,
-        [target.producto_ui_id, estado, target.id]
+        [target.producto_ui_id, estadoFinal, target.id]
       );
     }
     await client.query('SAVEPOINT trazabilidad');
     try {
-      await normalizeBatchTraceability(client, target.id, target.responsable_id, estado);
+      await normalizeBatchTraceability(client, target.id, target.responsable_id, estadoFinal);
       await client.query('RELEASE SAVEPOINT trazabilidad');
     } catch (normError) {
       await client.query('ROLLBACK TO SAVEPOINT trazabilidad');
@@ -515,7 +554,7 @@ export async function rectifyBatchField(req: Request, res: Response): Promise<vo
         stageLabel ?? null,
         String(fieldKey),
         String(fieldLabel ?? fieldKey),
-        String(oldValue ?? ''),
+        String(valorAnterior ?? ''),
         String(newValue),
         unit ?? null,
         String(reasonCategory ?? 'Ajuste operativo'),
@@ -529,7 +568,7 @@ export async function rectifyBatchField(req: Request, res: Response): Promise<vo
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[workspace] Error al rectificar:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message ?? 'Error al registrar la rectificación.' });
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al registrar la rectificación.' });
   } finally {
     client.release();
   }
@@ -607,7 +646,7 @@ export async function annulBatch(req: Request, res: Response): Promise<void> {
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[workspace] Error al anular lote:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message ?? 'Error al anular el lote.' });
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al anular el lote.' });
   } finally {
     client.release();
   }

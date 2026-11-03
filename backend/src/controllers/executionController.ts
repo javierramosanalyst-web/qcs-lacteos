@@ -134,7 +134,7 @@ export async function updateStageStatus(req: Request, res: Response): Promise<vo
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[execution] Error al actualizar etapa:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message ?? 'Error al actualizar etapa.' });
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al actualizar etapa.' });
   } finally {
     client.release();
   }
@@ -277,7 +277,7 @@ export async function addMeasurement(req: Request, res: Response): Promise<void>
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[execution] Error al registrar medición:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message ?? 'Error al registrar medición.' });
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al registrar medición.' });
   } finally {
     client.release();
   }
@@ -444,7 +444,7 @@ export async function addIngredient(req: Request, res: Response): Promise<void> 
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[execution] Error al registrar insumo:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message ?? 'Error al registrar insumo.' });
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al registrar insumo.' });
   } finally {
     client.release();
   }

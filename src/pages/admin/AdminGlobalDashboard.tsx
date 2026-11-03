@@ -146,8 +146,11 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
 
   const reactivate = async (kind: 'user' | 'line', key: string) => {
     try {
-      if (kind === 'user') await reactivateUserRequest(key);
-      else await reactivateLineRequest(key);
+      if (kind === 'user') {
+        const pin = window.prompt('Defina un PIN nuevo (4 a 8 digitos) para el usuario reactivado:');
+        if (pin === null) return;
+        await reactivateUserRequest(key, pin.trim());
+      } else await reactivateLineRequest(key);
       await loadInactive();
       onRefresh();
     } catch (err) {

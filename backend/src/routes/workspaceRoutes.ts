@@ -16,10 +16,10 @@ export const workspaceRouter = Router();
 
 workspaceRouter.use(authMiddleware);
 
-workspaceRouter.get('/history', getBatchHistory);
+workspaceRouter.get('/history', requireRole('administrador', 'superadmin'), getBatchHistory);
 workspaceRouter.get('/audit', requireRole('administrador', 'superadmin'), listAuditLogs);
 workspaceRouter.post('/rectify', requireRole('administrador', 'superadmin'), rectifyBatchField);
-workspaceRouter.get('/batches/:loteId', getBatchDetail);
+workspaceRouter.get('/batches/:loteId', requireRole('administrador', 'superadmin'), getBatchDetail);
 workspaceRouter.post('/batches/:loteId/anular', requireRole('administrador', 'superadmin'), annulBatch);
 workspaceRouter.put('/drafts/:productUiId', saveDraft);
 workspaceRouter.delete('/drafts/:productUiId', discardDraft);

@@ -17,6 +17,16 @@ import fs from 'fs';
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
 
+const jwtSecret = process.env.JWT_SECRET ?? '';
+if (jwtSecret.length < 32) {
+  const msg = 'JWT_SECRET debe tener al menos 32 caracteres. Genera uno con: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64\'))"';
+  if (process.env.NODE_ENV === 'production') {
+    console.error(`[server] ${msg}`);
+    process.exit(1);
+  }
+  console.warn(`[server] ADVERTENCIA: ${msg}`);
+}
+
 // CORS: orígenes permitidos separados por coma (por defecto, el dev server de Vite).
 const allowedOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost:5173')
   .split(',')
@@ -30,6 +40,13 @@ app.use(
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
+app.disable('x-powered-by');
+app.use((_req: Request, res: Response, next: NextFunction) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  next();
+});
 app.use(express.json({ limit: '5mb' }));
 
 // Healthcheck (público): estado del proceso y de la conexión a PostgreSQL.

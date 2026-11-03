@@ -198,7 +198,7 @@ export async function createBatchRectification(req: Request, res: Response): Pro
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[audit] Error al aplicar rectificación:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message ?? 'Error al procesar rectificación.' });
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al procesar rectificación.' });
   } finally {
     client.release();
   }

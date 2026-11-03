@@ -205,6 +205,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let last = 0;
+    const onExpired = () => {
+      const now = Date.now();
+      if (now - last < 30000) return;
+      last = now;
+      showToast('Tu sesion vencio y los cambios no se estan guardando en el servidor. Cierra sesion e ingresa de nuevo; tu avance local se conserva.', 'warning');
+    };
+    window.addEventListener('qcs:session-expired', onExpired);
+    return () => window.removeEventListener('qcs:session-expired', onExpired);
+  }, [showToast]);
+
+  useEffect(() => {
     if (!isAuthenticated) return;
     localStorage.setItem('qcs_view', currentView);
     localStorage.setItem('qcs_line', selectedLineId);

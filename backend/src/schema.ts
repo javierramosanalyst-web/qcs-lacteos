@@ -29,6 +29,8 @@ INSERT INTO parametros_medicion (codigo, nombre, unidad) VALUES
   ('ph_leche_acida', 'pH leche ácida', 'pH'),
   ('acidez_hilado', 'Acidez de la masa al hilar', '% LA')
 ON CONFLICT (codigo) DO NOTHING;
+
+CREATE INDEX IF NOT EXISTS idx_borradores_lote_linea ON borradores_lote(linea_id);
 `;
 
 export async function ensureSchema(): Promise<void> {

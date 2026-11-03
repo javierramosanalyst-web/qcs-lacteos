@@ -254,6 +254,14 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
       const litrosKumis = Math.max(0, Number(input.litrosKumis) || 0);
       const litrosGriego = Math.max(0, Number(input.litrosYogurGriego) || 0);
       const totalAllocated = litrosYogur + litrosKumis + litrosGriego;
+      const declaredTotal = input.totalParentLiters ?? parentBatch.totalMilkLiters;
+      if (declaredTotal > 0 && totalAllocated > declaredTotal + 0.0001) {
+        showToast(
+          `La suma asignada (${totalAllocated} L) supera la leche del lote padre (${declaredTotal} L). Corrige las cantidades.`,
+          'warning'
+        );
+        return;
+      }
 
       setParentBatch((prev) => {
         const baseTotal = input.totalParentLiters ?? prev.totalMilkLiters;
@@ -428,6 +436,7 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
       batchKumis.status,
       batchYogurGriego.id,
       batchYogurGriego.status,
+      parentBatch.totalMilkLiters,
       showToast,
     ]
   );

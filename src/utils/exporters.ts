@@ -20,7 +20,8 @@ const toText = (v: CellValue): string => {
 
 export const buildCsv = (sheet: ExportSheet): string => {
   const esc = (v: CellValue) => {
-    const s = typeof v === 'number' ? String(v).replace('.', ',') : toText(v);
+    let s = typeof v === 'number' ? String(v).replace('.', ',') : toText(v);
+    if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = [

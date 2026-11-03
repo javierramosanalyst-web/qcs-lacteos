@@ -174,7 +174,7 @@ export async function createParentBatch(req: Request, res: Response): Promise<vo
     const verifiedLineId = await resolveLineId(client, lineaRaw);
 
     // Responsable: usuario autenticado o especificado
-    const responsableId = req.body.responsable_id ?? req.body.responsableId ?? req.user?.id;
+    const responsableId = req.user?.id;
     if (!responsableId) {
       await client.query('ROLLBACK');
       res.status(400).json({ error: 'MISSING_RESPONSABLE', message: 'No se identificó el responsable del lote.' });
@@ -245,7 +245,8 @@ export async function createParentBatch(req: Request, res: Response): Promise<vo
       res.status(409).json({ error: 'DUPLICATE_CODE', message: 'El código de lote ya existe.' });
       return;
     }
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message ?? 'Error al registrar lote padre.' });
+    console.error('[batch] Error al registrar lote padre:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al registrar lote padre.' });
   } finally {
     client.release();
   }
@@ -446,7 +447,7 @@ export async function createChildBatch(req: Request, res: Response): Promise<voi
       targetLineId = await resolveLineId(client, lineRaw ?? 'L-FERMENT-02');
     }
 
-    const responsableId = req.body.responsable_id ?? req.body.responsableId ?? req.user?.id;
+    const responsableId = req.user?.id;
     if (!responsableId) {
       await client.query('ROLLBACK');
       res.status(400).json({ error: 'MISSING_RESPONSABLE', message: 'No se identificó el responsable del lote.' });
@@ -582,7 +583,8 @@ export async function createChildBatch(req: Request, res: Response): Promise<voi
       res.status(409).json({ error: 'DUPLICATE_CODE', message: 'El código de lote ya existe.' });
       return;
     }
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message ?? 'Error al registrar sub-lote de producción.' });
+    console.error('[batch] Error al registrar sub-lote:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al registrar sub-lote de producción.' });
   } finally {
     client.release();
   }
@@ -719,7 +721,7 @@ export async function completeBatch(req: Request, res: Response): Promise<void> 
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[batch] Error al completar lote:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message ?? 'Error al completar el lote.' });
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al completar el lote.' });
   } finally {
     client.release();
   }

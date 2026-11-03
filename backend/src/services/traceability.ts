@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'async_hooks';
 import { PoolClient } from 'pg';
 
 type Json = Record<string, any>;
@@ -15,7 +16,7 @@ const ts = (v: unknown): Date | null => {
 const isPera = (b: Json): boolean => b.productId === 'prod-queso-pera';
 const isFerm = (b: Json): boolean => ['prod-yogur', 'prod-kumis', 'prod-yogur-griego'].includes(b.productId);
 const isGriego = (b: Json): boolean => b.productId === 'prod-yogur-griego';
-let baseDate: Date = new Date();
+const baseDateStore = new AsyncLocalStorage<Date>();
 
 const horaTs = (v: unknown): number | null => {
   if (typeof v !== 'string') return null;
@@ -25,7 +26,7 @@ const horaTs = (v: unknown): number | null => {
   const ap = m[4]?.toLowerCase();
   if (ap === 'pm' && h < 12) h += 12;
   if (ap === 'am' && h === 12) h = 0;
-  const d = new Date(baseDate);
+  const d = new Date(baseDateStore.getStore() ?? Date.now());
   d.setHours(h, Number(m[2]), Number(m[3] ?? 0), 0);
   return d.getTime();
 };
@@ -441,7 +442,7 @@ export async function normalizeBatchTraceability(
     if (!stageId.has('hilar') && stageId.has('moldeo')) stageId.set('hilar', stageId.get('moldeo') as string);
   }
   const baseRow = await client.query(`SELECT created_at FROM lotes_produccion WHERE id = $1;`, [loteId]);
-  baseDate = baseRow.rows[0]?.created_at ? new Date(baseRow.rows[0].created_at) : new Date();
+  baseDateStore.enterWith(baseRow.rows[0]?.created_at ? new Date(baseRow.rows[0].created_at) : new Date());
 
   await client.query(`DELETE FROM lote_hitos_proceso WHERE lote_id = $1;`, [loteId]);
   for (const h of collectHitos(b)) {
@@ -462,7 +463,7 @@ export async function normalizeBatchTraceability(
     await client.query(
       `INSERT INTO mediciones_fisicoquimicas (lote_etapa_id, lote_id, parametro_codigo, valor_numerico, es_captura_manual, registrado_at, operario_id)
        SELECT $1, $2, pm.codigo, $4, $5, COALESCE($6, NOW()), $7 FROM parametros_medicion pm WHERE pm.codigo = $3;`,
-      [etapaId, loteId, m.parametro, m.valor, m.manual, m.at, userId]
+      [etapaId, loteId, m.parametro, m.valor, m.manual, m.at ?? baseDateStore.getStore() ?? null, userId]
     );
   }
 
@@ -479,7 +480,7 @@ export async function normalizeBatchTraceability(
          (lote_id, lote_etapa_id, derivacion_id, tipo_insumo, insumo_nombre_snapshot, codigo_lote_insumo, unidad_medida,
           peso_inicial_gramos, peso_final_gramos, cantidad_utilizada, es_dosificacion_manual, registrado_at, operario_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, COALESCE($12, NOW()), $13);`,
-      [loteId, i.etapa ? stageId.get(i.etapa) ?? null : null, i.derivacionId, i.tipo, i.nombre, i.codigo, i.unidad, i.ini, i.fin, i.cantidad, i.manual, i.at, userId]
+      [loteId, i.etapa ? stageId.get(i.etapa) ?? null : null, i.derivacionId, i.tipo, i.nombre, i.codigo, i.unidad, i.ini, i.fin, i.cantidad, i.manual, i.at ?? baseDateStore.getStore() ?? null, userId]
     );
 
   for (const i of collectInsumos(b)) {

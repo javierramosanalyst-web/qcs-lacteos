@@ -162,7 +162,7 @@ export async function addPackagingRecord(req: Request, res: Response): Promise<v
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[packaging] Error al registrar envasado:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message ?? 'Error al registrar envasado.' });
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al registrar envasado.' });
   } finally {
     client.release();
   }
@@ -260,7 +260,7 @@ export async function addCheeseDerivation(req: Request, res: Response): Promise<
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[packaging] Error al registrar derivación:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: error.message ?? 'Error al registrar derivación.' });
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al registrar derivación.' });
   } finally {
     client.release();
   }

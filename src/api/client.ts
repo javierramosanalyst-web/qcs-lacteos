@@ -50,6 +50,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     throw new ApiError(0, 'No se pudo conectar con el servidor.');
   }
   const body = await res.json().catch(() => ({}));
+  if (res.status === 401 && token && !path.startsWith('/auth/login')) {
+    window.dispatchEvent(new CustomEvent('qcs:session-expired'));
+  }
   if (!res.ok) throw new ApiError(res.status, body.message ?? 'Error del servidor.', body);
   return body as T;
 }
@@ -221,6 +224,7 @@ export interface DraftRow {
 export interface WorkspaceResponse {
   workspace: { estado: any; version: number } | null;
   drafts: DraftRow[];
+  cerrados?: { codigo_lote: string; estado: string }[];
 }
 
 export const fetchWorkspace = (lineCode: string) =>
@@ -340,8 +344,8 @@ export async function fetchInactiveUsers(): Promise<UserProfile[]> {
   return rows.map(toProfile);
 }
 
-export const reactivateUserRequest = (id: string) =>
-  apiFetch<{ message: string }>(`/users/${id}/reactivar`, { method: 'POST' });
+export const reactivateUserRequest = (id: string, pin: string) =>
+  apiFetch<{ message: string }>(`/users/${id}/reactivar`, { method: 'POST', body: JSON.stringify({ pin }) });
 
 export interface InactiveLine {
   id: string;

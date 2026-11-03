@@ -221,9 +221,14 @@ export function useBatchPersistence({
             delete versions.current[pid];
             delete lastSaved.current[pid];
             clearBackup(pid);
+            const closed = (data.cerrados ?? []).find((c) => c.codigo_lote === (p.state as any)?.id);
             p.setState(() => p.createTemplate());
             onDraftRemovedRef.current?.(pid);
-            showToast('Un supervisor anuló este lote. El producto quedó libre para iniciar uno nuevo.', 'warning');
+            if (closed?.estado === 'COMPLETADO') {
+              showToast('Este lote fue finalizado desde otro equipo. El producto quedó libre para iniciar uno nuevo.', 'info');
+            } else {
+              showToast('Un supervisor anuló este lote. El producto quedó libre para iniciar uno nuevo.', 'warning');
+            }
           }
         }
         if (lineCode === FERMENT_LINE && data.workspace?.estado?.id) {
@@ -255,6 +260,7 @@ export function useBatchPersistence({
       return;
     }
     let cancelled = false;
+    let retryLoad: number | undefined;
     loadFromServer(true)
       .then(() => {
         if (!cancelled) {
@@ -266,13 +272,25 @@ export function useBatchPersistence({
         if (!cancelled) {
           setSyncStatus('offline');
           showToast('No se pudieron cargar los lotes guardados. Reintentando…', 'warning');
-          window.setTimeout(() => {
-            if (!cancelled) loadFromServer(true).then(() => setHydrated(true)).catch(() => undefined);
-          }, 5000);
+          const retry = (attempt: number) => {
+            retryLoad = window.setTimeout(() => {
+              if (cancelled) return;
+              loadFromServer(true)
+                .then(() => {
+                  if (!cancelled) {
+                    setHydrated(true);
+                    setSyncStatus('saved');
+                  }
+                })
+                .catch(() => retry(Math.min(attempt + 1, 6)));
+            }, Math.min(5000 * attempt, 30000));
+          };
+          retry(1);
         }
       });
     return () => {
       cancelled = true;
+      if (retryLoad !== undefined) window.clearTimeout(retryLoad);
     };
   }, [enabled, loadFromServer, showToast]);
 

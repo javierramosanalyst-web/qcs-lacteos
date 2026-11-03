@@ -23,12 +23,13 @@ export async function listUsers(req: Request, res: Response): Promise<void> {
       res.status(403).json({ error: 'FORBIDDEN_ROLE', message: 'Tu rol no tiene permiso para esta acción.' });
       return;
     }
+    const soloOperarios = req.user?.rol === 'operador';
     const { rows } = await pool.query(
       `SELECT ${USER_COLUMNS}
        FROM usuarios u LEFT JOIN lineas_produccion l ON l.id = u.linea_asignada_id
-       WHERE u.activo = $1
+       WHERE u.activo = $1 AND ($2::boolean = FALSE OR u.rol = 'operador')
        ORDER BY u.rol, u.nombre_completo;`,
-      [!inactivos]
+      [!inactivos, soloOperarios]
     );
     res.json(rows);
   } catch (error) {
@@ -42,7 +43,8 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     const nombre = String(req.body.nombre_completo ?? '').trim();
     const codigo = String(req.body.codigo_empleado ?? '').trim().toUpperCase();
     const pin = String(req.body.pin ?? '').trim();
-    const password = String(req.body.password ?? '').trim() || pin;
+    const passwordInput = String(req.body.password ?? '').trim();
+    const password = passwordInput || pin;
     const turno = TURNOS.includes(req.body.turno) ? req.body.turno : 'Jornada Continua';
     const rolSolicitado = req.body.rol === 'administrador' ? 'administrador' : 'operador';
 
@@ -56,6 +58,10 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     }
     if (!/^\d{4,8}$/.test(pin)) {
       res.status(400).json({ error: 'INVALID_PIN', message: 'El PIN debe tener entre 4 y 8 dígitos.' });
+      return;
+    }
+    if (rolSolicitado === 'administrador' && (passwordInput.length < 8 || passwordInput === pin)) {
+      res.status(400).json({ error: 'INVALID_PASSWORD', message: 'Los administradores requieren una contraseña de al menos 8 caracteres, distinta del PIN.' });
       return;
     }
 
@@ -163,7 +169,15 @@ export async function reactivateUser(req: Request, res: Response): Promise<void>
       res.status(403).json({ error: 'FORBIDDEN_ROLE', message: 'Solo el superadmin puede reactivar administradores.' });
       return;
     }
-    await pool.query(`UPDATE usuarios SET activo = TRUE, updated_at = NOW() WHERE id::text = $1;`, [id]);
+    const newPin = String(req.body?.pin ?? '').trim();
+    if (!/^\d{4,8}$/.test(newPin)) {
+      res.status(400).json({ error: 'INVALID_PIN', message: 'Al reactivar debes asignar un PIN nuevo de 4 a 8 dígitos.' });
+      return;
+    }
+    await pool.query(
+      `UPDATE usuarios SET activo = TRUE, pin_hash = crypt($2, gen_salt('bf', 10)), password_hash = crypt($2, gen_salt('bf', 10)), updated_at = NOW() WHERE id::text = $1;`,
+      [id, newPin]
+    );
     res.json({ message: 'Usuario reactivado.' });
   } catch (error) {
     console.error('[users] Error al reactivar usuario:', error);
