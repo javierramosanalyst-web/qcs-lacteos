@@ -67,6 +67,13 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
   }, [users]);
 
   const is7Cueros = batch.productId === 'prod-queso-7-cueros';
+  const ph7C = Number(batch.acidificar.insumos.phMezcla) || 0;
+  const phRango7C =
+    ph7C > 0 && ph7C < 5.3
+      ? 'pH menor al rango sugerido (5,30–5,35)'
+      : ph7C > 5.35
+      ? 'pH mayor al rango sugerido (5,30–5,35)'
+      : 'pH dentro de rango (5,30–5,35)';
   const totalLecheUsada = is7Cueros
     ? (batch.acidificar.insumos.litrosConfirmados ||
        (batch.acidificar.insumos.saved ? batch.acidificar.insumos.lecheFresca : undefined) ||
@@ -510,10 +517,10 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
                       <div className="mt-1 pt-1 border-t border-teal-100 flex flex-col gap-0.5">
                         <span className="text-[11px] text-teal-800 font-bold flex items-center gap-1">
                           <span className="material-symbols-outlined text-[13px] text-emerald-600 font-bold">check_circle</span>
-                          pH dentro de rango (5,30–5,35)
+                          {phRango7C}
                         </span>
                         <div className="text-[10px] text-gray-600 flex items-center justify-between mt-0.5">
-                          <span>Ácido 98%: <strong>{batch.acidificar.insumos.acidoBase98Ml ?? batch.lotesLeche.acidoBase98Ml ?? 0} ml</strong></span>
+                          <span>Ácido 98%: <strong>{batch.acidificar.insumos.acidoBase98Ml ?? batch.lotesLeche.acidoBase98Ml ?? 0} ml</strong> · Agua: <strong>{batch.acidificar.insumos.aguaDiluyenteMl ?? 0} ml</strong></span>
                           <span>Solución 5%: <strong>{batch.acidificar.insumos.solucionPreparada5Litros ?? batch.lotesLeche.solucionPreparada5Litros ?? 0} L</strong></span>
                         </div>
                       </div>
@@ -1201,7 +1208,7 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
                       <>
                         <span>pH Medido: <strong className="font-mono text-[#1B4E9B]">{batch.acidificar.insumos.phMezcla ?? '--'}</strong></span>
                         <span className="text-[10px] text-emerald-800 bg-emerald-100/70 px-1.5 py-0.2 rounded border border-emerald-300">
-                          pH dentro de rango (5,30–5,35)
+                          {phRango7C}
                         </span>
                       </>
                     ) : (
@@ -1278,7 +1285,7 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
                       Fase 02
                     </span>
                     <h3 className="font-bold text-sm text-gray-900">
-                      {is7Cueros ? 'Cuajar y Calentar' : 'Calentar y Cuajar (Coagulación, Corte Finalizado y 40 °C)'}
+                      {is7Cueros ? 'Agregar Cuajo' : 'Calentar y Cuajar (Coagulación, Corte Finalizado y 40 °C)'}
                     </h3>
                   </div>
                   <div className="text-[11px] font-semibold text-amber-900 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 self-start sm:self-auto">

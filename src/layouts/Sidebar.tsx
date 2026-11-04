@@ -83,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     : isQueso7Cueros
     ? [
         { id: 'acidificar', label: '1. Acidificar Leche', icon: 'science' },
-        { id: 'calentar-y-cuajar', label: '2. Cuajar y Calentar', icon: 'thermostat' },
+        { id: 'calentar-y-cuajar', label: '2. Agregar Cuajo', icon: 'thermostat' },
         { id: 'desuerar', label: '3. Desuerar y Escurrir', icon: 'filter_alt' },
         { id: 'hilar', label: '4. Hilar y Salar', icon: 'waves' },
         { id: 'moldeo', label: '5. Moldear y Pesar', icon: 'scale' },

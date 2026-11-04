@@ -42,6 +42,10 @@ export interface AcidificarStage7CuerosProps {
   showToast: (msg: string, type?: 'success' | 'info' | 'warning') => void;
 }
 
+const SOLUCION_L_POR_L_LECHE = 12 / 400;
+const CONC_OBJETIVO = 5;
+const CONC_ACIDO_BASE = 98;
+
 const LOTES_ACIDO_ACETICO_DEFAULT = [
   'AA-2026-01',
   'ACET-98-2026-08A',
@@ -89,13 +93,22 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
   );
 
   // Total de ácido acético reducido al 5% usado en la mezcla (sin ceros predefinidos)
-  const [acido5PorcientoMl, setAcido5PorcientoMl] = useState<number | undefined>(
+  const [acidoMl, setAcidoMl] = useState<number | undefined>(
     state.insumos.acidoBase98Ml && state.insumos.acidoBase98Ml > 0
       ? state.insumos.acidoBase98Ml
       : lotesLeche.acidoBase98Ml && lotesLeche.acidoBase98Ml > 0
       ? lotesLeche.acidoBase98Ml
       : undefined
   );
+  const [aguaMl, setAguaMl] = useState<number | undefined>(
+    state.insumos.aguaDiluyenteMl && state.insumos.aguaDiluyenteMl > 0
+      ? state.insumos.aguaDiluyenteMl
+      : undefined
+  );
+  const [unidadAcido, setUnidadAcido] = useState<'ml' | 'L'>(
+    state.insumos.unidadAcido || 'ml'
+  );
+  const [ajusteLibre, setAjusteLibre] = useState<boolean>(false);
 
   // Lotes complementarios para trazabilidad
   const [loteCuajoVal, setLoteCuajoVal] = useState<string>(
@@ -202,7 +215,10 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
         ''
     );
     if (state.insumos.acidoBase98Ml && state.insumos.acidoBase98Ml > 0) {
-      setAcido5PorcientoMl(state.insumos.acidoBase98Ml);
+      setAcidoMl(state.insumos.acidoBase98Ml);
+    }
+    if (state.insumos.aguaDiluyenteMl && state.insumos.aguaDiluyenteMl > 0) {
+      setAguaMl(state.insumos.aguaDiluyenteMl);
     }
     if (state.insumos.phMezcla && state.insumos.phMezcla > 0) {
       setPhMedido(state.insumos.phMezcla);
@@ -223,20 +239,69 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
 
   const isMissingLitros =
     validationAttempted && (!litrosLecheFresca || litrosLecheFresca <= 0);
+  const solucionSugeridaMl = totalLeche * SOLUCION_L_POR_L_LECHE * 1000;
+  const acidoSugeridoMl = Math.round((solucionSugeridaMl * CONC_OBJETIVO) / CONC_ACIDO_BASE);
+  const aguaSugeridaMl = Math.max(0, Math.round(solucionSugeridaMl) - acidoSugeridoMl);
+  const acidoEfectivoMl = acidoMl ?? (totalLeche > 0 ? acidoSugeridoMl : undefined);
+  const aguaEfectivaMl = aguaMl ?? (totalLeche > 0 ? aguaSugeridaMl : undefined);
+  const solucionEfectivaMl = (acidoEfectivoMl || 0) + (aguaEfectivaMl || 0);
+  const concentracionResultante =
+    solucionEfectivaMl > 0 && acidoEfectivoMl
+      ? (acidoEfectivoMl * CONC_ACIDO_BASE) / solucionEfectivaMl
+      : undefined;
+  const concentracionOk =
+    concentracionResultante !== undefined &&
+    concentracionResultante >= 4.5 &&
+    concentracionResultante <= 5.5;
+
+  const toUnidad = (ml: number) =>
+    Math.round((unidadAcido === 'L' ? ml / 1000 : ml) * 1000) / 1000;
+  const fmtUnidad = (ml: number) =>
+    toUnidad(ml).toLocaleString('es-CO', { maximumFractionDigits: 3 });
+  const fromUnidad = (v: number) => Math.round(unidadAcido === 'L' ? v * 1000 : v);
+
+  const handleAguaChange = (raw: string) => {
+    if (raw === '') {
+      setAguaMl(undefined);
+      if (!ajusteLibre) setAcidoMl(undefined);
+      return;
+    }
+    const ml = Math.max(0, fromUnidad(Number(raw)));
+    setAguaMl(ml);
+    if (!ajusteLibre) setAcidoMl(Math.round((ml * CONC_OBJETIVO) / (CONC_ACIDO_BASE - CONC_OBJETIVO)));
+  };
+
+  const handleAcidoChange = (raw: string) => {
+    if (raw === '') {
+      setAcidoMl(undefined);
+      if (!ajusteLibre) setAguaMl(undefined);
+      return;
+    }
+    const ml = Math.max(0, fromUnidad(Number(raw)));
+    setAcidoMl(ml);
+    if (!ajusteLibre) setAguaMl(Math.round((ml * (CONC_ACIDO_BASE - CONC_OBJETIVO)) / CONC_OBJETIVO));
+  };
+
+  const handleRestablecerSugerido = () => {
+    setAcidoMl(undefined);
+    setAguaMl(undefined);
+  };
+
   const isMissingAcido =
-    validationAttempted &&
-    (acido5PorcientoMl === undefined || acido5PorcientoMl <= 0);
+    validationAttempted && (acidoEfectivoMl === undefined || acidoEfectivoMl <= 0);
+  const isMissingAgua =
+    validationAttempted && (aguaEfectivaMl === undefined || aguaEfectivaMl <= 0);
+
+  const phNota =
+    phMedido === undefined || phMedido <= 0 || isPhDentroDeRango
+      ? ''
+      : phMedido < 5.3
+      ? 'pH menor al rango sugerido (5,30 – 5,35). Se puede guardar igual.'
+      : 'pH mayor al rango sugerido (5,30 – 5,35). Se puede guardar igual.';
 
   const handleConfirmPhRango = () => {
     if (phMedido === undefined || Number.isNaN(phMedido)) {
       showToast('Escribe el pH medido antes de confirmar el rango.', 'warning');
-      return;
-    }
-    if (phMedido < 5.3 || phMedido > 5.35) {
-      showToast(
-        `El pH (${phMedido.toFixed(2)}) está fuera del rango para 7 Cueros (5,30 – 5,35).`,
-        'warning'
-      );
       return;
     }
     setConfirmacionPhRango(true);
@@ -247,12 +312,14 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
         ...p.insumos,
         phMezcla: phMedido,
         phRangoConfirmado: true,
-        confirmacionPh535: true,
+        confirmacionPh535: phMedido >= 5.3 && phMedido <= 5.35,
       },
     }));
     showToast(
-      `✓ pH (${phMedido.toFixed(2)}) confirmado dentro del rango (5,30 – 5,35).`,
-      'success'
+      phMedido < 5.3 || phMedido > 5.35
+        ? `pH ${phMedido.toFixed(2)} guardado, ${phMedido < 5.3 ? 'menor' : 'mayor'} al rango sugerido (5,30 – 5,35).`
+        : `✓ pH (${phMedido.toFixed(2)}) confirmado dentro del rango (5,30 – 5,35).`,
+      phMedido < 5.3 || phMedido > 5.35 ? 'warning' : 'success'
     );
   };
 
@@ -282,16 +349,16 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
       showToast('Selecciona el lote de sal (se usará en la Etapa 4).', 'warning');
       return;
     }
-    if (acido5PorcientoMl === undefined || acido5PorcientoMl <= 0) {
+    if (!aguaEfectivaMl || aguaEfectivaMl <= 0 || !acidoEfectivoMl || acidoEfectivoMl <= 0) {
       showToast(
-        'Ingresa la cantidad de ácido acético reducido al 5% usado en la mezcla.',
+        'Ingresa el agua y el ácido acético al 98% de la preparación al 5%.',
         'warning'
       );
       return;
     }
     if (!confirmacionPhRango) {
       showToast(
-        'Confirma que el pH medido está dentro del rango (5,30 – 5,35).',
+        'Confirma el pH medido antes de guardar.',
         'warning'
       );
       return;
@@ -315,9 +382,10 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
       loteLeche2: '',
       litrosLote2: 0,
       loteAcidoAcetico: loteAcidoAceticoVal,
-      acidoBase98Ml: acido5PorcientoMl,
+      acidoBase98Ml: acidoEfectivoMl,
+      solucionPreparada5Litros: solucionEfectivaMl / 1000,
       confirmacionAcidoDiluido5: true,
-      confirmacionPh535: true,
+      confirmacionPh535: isPhDentroDeRango,
       phRangoConfirmado: true,
       litrosConfirmados: totalLeche,
     }));
@@ -336,10 +404,13 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
         lecheFresca: litrosLecheFresca,
         lecheAcida: 0,
         loteAcidoAcetico: loteAcidoAceticoVal,
-        acidoBase98Ml: acido5PorcientoMl,
+        acidoBase98Ml: acidoEfectivoMl,
+        aguaDiluyenteMl: aguaEfectivaMl,
+        unidadAcido,
+        solucionPreparada5Litros: solucionEfectivaMl / 1000,
         phMezcla: phMedido ?? 5.35,
         confirmacionAcidoDiluido5: true,
-        confirmacionPh535: true,
+        confirmacionPh535: isPhDentroDeRango,
         phRangoConfirmado: true,
         litrosConfirmados: totalLeche,
         saved: true,
@@ -355,7 +426,7 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
 
     setValidationAttempted(false);
     showToast(
-      `✓ Acidificación 7 Cueros guardada: ${totalLeche} L leche · ${acido5PorcientoMl} ml ácido 5% · pH ${(
+      `✓ Acidificación 7 Cueros guardada: ${totalLeche} L leche · ${fmtUnidad(solucionEfectivaMl)} ${unidadAcido} ácido 5% · pH ${(
         phMedido ?? 5.35
       ).toFixed(2)}.`,
       'success'
@@ -519,15 +590,15 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
                 <span className="material-symbols-outlined text-[18px] text-amber-700">
                   science
                 </span>
-                Ácido Acético al 5%
+                Preparación de Ácido Acético al 5%
               </label>
               <Badge variant="warning" size="sm">
-                Solución 5%
+                Agua + Ácido 98%
               </Badge>
             </div>
 
             <SelectField
-              label="Lote Ácido Acético"
+              label="Lote Ácido Acético al 98%"
               icon="qr_code_2"
               value={loteAcidoAceticoVal}
               options={LOTES_ACIDO_ACETICO_DEFAULT.map((cod) => ({
@@ -544,30 +615,104 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
               }}
             />
 
+            <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-amber-300">
+              <span className="text-[11px] font-bold text-amber-950 uppercase">Unidad de medida</span>
+              <div className="flex rounded-lg overflow-hidden border border-amber-400">
+                {(['ml', 'L'] as const).map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => setUnidadAcido(u)}
+                    className={`px-4 h-9 text-xs font-black cursor-pointer ${
+                      unidadAcido === u ? 'bg-[#1B4E9B] text-white' : 'bg-white text-amber-950'
+                    }`}
+                  >
+                    {u === 'ml' ? 'Mililitros (ml)' : 'Litros (L)'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-xl bg-amber-100/70 border border-amber-300 text-[11px] text-amber-950 font-semibold leading-snug">
+              Para {totalLeche > 0 ? `${totalLeche} L` : 'la leche'} se requieren{' '}
+              <strong className="font-mono">
+                {totalLeche > 0 ? `${fmtUnidad(solucionSugeridaMl)} ${unidadAcido}` : '—'}
+              </strong>{' '}
+              de ácido acético al 5% (3 L por cada 100 L de leche).
+            </div>
+
             <InputField
-              label="Total de ácido acético reducido al 5% usado en la mezcla"
+              label="Agua para la preparación"
+              icon="water_drop"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step={unidadAcido === 'L' ? '0.1' : '10'}
+              unit={unidadAcido}
+              placeholder={unidadAcido === 'L' ? 'Ej: 11.4' : 'Ej: 11400'}
+              value={aguaEfectivaMl !== undefined && aguaEfectivaMl > 0 ? toUnidad(aguaEfectivaMl) : ''}
+              onChange={(e) => handleAguaChange(e.target.value)}
+              error={isMissingAgua ? 'Ingresa el agua de la preparación' : undefined}
+              helperText="El agua es un insumo aparte (sin lote)"
+            />
+
+            <InputField
+              label="Ácido acético al 98% a disolver"
               icon="colorize"
               type="number"
               inputMode="decimal"
               min="0"
-              step="10"
-              unit="ml"
-              placeholder="Ej: 450"
-              value={acido5PorcientoMl !== undefined && acido5PorcientoMl > 0 ? acido5PorcientoMl : ''}
-              onChange={(e) =>
-                setAcido5PorcientoMl(
-                  e.target.value === ''
-                    ? undefined
-                    : Math.max(0, Number(e.target.value))
-                )
-              }
-              error={
-                isMissingAcido
-                  ? 'Ingresa la cantidad de ácido reducido al 5%'
-                  : undefined
-              }
-              helperText="Medición directa en ml de ácido reducido al 5%"
+              step={unidadAcido === 'L' ? '0.01' : '10'}
+              unit={unidadAcido}
+              placeholder={unidadAcido === 'L' ? 'Ej: 0.6' : 'Ej: 600'}
+              value={acidoEfectivoMl !== undefined && acidoEfectivoMl > 0 ? toUnidad(acidoEfectivoMl) : ''}
+              onChange={(e) => handleAcidoChange(e.target.value)}
+              error={isMissingAcido ? 'Ingresa el ácido acético al 98%' : undefined}
+              helperText="Al cambiar uno de los dos, el otro se recalcula (regla de 3)"
             />
+
+            <div
+              className={`p-2.5 rounded-xl border text-[11px] font-semibold flex items-center justify-between gap-2 ${
+                concentracionResultante === undefined
+                  ? 'bg-white border-amber-200 text-amber-900'
+                  : concentracionOk
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                  : 'bg-red-50 border-red-300 text-red-900'
+              }`}
+            >
+              <span>
+                Solución resultante:{' '}
+                <strong className="font-mono">
+                  {solucionEfectivaMl > 0 ? `${fmtUnidad(solucionEfectivaMl)} ${unidadAcido}` : '—'}
+                </strong>
+              </span>
+              <span>
+                Concentración:{' '}
+                <strong className="font-mono">
+                  {concentracionResultante !== undefined ? `${concentracionResultante.toFixed(2)} %` : '—'}
+                </strong>
+                {concentracionResultante !== undefined && !concentracionOk && ' · lejos del 5%'}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="flex items-center gap-2 text-[11px] font-bold text-amber-950 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={ajusteLibre}
+                  onChange={(e) => setAjusteLibre(e.target.checked)}
+                  className="w-4 h-4 rounded cursor-pointer"
+                />
+                Ajustar sin recalcular el otro valor
+              </label>
+              <button
+                type="button"
+                onClick={handleRestablecerSugerido}
+                className="text-[11px] font-black text-[#1B4E9B] underline cursor-pointer"
+              >
+                Usar sugerido
+              </button>
+            </div>
           </div>
 
           {/* 3. Lotes Complementarios (Cuajo y Sal para trazabilidad) */}
@@ -701,12 +846,18 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
                     {phMedido !== undefined ? `${phMedido.toFixed(2)} pH` : '—'}
                   </span>
                   <span className="text-xs text-stone-600 font-semibold mt-1 block">
-                    ✓ Verificado dentro del rango óptimo para Queso 7 Cueros (5,30 – 5,35).
+                    {isPhDentroDeRango
+                      ? '✓ Verificado dentro del rango óptimo para Queso 7 Cueros (5,30 – 5,35).'
+                      : `Nota: ${phNota}`}
                   </span>
                 </div>
 
-                <Badge variant="success" size="md">
-                  ✓ pH Aprobado
+                <Badge variant={isPhDentroDeRango ? 'success' : 'warning'} size="md">
+                  {isPhDentroDeRango
+                    ? '✓ pH Aprobado'
+                    : phMedido !== undefined && phMedido < 5.3
+                    ? 'Menor al rango'
+                    : 'Mayor al rango'}
                 </Badge>
               </div>
             ) : (
@@ -738,12 +889,18 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
                   targetHint="Rango exigido: 5,30 – 5,35"
                 />
 
+                {phNota && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-300 text-xs font-bold text-amber-900">
+                    {phNota}
+                  </div>
+                )}
+
                 <div className="flex justify-end pt-1">
                   <ConfirmButton
                     confirmed={confirmacionPhRango && !manualPh}
                     onConfirm={handleConfirmPhRango}
-                    label="Confirmar pH en rango (5,30–5,35)"
-                    confirmedLabel="✓ pH confirmado en rango"
+                    label="Confirmar pH medido"
+                    confirmedLabel="✓ pH confirmado"
                     icon="verified"
                     size="md"
                     fullWidth={false}
@@ -763,7 +920,7 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
                   verified
                 </span>
                 Acidificación guardada ({totalLeche} L leche · Ácido 5%:{' '}
-                {acido5PorcientoMl ?? 0} ml · pH{' '}
+                {fmtUnidad(solucionEfectivaMl)} {unidadAcido} · pH{' '}
                 {phMedido !== undefined ? phMedido.toFixed(2) : '—'})
               </span>
             ) : (

@@ -710,7 +710,7 @@ export const CalentarYCuajarStage7Cueros: React.FC<
       <StageHeader
         stageNumber={2}
         totalStages={5}
-        title="Cuajar, Cortar y Calentar a 40 °C"
+        title="Agregar Cuajo, Cortar y Calentar a 40 °C"
         subtitle="Agrega el cuajo a 35 °C, espera el cuajado firme (~15 min), corta la cuajada y calienta suavemente hasta 40 °C."
         productName="Queso 7 Cueros"
         icon="thermostat"

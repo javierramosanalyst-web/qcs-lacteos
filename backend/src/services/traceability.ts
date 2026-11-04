@@ -328,7 +328,10 @@ function collectInsumos(b: Json): Insumo[] {
     const sal7 = b.hilar?.sal ?? {};
     const ts35 = b.acidificar?.phase1?.timestampAlcanzo35;
     add('acidificar', 'leche_fresca', 'Leche fresca', l.loteLecheFresca || l.loteLeche1, 'L', ins7.lecheFresca || l.litrosConfirmados || l.litrosLote1, false, ts35);
-    add('acidificar', 'acido_acetico', 'Ácido acético reducido al 5%', ins7.loteAcidoAcetico || l.loteAcidoAcetico, 'ml', ins7.acidoBase98Ml ?? l.acidoBase98Ml, false, ts35);
+    add('acidificar', 'acido_acetico', 'Ácido acético al 98%', ins7.loteAcidoAcetico || l.loteAcidoAcetico, 'ml', ins7.acidoBase98Ml ?? l.acidoBase98Ml, false, ts35);
+    if (num(ins7.aguaDiluyenteMl)) {
+      add('acidificar', 'agua', 'Agua (preparación ácido acético al 5%)', 'AGUA', 'ml', ins7.aguaDiluyenteMl, false, ts35);
+    }
     add('calentar-y-cuajar', 'cuajo', 'Cuajo', cc.loteCuajo || p27.loteCuajo || b.loteCuajo, 'g', cc.cantidadGramos || p27.cantidadCuajoGramos, cc.esManual === true, cc.timestampCuajo);
     if (sal7.registrado) {
       add('hilar', 'sal', 'Sal', sal7.loteSal || b.loteSal, 'g', sal7.cantidadGramos, sal7.esManual === true, null);

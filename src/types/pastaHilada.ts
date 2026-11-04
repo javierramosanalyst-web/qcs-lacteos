@@ -137,6 +137,8 @@ export interface AcidificarState {
     confirmacionAcidoDiluido5?: boolean; // Confirmación del Operador: Ácido Acético diluido al 5%
     confirmacionPh535?: boolean; // Confirmación de Acidez: pH de 5.35 alcanzado
     acidoBase98Ml?: number; // Ácido base al 98% usado (ml) - Insumo que descuenta en inventario
+    aguaDiluyenteMl?: number; // Agua usada para preparar la solución al 5% (ml)
+    unidadAcido?: 'ml' | 'L'; // Unidad elegida por el operario para la preparación
     solucionPreparada5Litros?: number; // Solución preparada al 5% (L)
     phRangoConfirmado?: boolean; // Confirmación de pH dentro del rango 5.30 - 5.35
     litrosConfirmados?: number; // Último valor confirmado de litros de leche
@@ -431,6 +433,9 @@ export interface DerivacionesBatchState {
 export interface QuesadillaArequipeState {
   habilitado: boolean;
   loteArequipe: string;
+  fechaLoteProveedor?: string;
+  loteManual?: boolean;
+  registroGuardado?: boolean;
   pesoInicialGramos: number;
   pesoFinalGramos: number;
   pesoUtilizadoGramos: number; // Calculado: pesoInicialGramos - pesoFinalGramos
@@ -440,6 +445,9 @@ export interface QuesadillaArequipeState {
 export interface QuesadillaBocadilloState {
   habilitado: boolean;
   loteBocadillo: string;
+  fechaLoteProveedor?: string;
+  loteManual?: boolean;
+  registroGuardado?: boolean;
   pesoInicialGramos?: number;
   pesoFinalGramos?: number;
   pesoUtilizadoGramos?: number; // Calculado: pesoInicialGramos - pesoFinalGramos

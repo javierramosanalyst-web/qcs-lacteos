@@ -12,6 +12,83 @@ import {
   StageHeader,
 } from '../../../components/ui';
 
+const DIGITO_LETRA = 'JABCDEFGHI';
+const MES_LETRA = 'ABCDEFGHIJKL';
+
+const aLetras = (n: number) =>
+  String(n)
+    .split('')
+    .map((d) => DIGITO_LETRA[Number(d)])
+    .join('');
+
+const hoyIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const sugerirLoteMaquilado = (fechaIso?: string): string => {
+  const [y, m, d] = (fechaIso || hoyIso()).split('-').map(Number);
+  if (!y || !m || !d) return '';
+  const codigo = `${aLetras(d)}${MES_LETRA[m - 1]}${aLetras(y % 100)}`;
+  return `${codigo}-${new Date().getDate()}`;
+};
+
+interface LoteMaquiladoFieldProps {
+  label: string;
+  lote: string;
+  fechaProveedor?: string;
+  manual?: boolean;
+  onChange: (partial: { lote?: string; fechaProveedor?: string; manual?: boolean }) => void;
+}
+
+const LoteMaquiladoField: React.FC<LoteMaquiladoFieldProps> = ({
+  label,
+  lote,
+  fechaProveedor,
+  manual,
+  onChange,
+}) => (
+  <div className="flex flex-col gap-2.5 p-3 rounded-xl bg-white border border-[#D6DEEA]">
+    <InputField
+      label="Fecha del lote del proveedor"
+      type="date"
+      value={fechaProveedor || hoyIso()}
+      disabled={Boolean(manual)}
+      onChange={(e) => {
+        const f = e.target.value;
+        onChange({ fechaProveedor: f, lote: sugerirLoteMaquilado(f) });
+      }}
+    />
+    <InputField
+      label={label}
+      type="text"
+      placeholder="Ej: ABHBD-22"
+      value={lote}
+      readOnly={!manual}
+      helperText={
+        manual
+          ? 'Escribe el lote tal como aparece en el empaque'
+          : 'Sugerido: fecha del proveedor codificada + día de recepción'
+      }
+      onChange={(e) => onChange({ lote: e.target.value.toUpperCase() })}
+    />
+    <label className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer select-none">
+      <input
+        type="checkbox"
+        checked={Boolean(manual)}
+        onChange={(e) =>
+          onChange({
+            manual: e.target.checked,
+            lote: e.target.checked ? lote : sugerirLoteMaquilado(fechaProveedor),
+          })
+        }
+        className="w-4 h-4 rounded cursor-pointer"
+      />
+      Escribir el lote manualmente
+    </label>
+  </div>
+);
+
 export interface MoldeoStage7CuerosProps {
   batch: BatchData;
   onUpdateBatch?:
@@ -519,8 +596,18 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                   <input
                     type="checkbox"
                     checked={isBocadilloHabilitado}
+                    disabled={Boolean(bocadilloState.registroGuardado)}
                     onChange={(e) =>
-                      updateBocadillo({ habilitado: e.target.checked })
+                      updateBocadillo({
+                        habilitado: e.target.checked,
+                        ...(e.target.checked && !bocadilloState.loteBocadillo
+                          ? {
+                              loteBocadillo: sugerirLoteMaquilado(
+                                bocadilloState.fechaLoteProveedor
+                              ),
+                            }
+                          : {}),
+                      })
                     }
                     className="w-5 h-5 rounded accent-amber-600 cursor-pointer"
                   />
@@ -541,7 +628,11 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                   No se elaboraron quesadillas de bocadillo en este lote (No suma a la masa).
                 </div>
               ) : (
-                <div className="flex flex-col gap-3.5 mt-1">
+                <>
+                <fieldset
+                  disabled={Boolean(bocadilloState.registroGuardado)}
+                  className="min-w-0 border-0 p-0 m-0 flex flex-col gap-3.5 mt-1"
+                >
                   <InputField
                     label="Cantidad de Quesadillas (60 g)"
                     type="number"
@@ -557,13 +648,17 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                     }}
                   />
 
-                  <InputField
+                  <LoteMaquiladoField
                     label="Lote de Bocadillo Veleño"
-                    type="text"
-                    placeholder="Ej: BOC-2026-11V"
-                    value={bocadilloState.loteBocadillo || ''}
-                    onChange={(e) =>
-                      updateBocadillo({ loteBocadillo: e.target.value })
+                    lote={bocadilloState.loteBocadillo || ''}
+                    fechaProveedor={bocadilloState.fechaLoteProveedor}
+                    manual={bocadilloState.loteManual}
+                    onChange={(p) =>
+                      updateBocadillo({
+                        ...(p.lote !== undefined ? { loteBocadillo: p.lote } : {}),
+                        ...(p.fechaProveedor !== undefined ? { fechaLoteProveedor: p.fechaProveedor } : {}),
+                        ...(p.manual !== undefined ? { loteManual: p.manual } : {}),
+                      })
                     }
                   />
 
@@ -580,7 +675,43 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                       {mQuesadillaBocadillo} {mQuesadillaBocadillo === 1 ? 'unidad' : 'unidades'} de bocadillo
                     </span>
                   </div>
-                </div>
+                </fieldset>
+                  <div className="flex justify-end pt-1">
+                    {bocadilloState.registroGuardado ? (
+                      <Button
+                        variant="outline"
+                        size="md"
+                        icon="edit"
+                        onClick={() => {
+                          updateBocadillo({ registroGuardado: false });
+                          if (showToast) showToast('Registro de Quesadilla con Bocadillo habilitado para modificar', 'info');
+                        }}
+                      >
+                        Modificar Registro
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="warning"
+                        size="md"
+                        icon="save"
+                        onClick={() => () => {
+                          if (mQuesadillaBocadillo <= 0) {
+                            if (showToast) showToast('Ingresa la cantidad de quesadillas de bocadillo.', 'warning');
+                            return;
+                          }
+                          if (!(bocadilloState.loteBocadillo || '').trim()) {
+                            if (showToast) showToast('Falta el lote de bocadillo.', 'warning');
+                            return;
+                          }
+                          updateBocadillo({ registroGuardado: true });
+                          if (showToast) showToast('✓ Registro de Quesadilla con Bocadillo guardado', 'success');
+                        }}
+                      >
+                        Guardar Registro
+                      </Button>
+                    )}
+                  </div>
+                </>
               )}
             </div>
 
@@ -625,8 +756,18 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                   <input
                     type="checkbox"
                     checked={isArequipeHabilitado}
+                    disabled={Boolean(arequipeState.registroGuardado)}
                     onChange={(e) =>
-                      updateArequipe({ habilitado: e.target.checked })
+                      updateArequipe({
+                        habilitado: e.target.checked,
+                        ...(e.target.checked && !arequipeState.loteArequipe
+                          ? {
+                              loteArequipe: sugerirLoteMaquilado(
+                                arequipeState.fechaLoteProveedor
+                              ),
+                            }
+                          : {}),
+                      })
                     }
                     className="w-5 h-5 rounded accent-amber-600 cursor-pointer"
                   />
@@ -647,7 +788,11 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                   No se elaboraron quesadillas de arequipe en este lote (No suma a la masa).
                 </div>
               ) : (
-                <div className="flex flex-col gap-3.5 mt-1">
+                <>
+                <fieldset
+                  disabled={Boolean(arequipeState.registroGuardado)}
+                  className="min-w-0 border-0 p-0 m-0 flex flex-col gap-3.5 mt-1"
+                >
                   <InputField
                     label="Cantidad de Quesadillas (60 g)"
                     type="number"
@@ -663,13 +808,17 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                     }}
                   />
 
-                  <InputField
+                  <LoteMaquiladoField
                     label="Lote de Arequipe Tradicional"
-                    type="text"
-                    placeholder="Ej: ARQ-2026-03A"
-                    value={arequipeState.loteArequipe || ''}
-                    onChange={(e) =>
-                      updateArequipe({ loteArequipe: e.target.value })
+                    lote={arequipeState.loteArequipe || ''}
+                    fechaProveedor={arequipeState.fechaLoteProveedor}
+                    manual={arequipeState.loteManual}
+                    onChange={(p) =>
+                      updateArequipe({
+                        ...(p.lote !== undefined ? { loteArequipe: p.lote } : {}),
+                        ...(p.fechaProveedor !== undefined ? { fechaLoteProveedor: p.fechaProveedor } : {}),
+                        ...(p.manual !== undefined ? { loteManual: p.manual } : {}),
+                      })
                     }
                   />
 
@@ -712,7 +861,43 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                       {arequipeGastadoGramos.toLocaleString('es-CO')} g
                     </span>
                   </div>
-                </div>
+                </fieldset>
+                  <div className="flex justify-end pt-1">
+                    {arequipeState.registroGuardado ? (
+                      <Button
+                        variant="outline"
+                        size="md"
+                        icon="edit"
+                        onClick={() => {
+                          updateArequipe({ registroGuardado: false });
+                          if (showToast) showToast('Registro de Quesadilla con Arequipe habilitado para modificar', 'info');
+                        }}
+                      >
+                        Modificar Registro
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="warning"
+                        size="md"
+                        icon="save"
+                        onClick={() => () => {
+                          if (mQuesadillaArequipe <= 0) {
+                            if (showToast) showToast('Ingresa la cantidad de quesadillas de arequipe.', 'warning');
+                            return;
+                          }
+                          if (!(arequipeState.loteArequipe || '').trim()) {
+                            if (showToast) showToast('Falta el lote de arequipe.', 'warning');
+                            return;
+                          }
+                          updateArequipe({ registroGuardado: true });
+                          if (showToast) showToast('✓ Registro de Quesadilla con Arequipe guardado', 'success');
+                        }}
+                      >
+                        Guardar Registro
+                      </Button>
+                    )}
+                  </div>
+                </>
               )}
             </div>
 
