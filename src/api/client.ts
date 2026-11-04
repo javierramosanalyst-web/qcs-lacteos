@@ -8,6 +8,7 @@ import {
   UserRole,
 } from '../types';
 import { INITIAL_PRODUCTS } from '../data/initialData';
+import type { InsumoLoteRow, InsumoTipo } from '../data/insumoLotes';
 
 const TOKEN_KEY = 'qcs_token';
 const API_BASE = '/api';
@@ -338,6 +339,30 @@ export const annulBatchRequest = (idOrCode: string, justification: string) =>
     method: 'POST',
     body: JSON.stringify({ justification }),
   });
+
+export interface InsumoLotePayload {
+  tipo?: InsumoTipo;
+  codigo_lote: string;
+  descripcion?: string;
+  proveedor?: string;
+  fecha_vencimiento?: string;
+  cantidad_recibida?: number | string | null;
+}
+
+export const fetchInsumoLotes = (todos = false) =>
+  apiFetch<InsumoLoteRow[]>(`/insumos-lotes${todos ? '?todos=1' : ''}`);
+
+export const createInsumoLoteRequest = (payload: InsumoLotePayload) =>
+  apiFetch<InsumoLoteRow>('/insumos-lotes', { method: 'POST', body: JSON.stringify(payload) });
+
+export const updateInsumoLoteRequest = (id: string, payload: InsumoLotePayload) =>
+  apiFetch<InsumoLoteRow>(`/insumos-lotes/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+
+export const deactivateInsumoLoteRequest = (id: string) =>
+  apiFetch<{ message: string }>(`/insumos-lotes/${id}`, { method: 'DELETE' });
+
+export const reactivateInsumoLoteRequest = (id: string) =>
+  apiFetch<{ message: string }>(`/insumos-lotes/${id}/reactivar`, { method: 'POST' });
 
 export async function fetchInactiveUsers(): Promise<UserProfile[]> {
   const rows = await apiFetch<ApiUser[]>('/users?estado=inactivos');

@@ -295,6 +295,7 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
             </Button>
           </div>
 
+          <fieldset disabled={Boolean(mexicano.registroGuardado)} className="contents">
           {/* Sección Lote: Mini Lote generado por el sistema y origen */}
           <div className="bg-amber-50/80 p-4 rounded-xl border border-amber-300 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-3">
@@ -570,21 +571,48 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
             </div>
           </div>
 
+          </fieldset>
+
+          <div className="p-4 rounded-xl border border-amber-200 bg-amber-50/50 flex items-center gap-2.5 text-xs text-[#434655]">
+            <span className="material-symbols-outlined text-[24px] text-amber-700 shrink-0">inventory_2</span>
+            <div>
+              <span className="font-black text-gray-900 block">Total en moldes de Queso Mexicano:</span>
+              <span className="text-xs text-gray-700">
+                <strong className="text-amber-900 font-mono">{(mexicano.moldes100g || 0) + (mexicano.moldes200g || 0) + (mexicano.moldes350g || 0)} unidades</strong>{' '}
+                ({mexicano.moldes100g || 0} de 100 g + {mexicano.moldes200g || 0} de 200 g + {mexicano.moldes350g || 0} de 350 g) ={' '}
+                <strong className="text-emerald-800 font-mono">{((mexSubtotal100g + mexSubtotal200g + mexSubtotal350g) / 1000).toFixed(2)} kg</strong>{' '}
+                de queso.
+              </span>
+            </div>
+          </div>
+
           {/* Botón de acción principal inferior derecho: Guardar Registro Mexicano */}
           <div className="flex justify-end pt-2 pb-1">
-            <Button
-              variant="warning"
-              size="md"
-              icon="save"
-              onClick={() => {
-                notifyChange(mexicano, finasHierbas);
-                if (showToast) {
-                  showToast('✓ Guardar Registro Mexicano: Datos guardados exitosamente', 'success');
-                }
-              }}
-            >
-              Guardar Registro Mexicano
-            </Button>
+            {mexicano.registroGuardado ? (
+              <Button
+                variant="outline"
+                size="md"
+                icon="edit"
+                onClick={() => {
+                  updateMexicano({ registroGuardado: false });
+                  if (showToast) showToast('Registro de Queso Mexicano habilitado para modificar', 'info');
+                }}
+              >
+                Modificar Registro Mexicano
+              </Button>
+            ) : (
+              <Button
+                variant="warning"
+                size="md"
+                icon="save"
+                onClick={() => {
+                  updateMexicano({ registroGuardado: true });
+                  if (showToast) showToast('✓ Registro de Queso Mexicano guardado', 'success');
+                }}
+              >
+                Guardar Registro Mexicano
+              </Button>
+            )}
           </div>
 
           {/* Restricción: Checkbox para habilitar edición manual avanzada al final */}
@@ -593,6 +621,7 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
               <input
                 type="checkbox"
                 checked={mexicano.edicionManualAvanzada}
+                disabled={Boolean(mexicano.registroGuardado)}
                 onChange={(e) => updateMexicano({ edicionManualAvanzada: e.target.checked })}
                 className="w-4 h-4 rounded text-amber-600 focus:ring-0 cursor-pointer"
               />
@@ -694,6 +723,7 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
             </Button>
           </div>
 
+          <fieldset disabled={Boolean(finasHierbas.registroGuardado)} className="contents">
           {/* Sección Lote: Mini Lote generado por el sistema y origen */}
           <div className="bg-emerald-50/80 p-4 rounded-xl border border-emerald-300 flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-3">
@@ -869,16 +899,9 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
                       ? ((finasHierbas.moldes100g || 0) + (finasHierbas.moldes200g || 0) + (finasHierbas.moldes350g || 0))
                       : ''
                   }
-                  onChange={(e) => {
-                    const val = Math.max(0, parseInt(e.target.value, 10) || 0);
-                    updateFinasHierbas({
-                      unidades: val > 0 ? val : undefined,
-                      moldes350g: val,
-                      moldes100g: 0,
-                      moldes200g: 0,
-                    });
-                  }}
-                  hint={`Formato estándar: ${finasHierbas.gramosPorUnidad || 350} g por unidad (0.35 kg/u)`}
+                  readOnly
+                  onChange={() => undefined}
+                  hint="Se calcula automáticamente con los formatos de abajo (100 g, 200 g y 350 g)."
                 />
               </div>
 
@@ -981,21 +1004,48 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
             </div>
           </div>
 
+          </fieldset>
+
+          <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 flex items-center gap-2.5 text-xs text-[#434655]">
+            <span className="material-symbols-outlined text-[24px] text-emerald-700 shrink-0">inventory_2</span>
+            <div>
+              <span className="font-black text-gray-900 block">Total en moldes de Queso Finas Hierbas:</span>
+              <span className="text-xs text-gray-700">
+                <strong className="text-emerald-900 font-mono">{(finasHierbas.moldes100g || 0) + (finasHierbas.moldes200g || 0) + (finasHierbas.moldes350g || 0)} unidades</strong>{' '}
+                ({finasHierbas.moldes100g || 0} de 100 g + {finasHierbas.moldes200g || 0} de 200 g + {finasHierbas.moldes350g || 0} de 350 g) ={' '}
+                <strong className="text-emerald-800 font-mono">{((fhSubtotal100g + fhSubtotal200g + fhSubtotal350g) / 1000).toFixed(2)} kg</strong>{' '}
+                de queso.
+              </span>
+            </div>
+          </div>
+
           {/* Botón de acción principal inferior derecho: Guardar Registro Finas Hierbas */}
           <div className="flex justify-end pt-2 pb-1">
-            <Button
-              variant="primary"
-              size="md"
-              icon="save"
-              onClick={() => {
-                notifyChange(mexicano, finasHierbas);
-                if (showToast) {
-                  showToast('✓ Guardar Registro Finas Hierbas: Datos guardados exitosamente', 'success');
-                }
-              }}
-            >
-              Guardar Registro Finas Hierbas
-            </Button>
+            {finasHierbas.registroGuardado ? (
+              <Button
+                variant="outline"
+                size="md"
+                icon="edit"
+                onClick={() => {
+                  updateFinasHierbas({ registroGuardado: false });
+                  if (showToast) showToast('Registro de Queso Finas Hierbas habilitado para modificar', 'info');
+                }}
+              >
+                Modificar Registro Finas Hierbas
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                size="md"
+                icon="save"
+                onClick={() => {
+                  updateFinasHierbas({ registroGuardado: true });
+                  if (showToast) showToast('✓ Registro de Queso Finas Hierbas guardado', 'success');
+                }}
+              >
+                Guardar Registro Finas Hierbas
+              </Button>
+            )}
           </div>
 
           {/* Restricción: Checkbox para habilitar edición manual avanzada al final */}
@@ -1004,6 +1054,7 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
               <input
                 type="checkbox"
                 checked={finasHierbas.edicionManualAvanzada}
+                disabled={Boolean(finasHierbas.registroGuardado)}
                 onChange={(e) => updateFinasHierbas({ edicionManualAvanzada: e.target.checked })}
                 className="w-4 h-4 rounded text-emerald-600 focus:ring-0 cursor-pointer"
               />

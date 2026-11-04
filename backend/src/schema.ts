@@ -30,6 +30,8 @@ INSERT INTO parametros_medicion (codigo, nombre, unidad) VALUES
   ('acidez_hilado', 'Acidez de la masa al hilar', '% LA')
 ON CONFLICT (codigo) DO NOTHING;
 
+ALTER TABLE insumos_lotes ADD COLUMN IF NOT EXISTS descripcion VARCHAR(200);
+
 CREATE INDEX IF NOT EXISTS idx_borradores_lote_linea ON borradores_lote(linea_id);
 `;
 

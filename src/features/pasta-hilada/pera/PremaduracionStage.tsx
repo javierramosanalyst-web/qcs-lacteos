@@ -7,7 +7,7 @@ import {
   LOTES_LECHE_PROVEEDOR_DEFAULT,
   ProcessTimerState,
 } from '../../../types';
-import { LOTES_SAL_CATALOG } from './HilarStagePera';
+import { LOTES_SAL_CATALOG } from '../../../data/insumoLotes';
 import { getCurrentTimeString } from '../../../utils/timer';
 import {
   StageHeader,

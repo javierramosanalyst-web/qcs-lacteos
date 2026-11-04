@@ -27,6 +27,7 @@ import {
   fetchAuditLogs,
   fetchBatchDetail,
   fetchBatchHistory,
+  fetchInsumoLotes,
   fetchLines,
   fetchProducts,
   fetchUsers,
@@ -45,8 +46,10 @@ import {
   UserProfile,
   UserRole,
 } from './types';
+import { setInsumoLotes, useInsumoLotesVersion } from './data/insumoLotes';
 
 export default function App() {
+  useInsumoLotesVersion();
   // 1. Autenticación y Rol Activo
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
@@ -142,11 +145,13 @@ export default function App() {
   const loadCatalogs = useCallback(async (role: UserRole, silent = false) => {
     setLoadingData(true);
     try {
-      const [apiLines, apiProducts, apiUsers] = await Promise.all([
+      const [apiLines, apiProducts, apiUsers, apiInsumos] = await Promise.all([
         fetchLines(),
         fetchProducts(),
         fetchUsers(),
+        fetchInsumoLotes(),
       ]);
+      setInsumoLotes(apiInsumos);
       setLines(apiLines);
       if (apiProducts.length > 0) setProducts(apiProducts);
       setUsers(apiUsers);
@@ -203,6 +208,14 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const id = window.setInterval(() => {
+      fetchInsumoLotes().then(setInsumoLotes).catch(() => undefined);
+    }, 60000);
+    return () => window.clearInterval(id);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     let last = 0;

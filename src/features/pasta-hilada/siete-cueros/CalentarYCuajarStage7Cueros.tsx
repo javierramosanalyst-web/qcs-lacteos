@@ -23,6 +23,7 @@ import {
   Badge,
   PopoverTimePicker,
 } from '../../../components/ui';
+import { LOTES_CUAJO_PERA_DEFAULT as LOTES_CUAJO_DEFAULT } from '../../../data/insumoLotes';
 
 export interface CalentarYCuajarStage7CuerosProps {
   state: CalentarYCuajarState;
@@ -42,12 +43,6 @@ export interface CalentarYCuajarStage7CuerosProps {
   onOpenReviewModal?: () => void;
   showToast: (msg: string, type?: 'success' | 'info' | 'warning') => void;
 }
-
-const LOTES_CUAJO_DEFAULT = [
-  'CJ-2026-09A',
-  'CUA-LIQ-2026-041',
-  'CUA-LIQ-2026-042',
-];
 
 export const CalentarYCuajarStage7Cueros: React.FC<
   CalentarYCuajarStage7CuerosProps

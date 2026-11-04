@@ -19,26 +19,7 @@ import {
   timeStringToTimestampToday,
 } from '../../../utils/timer';
 import { useStageCountdown } from '../../../hooks/useStageCountdown';
-
-export const LOTES_LECHE_OPTIONS: SelectOption[] = [
-  { value: 'LE-2026-04A', label: 'LE-2026-04A (Hato El Porvenir - 1,200 L)' },
-  { value: 'LE-2026-04B', label: 'LE-2026-04B (Hato La Pradera - 800 L)' },
-  { value: 'LE-2026-YOG-01', label: 'LE-2026-YOG-01 (Hato San Martín - 500 L)' },
-  { value: 'LE-2026-KUM-01', label: 'LE-2026-KUM-01 (Hato El Recuerdo - 400 L)' },
-];
-
-export const LOTES_CULTIVO_OPTIONS: SelectOption[] = [
-  { value: 'CUL-2026-09A', label: 'CUL-2026-09A (Yogur Probiótico YF-L903)' },
-  { value: 'CUL-2026-10B', label: 'CUL-2026-10B (Kumis Tradicional CH-N19)' },
-  {
-    value: 'CUL-2026-11C',
-    label: 'CUL-2026-11C (Lactobacillus bulgaricus / S. thermophilus)',
-  },
-  {
-    value: 'CUL-2026-12D',
-    label: 'CUL-2026-12D (Lactococcus lactis / diacetylactis)',
-  },
-];
+import { insumoOptions } from '../../../data/insumoLotes';
 
 export const LOTES_AZUCAR_OPTIONS: SelectOption[] = [
   { value: 'AZU-2026-09', label: 'AZU-2026-09 (Ingenio Riopaila - Bulto 50 kg)' },
@@ -866,7 +847,7 @@ export const PasteurizacionStageCommon: React.FC<
             <SelectField
               label="Lote de Leche Fresca"
               icon="local_shipping"
-              options={ensureOption(LOTES_LECHE_OPTIONS, state.loteLeche)}
+              options={ensureOption(insumoOptions('leche_fresca'), state.loteLeche)}
               value={state.loteLeche || ''}
               onChange={(e) => {
                 const val = e.target.value;
@@ -879,7 +860,7 @@ export const PasteurizacionStageCommon: React.FC<
               label="Lote de Cultivo Láctico"
               icon="biotech"
               options={ensureOption(
-                LOTES_CULTIVO_OPTIONS,
+                insumoOptions('cultivo'),
                 state.loteCultivoLacticoPastur
               )}
               value={state.loteCultivoLacticoPastur || ''}

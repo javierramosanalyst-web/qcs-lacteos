@@ -23,6 +23,7 @@ import {
   TimerBanner,
   PopoverTimePicker,
 } from '../../../components/ui';
+import { LOTES_CUAJO_PERA_DEFAULT as LOTES_CUAJO_DEFAULT, LOTES_SAL_CATALOG as LOTES_SAL_DEFAULT } from '../../../data/insumoLotes';
 
 export interface AcidificarStage7CuerosProps {
   state: AcidificarState;
@@ -47,17 +48,6 @@ const LOTES_ACIDO_ACETICO_DEFAULT = [
   'ACET-98-2026-09B',
   'ACET-98-2026-10C',
 ];
-const LOTES_CUAJO_DEFAULT = [
-  'CJ-2026-09A',
-  'CUA-LIQ-2026-041',
-  'CUA-LIQ-2026-042',
-];
-const LOTES_SAL_DEFAULT = [
-  'SAL-2026-44B',
-  'SAL-2026-0210',
-  'SAL-2026-0315',
-];
-
 export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
   state,
   onChange,

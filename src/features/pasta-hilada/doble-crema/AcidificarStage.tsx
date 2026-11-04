@@ -24,20 +24,7 @@ import {
   Badge,
   PopoverTimePicker,
 } from '../../../components/ui';
-
-export const LOTES_SAL_CATALOG = [
-  'Lote SAL-001',
-  'Lote SAL-002',
-  'Lote SAL-003',
-  'Lote SAL-004',
-];
-
-export const LOTES_CUAJO_CATALOG = [
-  'Lote CUA-001',
-  'Lote CUA-002',
-  'Lote CUA-003',
-  'Lote CUA-004',
-];
+import { LOTES_SAL_CATALOG, LOTES_CUAJO_PERA_DEFAULT as LOTES_CUAJO_CATALOG } from '../../../data/insumoLotes';
 
 export interface AcidificarStageProps {
   state: AcidificarState;

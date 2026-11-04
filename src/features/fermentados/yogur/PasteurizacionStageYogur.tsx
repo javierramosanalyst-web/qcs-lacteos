@@ -24,7 +24,6 @@ export const PasteurizacionStageYogur: React.FC<
     <PasteurizacionStageCommon
       {...props}
       productName="Yogur Probiótico"
-      defaultCultivoLote="CUL-2026-09A"
     />
   );
 };

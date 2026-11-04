@@ -386,33 +386,11 @@ export interface LotesLeche {
   litrosConfirmados?: number; // Último valor confirmado de litros de leche
 }
 
-export const LOTES_CUAJO_PERA_DEFAULT = [
-  'CJ-2026-09A',
-  'CJ-2026-09B',
-  'CJ-2026-10A',
-];
-
-export const LOTES_LECHE_PROVEEDOR_DEFAULT = [
-  '1-09-26 #1M',
-  '1-09-26 #2A',
-  '1-09-26 #3T',
-  '2-09-26 #1M',
-  '2-09-26 #2M',
-  '31-08-26 #1T',
-  '31-08-26 #2M',
-];
-
-export const LOTES_CULTIVO_LACTEO_DEFAULT = [
-  'AA-2026-12D',
-  'AA-2026-08A',
-  'AA-2026-33M',
-  'AC-2026-01',
-  'CL-2026-12D',
-  'CL-2026-08A',
-  'CL-2026-33M',
-  'CL-2026-45T',
-  'FERM-2026-01',
-];
+export {
+  LOTES_CUAJO_PERA_DEFAULT,
+  LOTES_LECHE_PROVEEDOR_DEFAULT,
+  LOTES_CULTIVO_LACTEO_DEFAULT,
+} from '../data/insumoLotes';
 
 export interface EspeciaPesaje {
   pesoInicialGramos: number;
@@ -433,6 +411,7 @@ export interface DerivacionPastaResultante {
   unidades?: number; // Campo directo de unidades para Finas Hierbas o total
   gramosPorUnidad?: number; // Formato en gramos por unidad (ej: 350 g)
   edicionManualAvanzada: boolean;
+  registroGuardado?: boolean;
   // Desglose de especias para Queso Mexicano: Ají Picante y Pimienta
   especiasMexicano?: {
     ajiPicante: EspeciaPesaje;

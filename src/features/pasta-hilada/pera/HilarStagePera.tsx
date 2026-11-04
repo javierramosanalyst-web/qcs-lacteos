@@ -16,13 +16,7 @@ import {
   Button,
   Badge,
 } from '../../../components/ui';
-
-export const LOTES_SAL_CATALOG = [
-  'Lote SAL-001',
-  'Lote SAL-002',
-  'Lote SAL-003',
-  'Lote SAL-004',
-];
+import { LOTES_SAL_CATALOG } from '../../../data/insumoLotes';
 
 interface HilarStagePeraProps {
   state: HilarState;
@@ -392,7 +386,7 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
         stageNumber={4}
         totalStages={5}
         title="Hilar con Salmuera Caliente y Salmuera Fría"
-        subtitle="Haz la prueba de hilado, prepara la salmuera caliente (~85 °C), hila la masa y prepara la salmuera fría de enfriamiento."
+        subtitle="Haz la prueba de hilado, deja lista la salmuera caliente (~85 °C) y la salmuera fría, y luego hila la masa."
         productName="Queso Pera"
         icon="waves"
         isCompleted={Boolean(
@@ -738,10 +732,189 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
       </Card>
 
       {/* =========================================================================
+          3. SALMUERA FRÍA (SE DEJA LISTA JUNTO A LA CALIENTE)
+          30 L de agua fría + 500 g de sal (valores FIJOS)
+      ========================================================================= */}
+      <Card
+        title="Paso 3 · Salmuera Fría (déjala lista junto a la caliente)"
+        subtitle="Prepara la salmuera fría ahora y déjala lista a un lado, junto a la caliente: 30 L de agua fría + 500 g de sal (valores fijos). Cuando la tengas lista, presiona el botón."
+        icon="ac_unit"
+        badge={
+          salmueraFriaPreparada
+            ? '✓ Salmuera Fría Lista'
+            : '30 L agua fría + 500 g sal'
+        }
+        variant={salmueraFriaPreparada ? 'success' : 'info'}
+        headerAction={
+          <ConfirmButton
+            label="Ya preparé la salmuera fría"
+            confirmedLabel="✓ Ya preparé la salmuera fría"
+            icon="ac_unit"
+            isConfirmed={salmueraFriaPreparada}
+            onConfirm={handlePrepararSalmueraFria}
+          />
+        }
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="p-4 bg-white rounded-xl border border-cyan-200 shadow-2xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold text-cyan-900">
+                  AGUA FRÍA (FIJA)
+                </span>
+                <Badge variant="info" size="sm">
+                  Fijo
+                </Badge>
+              </div>
+              <div className="mt-2.5">
+                <span className="font-mono font-black text-2xl text-gray-900">
+                  30 Litros
+                </span>
+              </div>
+            </div>
+            <span className="text-[11px] text-gray-500 font-semibold mt-3 pt-2 border-t border-cyan-100">
+              Agua fría para enfriar el queso
+            </span>
+          </div>
+
+          <div className="p-4 bg-white rounded-xl border border-cyan-200 shadow-2xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold text-cyan-900">
+                  SAL USADA (FIJA)
+                </span>
+                <Badge variant="info" size="sm">
+                  500 g fija
+                </Badge>
+              </div>
+              <div className="mt-2.5">
+                {manualSalmueraFria ? (
+                  <InputField
+                    type="number"
+                    inputMode="decimal"
+                    min="100"
+                    step="50"
+                    unit="g"
+                    value={salFriaGramosDisplay}
+                    onChange={(e) =>
+                      setSalFriaManualGramos(Number(e.target.value) || 0)
+                    }
+                  />
+                ) : (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black font-mono text-cyan-950">
+                      {salFriaGramosDisplay} g
+                    </span>
+                    <span className="text-xs font-bold text-gray-600">
+                      (0.50 kg)
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <span className="text-[11px] text-gray-500 font-semibold mt-3 pt-2 border-t border-cyan-100">
+              Se suma al gasto total de sal del lote
+            </span>
+          </div>
+
+          <div className="p-4 bg-white rounded-xl border border-cyan-200 shadow-2xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-bold text-cyan-900">
+                  LOTE DE LA SAL
+                </span>
+                <Badge variant="info" size="sm">
+                  Trazabilidad
+                </Badge>
+              </div>
+              <div className="mt-2.5">
+                {manualSalmueraFria ? (
+                  <SelectField
+                    value={loteSalFriaActual}
+                    onChange={(e) => setLoteSalFriaActual(e.target.value)}
+                    options={LOTES_SAL_CATALOG.map((l) => ({
+                      value: l,
+                      label: l,
+                    }))}
+                  />
+                ) : (
+                  <div className="flex items-center gap-2 bg-[#FFFFFF] px-3 py-2 rounded-xl border border-cyan-200 min-h-[48px]">
+                    <span className="material-symbols-outlined text-[18px] text-cyan-700">
+                      verified
+                    </span>
+                    <span className="font-mono font-black text-sm text-gray-900">
+                      {state.salmueraFria?.loteSal || loteSalFriaActual}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <span className="text-[11px] text-gray-500 font-semibold mt-3 pt-2 border-t border-cyan-100">
+              {salmueraFriaPreparada
+                ? `Preparada a las ${
+                    state.salmueraFria?.horaRegistro || 'ahora'
+                  }`
+                : 'Lista para preparar'}
+            </span>
+          </div>
+
+          {/* REGLA DE DESTINO */}
+          <div className="p-4 bg-amber-50/90 rounded-xl border-2 border-amber-300 shadow-2xs flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase font-black text-amber-900 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[16px] text-amber-700">
+                    info
+                  </span>
+                  REGLA IMPORTANTE
+                </span>
+                <Badge variant="warning" size="sm">
+                  Solo Pera
+                </Badge>
+              </div>
+              <p className="text-xs font-bold text-amber-950 mt-2 leading-snug">
+                Solo para Queso Pera pequeño y grande. Mexicano y Finas Hierbas NO van a salmuera fría.
+              </p>
+            </div>
+            <span className="text-[11px] text-amber-900 font-semibold mt-2 pt-2 border-t border-amber-200">
+              Salmuera Fría exclusiva para Queso Pera
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-4 pt-3 border-t border-[#D6DEEA]/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <label className="flex items-center gap-2.5 text-xs font-bold text-gray-800 cursor-pointer select-none min-h-[40px]">
+            <input
+              type="checkbox"
+              checked={manualSalmueraFria}
+              onChange={(e) => setManualSalmueraFria(e.target.checked)}
+              className="w-5 h-5 rounded text-cyan-700 border-gray-300 cursor-pointer"
+            />
+            <span>Habilitar edición manual</span>
+          </label>
+
+          {manualSalmueraFria && (
+            <Button
+              variant="primary"
+              size="sm"
+              icon="save"
+              onClick={handleSaveManualSalmueraFria}
+            >
+              Guardar cambios
+            </Button>
+          )}
+
+          <Badge variant="info" size="md">
+            Salmuera Fría: 30 L agua fría + 500 g sal
+          </Badge>
+        </div>
+      </Card>
+
+      {/* =========================================================================
           3. TERCERO: PROCESO DE HILADO GENERAL
       ========================================================================= */}
       <Card
-        title="Paso 3 · Hilar y Amasar con la Salmuera a ~85 °C"
+        title="Paso 4 · Hilar y Amasar con la Salmuera a ~85 °C"
         subtitle="Hila y amasa la pasta con la salmuera caliente hasta que quede suave y brillante. Marca el inicio y el fin."
         icon="settings_motion_mode"
         badge={
@@ -930,185 +1103,6 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
               Guardar cambios
             </Button>
           )}
-        </div>
-      </Card>
-
-      {/* =========================================================================
-          4. SALMUERA FRÍA (ENFRIAMIENTO)
-          30 L de agua fría + 500 g de sal (valores FIJOS)
-      ========================================================================= */}
-      <Card
-        title="Paso 4 · Salmuera Fría (Enfriamiento)"
-        subtitle="Baño de enfriamiento y salado en frío: 30 L de agua fría + 500 g de sal (valores fijos)."
-        icon="ac_unit"
-        badge={
-          salmueraFriaPreparada
-            ? '✓ Salmuera Fría Lista'
-            : '30 L agua fría + 500 g sal'
-        }
-        variant={salmueraFriaPreparada ? 'success' : 'info'}
-        headerAction={
-          <ConfirmButton
-            label="Ya preparé la salmuera fría"
-            confirmedLabel="✓ Ya preparé la salmuera fría"
-            icon="ac_unit"
-            isConfirmed={salmueraFriaPreparada}
-            onConfirm={handlePrepararSalmueraFria}
-          />
-        }
-      >
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-4 bg-white rounded-xl border border-cyan-200 shadow-2xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase font-bold text-cyan-900">
-                  AGUA FRÍA (FIJA)
-                </span>
-                <Badge variant="info" size="sm">
-                  Fijo
-                </Badge>
-              </div>
-              <div className="mt-2.5">
-                <span className="font-mono font-black text-2xl text-gray-900">
-                  30 Litros
-                </span>
-              </div>
-            </div>
-            <span className="text-[11px] text-gray-500 font-semibold mt-3 pt-2 border-t border-cyan-100">
-              Agua fría para enfriar el queso
-            </span>
-          </div>
-
-          <div className="p-4 bg-white rounded-xl border border-cyan-200 shadow-2xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase font-bold text-cyan-900">
-                  SAL USADA (FIJA)
-                </span>
-                <Badge variant="info" size="sm">
-                  500 g fija
-                </Badge>
-              </div>
-              <div className="mt-2.5">
-                {manualSalmueraFria ? (
-                  <InputField
-                    type="number"
-                    inputMode="decimal"
-                    min="100"
-                    step="50"
-                    unit="g"
-                    value={salFriaGramosDisplay}
-                    onChange={(e) =>
-                      setSalFriaManualGramos(Number(e.target.value) || 0)
-                    }
-                  />
-                ) : (
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-black font-mono text-cyan-950">
-                      {salFriaGramosDisplay} g
-                    </span>
-                    <span className="text-xs font-bold text-gray-600">
-                      (0.50 kg)
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <span className="text-[11px] text-gray-500 font-semibold mt-3 pt-2 border-t border-cyan-100">
-              Se suma al gasto total de sal del lote
-            </span>
-          </div>
-
-          <div className="p-4 bg-white rounded-xl border border-cyan-200 shadow-2xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase font-bold text-cyan-900">
-                  LOTE DE LA SAL
-                </span>
-                <Badge variant="info" size="sm">
-                  Trazabilidad
-                </Badge>
-              </div>
-              <div className="mt-2.5">
-                {manualSalmueraFria ? (
-                  <SelectField
-                    value={loteSalFriaActual}
-                    onChange={(e) => setLoteSalFriaActual(e.target.value)}
-                    options={LOTES_SAL_CATALOG.map((l) => ({
-                      value: l,
-                      label: l,
-                    }))}
-                  />
-                ) : (
-                  <div className="flex items-center gap-2 bg-[#FFFFFF] px-3 py-2 rounded-xl border border-cyan-200 min-h-[48px]">
-                    <span className="material-symbols-outlined text-[18px] text-cyan-700">
-                      verified
-                    </span>
-                    <span className="font-mono font-black text-sm text-gray-900">
-                      {state.salmueraFria?.loteSal || loteSalFriaActual}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <span className="text-[11px] text-gray-500 font-semibold mt-3 pt-2 border-t border-cyan-100">
-              {salmueraFriaPreparada
-                ? `Preparada a las ${
-                    state.salmueraFria?.horaRegistro || 'ahora'
-                  }`
-                : 'Lista para preparar'}
-            </span>
-          </div>
-
-          {/* REGLA DE DESTINO */}
-          <div className="p-4 bg-amber-50/90 rounded-xl border-2 border-amber-300 shadow-2xs flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] uppercase font-black text-amber-900 flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[16px] text-amber-700">
-                    info
-                  </span>
-                  REGLA IMPORTANTE
-                </span>
-                <Badge variant="warning" size="sm">
-                  Solo Pera
-                </Badge>
-              </div>
-              <p className="text-xs font-bold text-amber-950 mt-2 leading-snug">
-                Solo para Queso Pera pequeño y grande. Mexicano y Finas Hierbas NO van a salmuera fría.
-              </p>
-            </div>
-            <span className="text-[11px] text-amber-900 font-semibold mt-2 pt-2 border-t border-amber-200">
-              Salmuera Fría exclusiva para Queso Pera
-            </span>
-          </div>
-        </div>
-
-        <div className="mt-4 pt-3 border-t border-[#D6DEEA]/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <label className="flex items-center gap-2.5 text-xs font-bold text-gray-800 cursor-pointer select-none min-h-[40px]">
-            <input
-              type="checkbox"
-              checked={manualSalmueraFria}
-              onChange={(e) => setManualSalmueraFria(e.target.checked)}
-              className="w-5 h-5 rounded text-cyan-700 border-gray-300 cursor-pointer"
-            />
-            <span>Habilitar edición manual</span>
-          </label>
-
-          {manualSalmueraFria && (
-            <Button
-              variant="primary"
-              size="sm"
-              icon="save"
-              onClick={handleSaveManualSalmueraFria}
-            >
-              Guardar cambios
-            </Button>
-          )}
-
-          <Badge variant="info" size="md">
-            Salmuera Fría: 30 L agua fría + 500 g sal
-          </Badge>
         </div>
       </Card>
 

@@ -10,6 +10,7 @@ import {
   reactivateLineRequest,
   reactivateUserRequest,
 } from '../../api/client';
+import { InsumosManager } from './InsumosManager';
 import { ExportCenter } from './ExportCenter';
 
 interface AdminGlobalDashboardProps {
@@ -69,10 +70,11 @@ const isToday = (iso: string | null) => {
 
 const card = 'bg-white rounded-2xl border border-[#D6DEEA] shadow-xs';
 
-type AdminTab = 'produccion' | 'usuarios' | 'anulados' | 'exportar';
+type AdminTab = 'produccion' | 'usuarios' | 'insumos' | 'anulados' | 'exportar';
 
 const ADMIN_TABS: { key: AdminTab; label: string; icon: string }[] = [
   { key: 'produccion', label: 'Producción y Lotes', icon: 'factory' },
+  { key: 'insumos', label: 'Insumos y Lotes', icon: 'inventory_2' },
   { key: 'usuarios', label: 'Usuarios', icon: 'group' },
   { key: 'anulados', label: 'Lotes Anulados', icon: 'block' },
   { key: 'exportar', label: 'Exportar Datos', icon: 'download' },
@@ -585,6 +587,8 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
       {tab === 'anulados' && annulled.length === 0 && (
         <div className={`${card} p-8 text-center text-xs text-gray-500`}>No hay lotes anulados.</div>
       )}
+
+      {tab === 'insumos' && <InsumosManager />}
 
       {tab === 'exportar' && <ExportCenter lines={lines} products={products} users={users} />}
 

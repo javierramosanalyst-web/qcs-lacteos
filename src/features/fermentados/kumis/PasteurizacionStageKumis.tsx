@@ -22,7 +22,6 @@ export const PasteurizacionStageKumis: React.FC<
     <PasteurizacionStageCommon
       {...props}
       productName="Kumis Tradicional"
-      defaultCultivoLote="CUL-2026-10B"
     />
   );
 };
