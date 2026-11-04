@@ -63,7 +63,7 @@ const LoteMaquiladoField: React.FC<LoteMaquiladoFieldProps> = ({
       label={label}
       type="text"
       placeholder="Ej: ABHBD-22"
-      value={lote}
+      value={lote || (manual ? '' : sugerirLoteMaquilado(fechaProveedor))}
       readOnly={!manual}
       helperText={
         manual
@@ -694,16 +694,17 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                         variant="warning"
                         size="md"
                         icon="save"
-                        onClick={() => () => {
+                        onClick={() => {
                           if (mQuesadillaBocadillo <= 0) {
                             if (showToast) showToast('Ingresa la cantidad de quesadillas de bocadillo.', 'warning');
                             return;
                           }
-                          if (!(bocadilloState.loteBocadillo || '').trim()) {
+                          const loteBoc = (bocadilloState.loteBocadillo || '').trim() || (bocadilloState.loteManual ? '' : sugerirLoteMaquilado(bocadilloState.fechaLoteProveedor));
+                          if (!loteBoc) {
                             if (showToast) showToast('Falta el lote de bocadillo.', 'warning');
                             return;
                           }
-                          updateBocadillo({ registroGuardado: true });
+                          updateBocadillo({ registroGuardado: true, loteBocadillo: loteBoc });
                           if (showToast) showToast('✓ Registro de Quesadilla con Bocadillo guardado', 'success');
                         }}
                       >
@@ -880,16 +881,17 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                         variant="warning"
                         size="md"
                         icon="save"
-                        onClick={() => () => {
+                        onClick={() => {
                           if (mQuesadillaArequipe <= 0) {
                             if (showToast) showToast('Ingresa la cantidad de quesadillas de arequipe.', 'warning');
                             return;
                           }
-                          if (!(arequipeState.loteArequipe || '').trim()) {
+                          const loteArq = (arequipeState.loteArequipe || '').trim() || (arequipeState.loteManual ? '' : sugerirLoteMaquilado(arequipeState.fechaLoteProveedor));
+                          if (!loteArq) {
                             if (showToast) showToast('Falta el lote de arequipe.', 'warning');
                             return;
                           }
-                          updateArequipe({ registroGuardado: true });
+                          updateArequipe({ registroGuardado: true, loteArequipe: loteArq });
                           if (showToast) showToast('✓ Registro de Quesadilla con Arequipe guardado', 'success');
                         }}
                       >
