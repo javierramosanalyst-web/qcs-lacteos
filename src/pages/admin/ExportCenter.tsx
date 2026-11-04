@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AuditLogEntry, ProductDefinition, ProductionLine, UserProfile } from '../../types';
 import { BatchHistoryRow, fetchAuditLogs, fetchBatchDetail, fetchBatchHistory, lineUiId } from '../../api/client';
-import { CellValue, ExportSheet, exportCsv, exportXlsx } from '../../utils/exporters';
+import { CellValue, ExportSheet, buildCsv, exportCsv, exportXlsx, exportZip } from '../../utils/exporters';
 
 interface ExportCenterProps {
   lines: ProductionLine[];
@@ -77,6 +77,9 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
   const [to, setTo] = useState('');
   const [lineFilter, setLineFilter] = useState('todas');
   const [estadoFilter, setEstadoFilter] = useState('todos');
+  const [productFilter, setProductFilter] = useState('todos');
+  const [responsableFilter, setResponsableFilter] = useState('todos');
+  const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<DatasetKey>>(new Set(['historial', 'produccion', 'auditoria', 'anulados']));
   const [fichaLote, setFichaLote] = useState('');
 
@@ -106,23 +109,56 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
     return true;
   };
 
-  const filteredLots = useMemo(
-    () =>
-      history.filter(
+  const hasFilters =
+    !!from || !!to || lineFilter !== 'todas' || estadoFilter !== 'todos' || productFilter !== 'todos' || responsableFilter !== 'todos' || !!search.trim();
+
+  const productOptions = useMemo(() => Array.from(new Set(history.map((h) => h.producto_nombre))).sort(), [history]);
+  const responsableOptions = useMemo(() => Array.from(new Set(history.map((h) => h.responsable_nombre).filter(Boolean))).sort(), [history]);
+
+  const filteredLots = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return history
+      .filter(
         (h) =>
           inRange(h.iniciado_at) &&
           (lineFilter === 'todas' || lineUiId(h.linea_codigo) === lineFilter) &&
-          (estadoFilter === 'todos' || h.estado === estadoFilter)
-      ),
-    [history, from, to, lineFilter, estadoFilter]
-  );
+          (estadoFilter === 'todos' || h.estado === estadoFilter) &&
+          (productFilter === 'todos' || h.producto_nombre === productFilter) &&
+          (responsableFilter === 'todos' || h.responsable_nombre === responsableFilter) &&
+          (!q || h.codigo_lote.toLowerCase().includes(q))
+      )
+      .sort((a, b) => new Date(a.iniciado_at).getTime() - new Date(b.iniciado_at).getTime());
+  }, [history, from, to, lineFilter, estadoFilter, productFilter, responsableFilter, search]);
 
   const filteredAudit = useMemo(() => {
-    const lineName = lineFilter === 'todas' ? null : lines.find((l) => l.id === lineFilter)?.name;
-    return audit.filter(
-      (a) => inRange(new Date(a.timestamp).toISOString()) && (!lineName || a.lineName === lineName)
-    );
-  }, [audit, from, to, lineFilter, lines]);
+    const codes = new Set(filteredLots.map((h) => h.codigo_lote));
+    return audit.filter((a) => !hasFilters || codes.has(a.batchId));
+  }, [audit, filteredLots, hasFilters]);
+
+  const setPreset = (days: number | 'mes' | 'todo') => {
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const end = new Date();
+    if (days === 'todo') {
+      setFrom('');
+      setTo('');
+      return;
+    }
+    const start = new Date();
+    if (days === 'mes') start.setDate(1);
+    else start.setDate(start.getDate() - (days - 1));
+    setFrom(fmt(start));
+    setTo(fmt(end));
+  };
+
+  const clearFilters = () => {
+    setFrom('');
+    setTo('');
+    setLineFilter('todas');
+    setEstadoFilter('todos');
+    setProductFilter('todos');
+    setResponsableFilter('todos');
+    setSearch('');
+  };
 
   const sheets = useMemo(() => {
     const historial: ExportSheet = {
@@ -301,6 +337,8 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
           rows.push({
             lote: lot.codigo_lote,
             producto: lot.producto_nombre,
+            linea: lot.linea_nombre,
+            inicio: fmtDateTime(lot.iniciado_at),
             estado: ESTADO_LABEL[lot.estado] ?? lot.estado,
             seccion: o.section,
             variable: o.variable,
@@ -308,7 +346,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
           })
         );
       } catch {
-        rows.push({ lote: lot.codigo_lote, producto: lot.producto_nombre, estado: lot.estado, seccion: 'Error', variable: 'No se pudo leer el lote', valor: '' });
+        rows.push({ lote: lot.codigo_lote, producto: lot.producto_nombre, linea: lot.linea_nombre, inicio: fmtDateTime(lot.iniciado_at), estado: lot.estado, seccion: 'Error', variable: 'No se pudo leer el lote', valor: '' });
       }
     }
     return {
@@ -316,6 +354,8 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
       columns: [
         { key: 'lote', label: 'Lote' },
         { key: 'producto', label: 'Producto' },
+        { key: 'linea', label: 'Línea' },
+        { key: 'inicio', label: 'Inicio del lote' },
         { key: 'estado', label: 'Estado' },
         { key: 'seccion', label: 'Fase / Sección' },
         { key: 'variable', label: 'Variable' },
@@ -328,14 +368,55 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
   const getSheet = async (key: DatasetKey): Promise<ExportSheet> =>
     key === 'variables' ? buildVariablesSheet(filteredLots.filter((l) => l.estado !== 'ANULADO')) : sheets[key];
 
-  const runExport = async (keys: DatasetKey[], format: 'csv' | 'xlsx', filename: string) => {
+  const ORDER: DatasetKey[] = ['historial', 'produccion', 'variables', 'auditoria', 'anulados', 'usuarios', 'lineas'];
+
+  const filterSummary = (): string => {
+    const parts: string[] = [];
+    if (from || to) parts.push(`Fechas: ${from || 'inicio'} a ${to || 'hoy'}`);
+    if (lineFilter !== 'todas') parts.push(`Línea: ${lines.find((l) => l.id === lineFilter)?.name ?? lineFilter}`);
+    if (productFilter !== 'todos') parts.push(`Producto: ${productFilter}`);
+    if (estadoFilter !== 'todos') parts.push(`Estado: ${ESTADO_LABEL[estadoFilter] ?? estadoFilter}`);
+    if (responsableFilter !== 'todos') parts.push(`Responsable: ${responsableFilter}`);
+    if (search.trim()) parts.push(`Lote contiene: ${search.trim()}`);
+    return parts.length ? parts.join(' | ') : 'Sin filtros (todos los lotes)';
+  };
+
+  const runExport = async (format: 'csv' | 'xlsx') => {
+    const keys = ORDER.filter((k) => selected.has(k));
     if (keys.length === 0) return;
     setBusy('Preparando archivo...');
     try {
       const built: ExportSheet[] = [];
       for (const k of keys) built.push(await getSheet(k));
-      if (format === 'csv') exportCsv(built[0], filename);
-      else exportXlsx(built, filename);
+      const base = `QCS_${stamp()}`;
+      if (format === 'csv') {
+        if (built.length === 1) exportCsv(built[0], `${built[0].name.replace(/\s+/g, '_')}_${stamp()}`);
+        else
+          exportZip(
+            built.map((sh, i) => ({ name: `${String(i + 1).padStart(2, '0')}_${sh.name.replace(/\s+/g, '_')}.csv`, content: buildCsv(sh) })),
+            base
+          );
+      } else {
+        const indice: ExportSheet = {
+          name: 'Índice',
+          columns: [
+            { key: 'hoja', label: 'Hoja' },
+            { key: 'contenido', label: 'Contenido', width: 70 },
+            { key: 'filas', label: 'Filas' },
+          ],
+          rows: [
+            ...built.map((sh, i) => ({
+              hoja: sh.name,
+              contenido: DATASETS.find((d) => d.title === sh.name || d.key === keys[i])?.desc ?? '',
+              filas: sh.rows.length,
+            })),
+            { hoja: 'Filtros aplicados', contenido: filterSummary(), filas: null },
+            { hoja: 'Generado', contenido: new Date().toLocaleString('es-CO'), filas: null },
+            { hoja: 'Relación entre hojas', contenido: 'La columna "Lote" enlaza Historial, Variables de proceso, Auditoría y Lotes anulados.', filas: null },
+          ],
+        };
+        exportXlsx([indice, ...built], base);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo generar el archivo.');
     } finally {
@@ -389,19 +470,39 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
 
   const inputCls = 'w-full p-2 rounded-xl bg-white border border-[#D6DEEA] text-xs font-semibold text-gray-800 outline-none focus:border-[#1B4E9B]';
   const disabled = loading || !!busy;
+  const selectedList = ORDER.filter((k) => selected.has(k));
+  const presetCls = 'px-3 h-8 rounded-lg border border-[#D6DEEA] bg-white text-[11px] font-bold text-gray-700 hover:bg-[#F2F4F7] cursor-pointer';
+  const stepBadge = 'w-6 h-6 rounded-full bg-[#1B4E9B] text-white text-xs font-black flex items-center justify-center shrink-0';
 
   return (
     <div className="flex flex-col gap-4">
-      <div className={`${card} p-5 flex flex-col gap-3`}>
+      <div className={`${card} p-5 flex flex-col gap-4`}>
         <div className="flex items-center justify-between border-b border-[#D6DEEA] pb-3">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#1B4E9B] text-[20px]">filter_alt</span>
-            <h3 className="text-sm font-bold text-gray-900">Filtros de exportación</h3>
+            <span className={stepBadge}>1</span>
+            <h3 className="text-sm font-bold text-gray-900">Filtra los lotes a exportar</h3>
           </div>
-          <button onClick={() => void load()} disabled={disabled} className="text-xs text-[#1B4E9B] font-bold hover:underline cursor-pointer disabled:opacity-50">
-            Recargar datos
-          </button>
+          <div className="flex items-center gap-3">
+            {hasFilters && (
+              <button onClick={clearFilters} className="text-xs text-red-700 font-bold hover:underline cursor-pointer">
+                Limpiar filtros
+              </button>
+            )}
+            <button onClick={() => void load()} disabled={disabled} className="text-xs text-[#1B4E9B] font-bold hover:underline cursor-pointer disabled:opacity-50">
+              Recargar datos
+            </button>
+          </div>
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-bold uppercase text-gray-500 mr-1">Periodo rápido</span>
+          <button className={presetCls} onClick={() => setPreset(1)}>Hoy</button>
+          <button className={presetCls} onClick={() => setPreset(7)}>Últimos 7 días</button>
+          <button className={presetCls} onClick={() => setPreset(30)}>Últimos 30 días</button>
+          <button className={presetCls} onClick={() => setPreset('mes')}>Este mes</button>
+          <button className={presetCls} onClick={() => setPreset('todo')}>Todo</button>
+        </div>
+
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <label className="flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500">
             Desde
@@ -423,6 +524,17 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
             </select>
           </label>
           <label className="flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500">
+            Producto
+            <select value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className={inputCls}>
+              <option value="todos">Todos los productos</option>
+              {productOptions.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500">
             Estado del lote
             <select value={estadoFilter} onChange={(e) => setEstadoFilter(e.target.value)} className={inputCls}>
               <option value="todos">Todos</option>
@@ -431,18 +543,56 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
               <option value="ANULADO">Anulados</option>
             </select>
           </label>
+          <label className="flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500">
+            Responsable
+            <select value={responsableFilter} onChange={(e) => setResponsableFilter(e.target.value)} className={inputCls}>
+              <option value="todos">Todos</option>
+              {responsableOptions.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500 col-span-2">
+            Buscar por código de lote
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Ej: KUM-102" className={inputCls} />
+          </label>
         </div>
-        <p className="text-[11px] text-gray-500">
-          {loading ? 'Cargando datos desde la base de datos...' : `${filteredLots.length} lotes y ${filteredAudit.length} registros de auditoría coinciden con los filtros.`}
-        </p>
+
+        <div className="flex items-center gap-2 bg-[#F2F4F7] border border-[#D6DEEA] rounded-xl px-3 py-2 text-xs text-gray-700">
+          <span className="material-symbols-outlined text-[18px] text-[#1B4E9B]">filter_alt</span>
+          {loading ? (
+            'Cargando datos desde la base de datos...'
+          ) : (
+            <span>
+              <strong>{filteredLots.length}</strong> de {history.length} lotes cumplen los filtros
+              {hasFilters ? '' : ' (sin filtros)'}. Los filtros aplican a lotes, variables, auditoría y anulados.
+            </span>
+          )}
+        </div>
         {error && <div className="text-xs font-bold text-red-700">{error}</div>}
-        {busy && <div className="text-xs font-bold text-[#1B4E9B]">{busy}</div>}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-        {DATASETS.map((d) => (
-          <div key={d.key} className={`${card} p-4 flex flex-col gap-3 ${selected.has(d.key) ? 'ring-2 ring-[#1B4E9B]/30' : ''}`}>
-            <div className="flex items-start gap-3">
+      <div className={`${card} p-5 flex flex-col gap-3`}>
+        <div className="flex items-center justify-between border-b border-[#D6DEEA] pb-3">
+          <div className="flex items-center gap-2">
+            <span className={stepBadge}>2</span>
+            <h3 className="text-sm font-bold text-gray-900">Elige qué información quieres</h3>
+          </div>
+          <div className="flex items-center gap-3 text-xs font-bold">
+            <button onClick={() => setSelected(new Set(ORDER))} className="text-[#1B4E9B] hover:underline cursor-pointer">Seleccionar todo</button>
+            <button onClick={() => setSelected(new Set())} className="text-gray-500 hover:underline cursor-pointer">Ninguno</button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {DATASETS.map((d) => (
+            <label
+              key={d.key}
+              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                selected.has(d.key) ? 'border-[#1B4E9B] bg-[#1B4E9B]/5' : 'border-[#D6DEEA] bg-white hover:border-[#1B4E9B]/50'
+              }`}
+            >
               <input type="checkbox" checked={selected.has(d.key)} onChange={() => toggle(d.key)} className="mt-1 accent-[#1B4E9B] cursor-pointer" />
               <span className="material-symbols-outlined text-[#1B4E9B] text-[22px]">{d.icon}</span>
               <div className="min-w-0 flex-1">
@@ -454,77 +604,76 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
                 </div>
                 <p className="text-[11px] text-gray-500 mt-0.5">{d.desc}</p>
               </div>
-            </div>
-            <div className="flex gap-2 mt-auto">
-              <button
-                onClick={() => void runExport([d.key], 'csv', `${d.title.replace(/\s+/g, '_')}_${stamp()}`)}
-                disabled={disabled}
-                className="flex-1 h-9 rounded-xl bg-white border border-[#D6DEEA] text-xs font-bold text-gray-700 hover:bg-[#F2F4F7] cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1"
-              >
-                <span className="material-symbols-outlined text-[16px]">description</span>
-                CSV
-              </button>
-              <button
-                onClick={() => void runExport([d.key], 'xlsx', `${d.title.replace(/\s+/g, '_')}_${stamp()}`)}
-                disabled={disabled}
-                className="flex-1 h-9 rounded-xl bg-[#5FAF32] hover:bg-[#4E9628] text-white text-xs font-bold cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1"
-              >
-                <span className="material-symbols-outlined text-[16px]">table_view</span>
-                Excel
-              </button>
-            </div>
-          </div>
-        ))}
+            </label>
+          ))}
+        </div>
+        <p className="text-[11px] text-gray-500">Usuarios y Líneas y productos no dependen de los filtros: siempre se exporta el catálogo completo.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <div className={`${card} p-5 flex flex-col gap-3`}>
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#1B4E9B] text-[20px]">folder_zip</span>
-            <h3 className="text-sm font-bold text-gray-900">Reporte consolidado</h3>
-          </div>
-          <p className="text-[11px] text-gray-500">
-            Un solo archivo Excel con una hoja por cada conjunto marcado ({selected.size} seleccionados). Encabezados fijos y filtros activados.
-          </p>
+      <div className={`${card} p-5 flex flex-col gap-3`}>
+        <div className="flex items-center gap-2 border-b border-[#D6DEEA] pb-3">
+          <span className={stepBadge}>3</span>
+          <h3 className="text-sm font-bold text-gray-900">Descarga</h3>
+        </div>
+        <p className="text-xs text-gray-600">
+          {selectedList.length === 0
+            ? 'Marca al menos un conjunto de información en el paso 2.'
+            : `Seleccionado: ${selectedList.map((k) => DATASETS.find((d) => d.key === k)?.title).join(', ')}.`}
+        </p>
+        <p className="text-[11px] text-gray-500">
+          <strong>Excel:</strong> un solo archivo con una hoja por cada conjunto, más una hoja "Índice" con los filtros aplicados. <strong>CSV:</strong>{' '}
+          {selectedList.length > 1 ? 'un archivo ZIP con un CSV por conjunto, numerados en orden.' : 'un archivo CSV.'} En todos, la columna "Lote" enlaza las hojas entre sí.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
-            onClick={() => void runExport(DATASETS.filter((d) => selected.has(d.key)).map((d) => d.key), 'xlsx', `Reporte_QCS_${stamp()}`)}
-            disabled={disabled || selected.size === 0}
-            className="h-10 rounded-xl bg-[#1B4E9B] hover:bg-[#143A73] text-white text-xs font-bold cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+            onClick={() => void runExport('csv')}
+            disabled={disabled || selectedList.length === 0}
+            className="h-11 rounded-xl bg-white border border-[#1B4E9B] text-[#1B4E9B] text-sm font-bold hover:bg-[#1B4E9B]/5 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            <span className="material-symbols-outlined text-[18px]">download</span>
-            Descargar reporte Excel
+            <span className="material-symbols-outlined text-[20px]">description</span>
+            Descargar CSV{selectedList.length > 1 ? ' (ZIP)' : ''}
+          </button>
+          <button
+            onClick={() => void runExport('xlsx')}
+            disabled={disabled || selectedList.length === 0}
+            className="h-11 rounded-xl bg-[#5FAF32] hover:bg-[#4E9628] text-white text-sm font-bold cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            <span className="material-symbols-outlined text-[20px]">table_view</span>
+            Descargar Excel
           </button>
         </div>
+        {busy && <div className="text-xs font-bold text-[#1B4E9B]">{busy}</div>}
+      </div>
 
-        <div className={`${card} p-5 flex flex-col gap-3`}>
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#1B4E9B] text-[20px]">assignment</span>
-            <h3 className="text-sm font-bold text-gray-900">Ficha completa de un lote</h3>
-          </div>
-          <select value={fichaLote} onChange={(e) => setFichaLote(e.target.value)} className={inputCls}>
-            <option value="">Selecciona un lote...</option>
-            {history.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.codigo_lote} · {h.producto_nombre} · {ESTADO_LABEL[h.estado] ?? h.estado}
-              </option>
-            ))}
-          </select>
-          <div className="flex gap-2">
-            <button
-              onClick={() => void exportFicha('csv')}
-              disabled={disabled || !fichaLote}
-              className="flex-1 h-10 rounded-xl bg-white border border-[#D6DEEA] text-xs font-bold text-gray-700 hover:bg-[#F2F4F7] cursor-pointer disabled:opacity-50"
-            >
-              Variables en CSV
-            </button>
-            <button
-              onClick={() => void exportFicha('xlsx')}
-              disabled={disabled || !fichaLote}
-              className="flex-1 h-10 rounded-xl bg-[#5FAF32] hover:bg-[#4E9628] text-white text-xs font-bold cursor-pointer disabled:opacity-50"
-            >
-              Ficha en Excel
-            </button>
-          </div>
+      <div className={`${card} p-5 flex flex-col gap-3`}>
+        <div className="flex items-center gap-2">
+          <span className="material-symbols-outlined text-[#1B4E9B] text-[20px]">assignment</span>
+          <h3 className="text-sm font-bold text-gray-900">Ficha completa de un solo lote</h3>
+        </div>
+        <p className="text-[11px] text-gray-500">Resumen, todas las variables registradas y correcciones de un lote específico.</p>
+        <select value={fichaLote} onChange={(e) => setFichaLote(e.target.value)} className={inputCls}>
+          <option value="">Selecciona un lote...</option>
+          {history.map((h) => (
+            <option key={h.id} value={h.id}>
+              {h.codigo_lote} · {h.producto_nombre} · {ESTADO_LABEL[h.estado] ?? h.estado}
+            </option>
+          ))}
+        </select>
+        <div className="flex gap-2">
+          <button
+            onClick={() => void exportFicha('csv')}
+            disabled={disabled || !fichaLote}
+            className="flex-1 h-10 rounded-xl bg-white border border-[#D6DEEA] text-xs font-bold text-gray-700 hover:bg-[#F2F4F7] cursor-pointer disabled:opacity-50"
+          >
+            Variables en CSV
+          </button>
+          <button
+            onClick={() => void exportFicha('xlsx')}
+            disabled={disabled || !fichaLote}
+            className="flex-1 h-10 rounded-xl bg-[#5FAF32] hover:bg-[#4E9628] text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+          >
+            Ficha en Excel
+          </button>
         </div>
       </div>
     </div>

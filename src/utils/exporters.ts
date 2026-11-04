@@ -270,6 +270,9 @@ export const downloadBlob = (data: BlobPart, filename: string, mime: string) => 
 export const exportCsv = (sheet: ExportSheet, filename: string) =>
   downloadBlob(buildCsv(sheet), `${filename}.csv`, 'text/csv;charset=utf-8');
 
+export const exportZip = (files: { name: string; content: string }[], filename: string) =>
+  downloadBlob(zipStore(files) as unknown as BlobPart, `${filename}.zip`, 'application/zip');
+
 export const exportXlsx = (sheets: ExportSheet[], filename: string) =>
   downloadBlob(
     buildXlsx(sheets) as unknown as BlobPart,
