@@ -6,7 +6,7 @@ export const userRouter = Router();
 
 userRouter.use(authMiddleware);
 
-userRouter.get('/', listUsers);
+userRouter.get('/', requireRole('administrador', 'superadmin'), listUsers);
 userRouter.post('/', requireRole('administrador', 'superadmin'), createUser);
 userRouter.put('/:id', requireRole('administrador', 'superadmin'), updateUser);
 userRouter.post('/:id/reactivar', requireRole('administrador', 'superadmin'), reactivateUser);

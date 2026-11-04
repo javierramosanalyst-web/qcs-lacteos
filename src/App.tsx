@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { OperatorLayout } from './layouts/OperatorLayout';
 import { Toast } from './components/ui/Toast';
 import { LoginScreen } from './pages/auth/LoginScreen';
@@ -47,6 +47,9 @@ import {
   UserRole,
 } from './types';
 import { setInsumoLotes, useInsumoLotesVersion } from './data/insumoLotes';
+
+const ACTIVITY_KEY = 'qcs_last_activity';
+const IDLE_LIMIT_MS = 15 * 60 * 1000;
 
 export default function App() {
   useInsumoLotesVersion();
@@ -148,7 +151,7 @@ export default function App() {
       const [apiLines, apiProducts, apiUsers, apiInsumos] = await Promise.all([
         fetchLines(),
         fetchProducts(),
-        fetchUsers(),
+        role === 'administrador' ? fetchUsers() : Promise.resolve([]),
         fetchInsumoLotes().catch(() => []),
       ]);
       setInsumoLotes(apiInsumos);
@@ -172,6 +175,13 @@ export default function App() {
 
   useEffect(() => {
     if (!getToken()) return;
+    const lastAct = Number(localStorage.getItem(ACTIVITY_KEY) || 0);
+    if (lastAct && Date.now() - lastAct >= IDLE_LIMIT_MS) {
+      clearToken();
+      localStorage.removeItem(ACTIVITY_KEY);
+      setRestoring(false);
+      return;
+    }
     let cancelled = false;
     meRequest()
       .then((user) => {
@@ -271,8 +281,11 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = (reason?: string) => {
     clearToken();
+    localStorage.removeItem(ACTIVITY_KEY);
+    setCurrentView('operator_line_select');
+    setUserRole('operador');
     localStorage.removeItem('qcs_view');
     localStorage.removeItem('qcs_line');
     localStorage.removeItem('qcs_product');
@@ -281,8 +294,42 @@ export default function App() {
     setUsers([]);
     setAuditLogs([]);
     setBatchHistory([]);
-    showToast('Cerraste tu turno. Ingresa tu código para volver a entrar.');
+    showToast(reason || 'Cerraste tu turno. Ingresa tu código para volver a entrar.');
   };
+
+  const handleLogoutRef = useRef(handleLogout);
+  handleLogoutRef.current = handleLogout;
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const touch = () => localStorage.setItem(ACTIVITY_KEY, String(Date.now()));
+    touch();
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+    let last = 0;
+    const onActivity = () => {
+      const now = Date.now();
+      if (now - last < 5000) return;
+      last = now;
+      touch();
+    };
+    events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
+    const timer = window.setInterval(() => {
+      const stored = Number(localStorage.getItem(ACTIVITY_KEY) || Date.now());
+      if (Date.now() - stored >= IDLE_LIMIT_MS) {
+        handleLogoutRef.current('Sesión cerrada por 15 minutos de inactividad. Ingresa de nuevo.');
+      }
+    }, 15000);
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, onActivity));
+      window.clearInterval(timer);
+    };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated && currentView === 'admin_dashboard' && userRole !== 'administrador') {
+      setCurrentView('operator_line_select');
+    }
+  }, [isAuthenticated, currentView, userRole]);
 
   const handleSelectLine = (lineId: string) => {
     setSelectedLineId(lineId);
@@ -481,11 +528,11 @@ export default function App() {
           : undefined
       }
       onOpenAuditTrailModal={() => setAuditTrailModalOpen(true)}
-      onLogout={handleLogout}
+      onLogout={() => handleLogout()}
     >
       <Toast toasts={toasts} onDismiss={handleDismissToast} />
 
-      {currentView === 'admin_dashboard' && (
+      {currentView === 'admin_dashboard' && userRole === 'administrador' && currentUser?.role === 'administrador' && (
         <AdminGlobalDashboard
           lines={lines}
           products={products}
