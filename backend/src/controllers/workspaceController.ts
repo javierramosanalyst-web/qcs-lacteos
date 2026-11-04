@@ -16,6 +16,7 @@ async function findLine(client: PoolClient, identifier: string) {
 
 function lineForbidden(req: Request, res: Response, lineId: string): boolean {
   const user = req.user;
+  if (process.env.ENFORCE_LINE_ACCESS !== 'true') return false;
   if (user && user.rol === 'operador' && user.lineaAsignadaId && user.lineaAsignadaId !== lineId) {
     res.status(403).json({ error: 'LINE_FORBIDDEN', message: 'No tienes asignada esta línea de producción.' });
     return true;

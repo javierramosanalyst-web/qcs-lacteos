@@ -190,7 +190,13 @@ export function useBatchPersistence({
   const loadFromServer = useCallback(
     async (initial: boolean) => {
       for (const lineCode of LINE_CODES) {
-        const data = await fetchWorkspace(lineCode);
+        let data: Awaited<ReturnType<typeof fetchWorkspace>>;
+        try {
+          data = await fetchWorkspace(lineCode);
+        } catch (err) {
+          if (err instanceof ApiError && (err.status === 403 || err.status === 404)) continue;
+          throw err;
+        }
         for (const d of data.drafts) {
           const local = versions.current[d.producto_ui_id] ?? 0;
           const p = productsRef.current.find((x) => x.productId === d.producto_ui_id);

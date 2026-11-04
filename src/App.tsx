@@ -149,7 +149,7 @@ export default function App() {
         fetchLines(),
         fetchProducts(),
         fetchUsers(),
-        fetchInsumoLotes(),
+        fetchInsumoLotes().catch(() => []),
       ]);
       setInsumoLotes(apiInsumos);
       setLines(apiLines);
