@@ -361,6 +361,17 @@ export const updateInsumoLoteRequest = (id: string, payload: InsumoLotePayload) 
 export const deactivateInsumoLoteRequest = (id: string) =>
   apiFetch<{ message: string }>(`/insumos-lotes/${id}`, { method: 'DELETE' });
 
+export const fetchInsumoPapelera = () => apiFetch<InsumoLoteRow[]>('/insumos-lotes?papelera=1');
+
+export const trashInsumoLoteRequest = (id: string) =>
+  apiFetch<{ message: string }>(`/insumos-lotes/${id}/eliminar`, { method: 'POST' });
+
+export const restoreInsumoLoteRequest = (id: string) =>
+  apiFetch<{ message: string }>(`/insumos-lotes/${id}/restaurar`, { method: 'POST' });
+
+export const purgeInsumoLoteRequest = (id: string) =>
+  apiFetch<{ message: string }>(`/insumos-lotes/${id}/permanente`, { method: 'DELETE' });
+
 export const reactivateInsumoLoteRequest = (id: string) =>
   apiFetch<{ message: string }>(`/insumos-lotes/${id}/reactivar`, { method: 'POST' });
 

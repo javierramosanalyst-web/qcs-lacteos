@@ -10,7 +10,7 @@ const TIPOS: Record<string, { codigo: string; nombre: string; unidad: string }> 
 
 const SELECT_LOTE = `
   SELECT il.id, ic.tipo_insumo AS tipo, il.codigo_lote, il.descripcion, il.proveedor,
-         il.fecha_vencimiento, il.cantidad_recibida, ic.unidad_base AS unidad, il.activo, il.created_at
+         il.fecha_vencimiento, il.cantidad_recibida, ic.unidad_base AS unidad, il.activo, il.created_at, il.eliminado_at
   FROM insumos_lotes il
   JOIN insumos_catalogo ic ON ic.id = il.insumo_id`;
 
@@ -43,17 +43,36 @@ function invalid(res: Response, message: string) {
   res.status(400).json({ error: 'INVALID_INPUT', message });
 }
 
+export async function purgeExpiredInsumoLotes(): Promise<number> {
+  const { rows } = await pool.query(
+    `SELECT id FROM insumos_lotes WHERE eliminado_at IS NOT NULL AND eliminado_at < NOW() - INTERVAL '30 days';`
+  );
+  let purged = 0;
+  for (const r of rows) {
+    try {
+      await pool.query(`DELETE FROM insumos_lotes WHERE id = $1;`, [r.id]);
+      purged += 1;
+    } catch {
+      continue;
+    }
+  }
+  return purged;
+}
+
 export async function listInsumoLotes(req: Request, res: Response): Promise<void> {
   try {
     const isAdmin = req.user?.rol === 'administrador' || req.user?.rol === 'superadmin';
     const todos = isAdmin && req.query.todos === '1';
+    const papelera = isAdmin && req.query.papelera === '1';
+    if (papelera) await purgeExpiredInsumoLotes();
     const tipo = typeof req.query.tipo === 'string' && TIPOS[req.query.tipo] ? req.query.tipo : null;
     const { rows } = await pool.query(
       `${SELECT_LOTE}
        WHERE ic.tipo_insumo = ANY($1::text[]) AND ($2::boolean OR il.activo = TRUE)
          AND ($3::text IS NULL OR ic.tipo_insumo = $3)
+         AND (il.eliminado_at IS NOT NULL) = $4::boolean
        ORDER BY il.created_at DESC;`,
-      [Object.keys(TIPOS), todos, tipo]
+      [Object.keys(TIPOS), todos || papelera, tipo, papelera]
     );
     res.json(rows);
   } catch (error) {
@@ -111,6 +130,50 @@ export async function updateInsumoLote(req: Request, res: Response): Promise<voi
     if (error.code === '22P02') return invalid(res, 'Identificador no válido.');
     console.error('[insumos] Error al actualizar:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'No se pudo actualizar el lote.' });
+  }
+}
+
+export async function trashInsumoLote(req: Request, res: Response): Promise<void> {
+  const restore = req.path.endsWith('/restaurar');
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE insumos_lotes SET eliminado_at = ${restore ? 'NULL' : 'NOW()'}, activo = $2 WHERE id = $1;`,
+      [req.params.id, restore]
+    );
+    if (!rowCount) {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'Lote no encontrado.' });
+      return;
+    }
+    res.json({ message: restore ? 'Lote restaurado.' : 'Lote enviado a la papelera. Se elimina de forma permanente en 30 días.' });
+  } catch (error: any) {
+    if (error.code === '22P02') return invalid(res, 'Identificador no válido.');
+    console.error('[insumos] Error al mover a papelera:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'No se pudo completar la operación.' });
+  }
+}
+
+export async function deleteInsumoLotePermanente(req: Request, res: Response): Promise<void> {
+  try {
+    const { rowCount } = await pool.query(
+      `DELETE FROM insumos_lotes WHERE id = $1 AND eliminado_at IS NOT NULL;`,
+      [req.params.id]
+    );
+    if (!rowCount) {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'El lote no está en la papelera.' });
+      return;
+    }
+    res.json({ message: 'Lote eliminado permanentemente.' });
+  } catch (error: any) {
+    if (error.code === '23503') {
+      res.status(409).json({
+        error: 'IN_USE',
+        message: 'Este lote ya fue usado en producciones y no se puede borrar para conservar la trazabilidad. Déjalo en la papelera.',
+      });
+      return;
+    }
+    if (error.code === '22P02') return invalid(res, 'Identificador no válido.');
+    console.error('[insumos] Error al eliminar permanentemente:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'No se pudo eliminar el lote.' });
   }
 }
 

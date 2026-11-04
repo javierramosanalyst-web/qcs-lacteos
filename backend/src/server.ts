@@ -12,6 +12,7 @@ import userRoutes from './routes/userRoutes';
 import insumoLoteRoutes from './routes/insumoLoteRoutes';
 import workspaceRoutes from './routes/workspaceRoutes';
 import { ensureSchema } from './schema';
+import { purgeExpiredInsumoLotes } from './controllers/insumoLoteController';
 import path from 'path';
 import fs from 'fs';
 
@@ -98,7 +99,12 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 });
 
 ensureSchema()
-  .then(() => console.log('[server] Esquema de base de datos verificado.'))
+  .then(() => {
+    console.log('[server] Esquema de base de datos verificado.');
+    const purge = () => purgeExpiredInsumoLotes().catch((err) => console.error('[server] Limpieza de papelera:', err.message));
+    void purge();
+    setInterval(purge, 24 * 60 * 60 * 1000).unref();
+  })
   .catch((err) => console.error('[server] No se pudo verificar el esquema:', err.message));
 
 // Cierre ordenado: deja de aceptar peticiones y libera el pool.

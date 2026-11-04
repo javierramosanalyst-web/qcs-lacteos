@@ -12,6 +12,7 @@ export interface InsumoLoteRow {
   cantidad_recibida: string | number | null;
   unidad: string;
   activo: boolean;
+  eliminado_at?: string | null;
 }
 
 export const LOTES_LECHE_PROVEEDOR_DEFAULT: string[] = [];

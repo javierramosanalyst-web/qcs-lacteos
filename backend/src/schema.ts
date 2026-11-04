@@ -31,6 +31,7 @@ INSERT INTO parametros_medicion (codigo, nombre, unidad) VALUES
 ON CONFLICT (codigo) DO NOTHING;
 
 ALTER TABLE insumos_lotes ADD COLUMN IF NOT EXISTS descripcion VARCHAR(200);
+ALTER TABLE insumos_lotes ADD COLUMN IF NOT EXISTS eliminado_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_borradores_lote_linea ON borradores_lote(linea_id);
 `;

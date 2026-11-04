@@ -3,6 +3,10 @@ import {
   createInsumoLoteRequest,
   deactivateInsumoLoteRequest,
   fetchInsumoLotes,
+  fetchInsumoPapelera,
+  purgeInsumoLoteRequest,
+  restoreInsumoLoteRequest,
+  trashInsumoLoteRequest,
   reactivateInsumoLoteRequest,
   updateInsumoLoteRequest,
 } from '../../api/client';
@@ -37,12 +41,15 @@ export const InsumosManager: React.FC = () => {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [saving, setSaving] = useState(false);
+  const [vista, setVista] = useState<'lotes' | 'papelera'>('lotes');
+  const [papelera, setPapelera] = useState<InsumoLoteRow[]>([]);
 
   const load = useCallback(async () => {
     try {
       const all = await fetchInsumoLotes(true);
       setRows(all);
       setInsumoLotes(all);
+      setPapelera(await fetchInsumoPapelera());
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudieron consultar los lotes.');
@@ -114,6 +121,44 @@ export const InsumosManager: React.FC = () => {
     }
   };
 
+  const trash = async (r: InsumoLoteRow) => {
+    if (!window.confirm(`¿Enviar el lote ${r.codigo_lote} a la papelera? Podrás recuperarlo durante 30 días; después se elimina de forma permanente.`)) return;
+    try {
+      await trashInsumoLoteRequest(r.id);
+      if (editingId === r.id) reset();
+      setInfo(`Lote ${r.codigo_lote} enviado a la papelera.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar el lote.');
+    }
+  };
+
+  const restore = async (r: InsumoLoteRow) => {
+    try {
+      await restoreInsumoLoteRequest(r.id);
+      setInfo(`Lote ${r.codigo_lote} restaurado.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo restaurar el lote.');
+    }
+  };
+
+  const purge = async (r: InsumoLoteRow) => {
+    if (!window.confirm(`¿Eliminar permanentemente el lote ${r.codigo_lote}? Esta acción no se puede deshacer.`)) return;
+    try {
+      await purgeInsumoLoteRequest(r.id);
+      setInfo(`Lote ${r.codigo_lote} eliminado permanentemente.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo eliminar el lote.');
+    }
+  };
+
+  const diasRestantes = (r: InsumoLoteRow) => {
+    const t = r.eliminado_at ? new Date(r.eliminado_at).getTime() : Date.now();
+    return Math.max(0, Math.ceil((t + 30 * 86400000 - Date.now()) / 86400000));
+  };
+
   const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
@@ -139,6 +184,68 @@ export const InsumosManager: React.FC = () => {
         })}
       </div>
 
+      <div className="flex gap-2">
+        {([['lotes', 'Lotes'], ['papelera', `Papelera (${papelera.length})`]] as const).map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => {
+              setVista(k);
+              setError('');
+              setInfo('');
+            }}
+            className={`px-4 h-9 rounded-xl text-xs font-bold cursor-pointer border ${
+              vista === k ? 'bg-[#1B4E9B] text-white border-[#1B4E9B]' : 'bg-white text-gray-700 border-[#D6DEEA]'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {error && <div className="text-xs font-bold text-red-700">{error}</div>}
+      {info && <div className="text-xs font-bold text-[#3F7F1E]">{info}</div>}
+
+      {vista === 'papelera' && (
+        <div className={`${card} p-5`}>
+          <h3 className="text-sm font-extrabold text-[#143A73] mb-1">Papelera de lotes</h3>
+          <p className="text-[11px] text-gray-500 mb-3">
+            Los lotes eliminados se pueden recuperar durante 30 días. Pasado ese plazo se borran de forma permanente.
+          </p>
+          {papelera.length === 0 ? (
+            <div className="text-xs text-gray-500 py-6 text-center">La papelera está vacía.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-[10px] uppercase text-gray-500 border-b border-[#D6DEEA]">
+                    <th className="py-2 pr-3">Insumo</th>
+                    <th className="pr-3">Lote</th>
+                    <th className="pr-3">Eliminado</th>
+                    <th className="pr-3">Se borra en</th>
+                    <th className="text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {papelera.map((r) => (
+                    <tr key={r.id} className="border-b border-[#F2F4F7]">
+                      <td className="py-2 pr-3">{TIPOS.find((t) => t.key === r.tipo)?.label}</td>
+                      <td className="pr-3 font-mono font-bold text-[#1B4E9B]">{r.codigo_lote}</td>
+                      <td className="pr-3">{r.eliminado_at ? new Date(r.eliminado_at).toLocaleDateString('es-CO') : '—'}</td>
+                      <td className="pr-3 font-bold">{diasRestantes(r)} día(s)</td>
+                      <td className="text-right whitespace-nowrap">
+                        <button onClick={() => restore(r)} className="px-2 font-bold text-[#3F7F1E] hover:underline cursor-pointer">Recuperar</button>
+                        <button onClick={() => purge(r)} className="px-2 font-bold text-red-700 hover:underline cursor-pointer">Eliminar ya</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {vista === 'lotes' && (<>
       <form onSubmit={submit} className={`${card} p-5 flex flex-col gap-4`}>
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-extrabold text-[#143A73]">
@@ -172,8 +279,6 @@ export const InsumosManager: React.FC = () => {
             <input type="number" min="0" step="any" className={inputClass} value={form.cantidad_recibida} onChange={set('cantidad_recibida')} />
           </label>
         </div>
-        {error && <div className="text-xs font-bold text-red-700">{error}</div>}
-        {info && <div className="text-xs font-bold text-[#3F7F1E]">{info}</div>}
         <div>
           <button
             type="submit"
@@ -225,6 +330,7 @@ export const InsumosManager: React.FC = () => {
                       <button onClick={() => toggle(r)} className={`px-2 font-bold hover:underline cursor-pointer ${r.activo ? 'text-red-700' : 'text-[#3F7F1E]'}`}>
                         {r.activo ? 'Desactivar' : 'Reactivar'}
                       </button>
+                      <button onClick={() => trash(r)} className="px-2 font-bold text-red-700 hover:underline cursor-pointer">Eliminar</button>
                     </td>
                   </tr>
                 ))}
@@ -233,6 +339,7 @@ export const InsumosManager: React.FC = () => {
           </div>
         )}
       </div>
+      </>)}
     </div>
   );
 };
