@@ -4,7 +4,6 @@ import {
   Card,
   InputField,
   SelectField,
-  SelectOption,
   TimerBanner,
   PopoverTimePicker,
   Button,
@@ -49,11 +48,7 @@ const nuevoSabor = (): SaborYogurReceta => ({
   loteColorante: '',
 });
 
-export const LOTES_STEVIA_OPTIONS: SelectOption[] = [
-  { value: 'EST-2026-BIO', label: 'EST-2026-BIO (Stevia Rebaudiana 98% Pureza)' },
-  { value: 'EST-2026-04A', label: 'EST-2026-04A (Extracto Glucósidos de Esteviol)' },
-  { value: 'EST-2026-ECO', label: 'EST-2026-ECO (Stevia Orgánica Ecológica)' },
-];
+// Lotes de Stevia: vienen de la base de datos (Admin > Insumos, tipo 'estevia').
 
 export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps> = ({
   productType,
@@ -121,7 +116,7 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
   const [loteStevia, setLoteStevia] = useState<string>(
     (state.adiciones as any)?.loteStevia ||
       variedadEsteviaState.loteEstevia ||
-      'EST-2026-BIO'
+      ''
   );
 
   const [manualPaso1Stevia, setManualPaso1Stevia] = useState<boolean>(
@@ -265,6 +260,10 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
   // MANEJADORES PASO 01 (ALTERNATIVO): ADICIÓN DE STEVIA
   // =========================================================================
   const handleConfirmStevia = () => {
+    if (!loteStevia.trim()) {
+      showToast('Selecciona el lote de Stevia antes de confirmar.', 'warning');
+      return;
+    }
     const timeStr = getCurrentTimeString();
     const numStevia = cantidadStevia === '' ? 0 : Number(cantidadStevia);
 
@@ -575,7 +574,7 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
               <SelectField
                 label="Lote de Stevia"
                 icon="eco"
-                options={LOTES_STEVIA_OPTIONS}
+                options={conActual(insumoOptions('estevia'), loteStevia)}
                 value={loteStevia}
                 onChange={(e) => setLoteStevia(e.target.value)}
                 hint="Selecciona el lote del insumo edulcorante"

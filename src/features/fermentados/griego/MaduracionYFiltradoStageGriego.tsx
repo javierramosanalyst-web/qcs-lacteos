@@ -409,9 +409,9 @@ export const MaduracionYFiltradoStageGriego: React.FC<
                 <Button
                   variant="primary"
                   size="xl"
-                  icon="check_circle"
+                  icon="stop_circle"
                   onClick={handleConfirmFinCuartoFrio}
-                  className="bg-[#5FAF32] hover:bg-[#4E9628] text-white font-bold shadow-md"
+                  className="font-bold shadow-md"
                 >
                   Confirmar: Fin de Maduración en Cuarto Frío
                 </Button>
@@ -575,11 +575,11 @@ export const MaduracionYFiltradoStageGriego: React.FC<
                 <Button
                   variant="primary"
                   size="xl"
-                  icon="check_circle"
+                  icon="stop_circle"
                   onClick={handleConfirmDrenadoFinalizado}
-                  className="bg-[#5FAF32] hover:bg-[#4E9628] text-white font-bold shadow-md shadow-emerald-700/20"
+                  className="font-bold shadow-md"
                 >
-                  Drenado / Escurrido finalizado
+                  Finalizar Drenado / Escurrido
                 </Button>
               ) : (
                 <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2">

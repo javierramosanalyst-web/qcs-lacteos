@@ -1,7 +1,7 @@
 -- ============================================================================
 -- QCS PRO LÁCTEOS · DATOS DE PRUEBA (SOLO DESARROLLO)
 -- Lotes de insumos y sabores para poder probar los desplegables
--- (lote de leche, cultivo, cuajo, sal, azúcar, saborizante, colorante).
+-- (lote de leche, cultivo, cuajo, sal, azúcar, saborizante, colorante, stevia).
 --
 -- Requiere: init.sql + seed.sql, y haber arrancado el backend una vez
 -- (ensureSchema agrega columnas que usa la API).
@@ -38,7 +38,9 @@ FROM (VALUES
     ('saborizante',  'SAB-DEMO-001', 'Proveedor Sabores',   365, 5000),
     ('saborizante',  'SAB-DEMO-002', 'Proveedor Sabores',   365, 5000),
     ('colorante',    'COL-DEMO-001', 'Proveedor Colorantes',365, 2000),
-    ('colorante',    'COL-DEMO-002', 'Proveedor Colorantes',365, 2000)
+    ('colorante',    'COL-DEMO-002', 'Proveedor Colorantes',365, 2000),
+    ('estevia',      'EST-DEMO-001', 'Proveedor Stevia',    365, 3000),
+    ('estevia',      'EST-DEMO-002', 'Proveedor Stevia',    365, 3000)
 ) AS v(tipo, codigo_lote, proveedor, dias_venc, cantidad)
 JOIN insumos_catalogo c ON c.tipo_insumo = v.tipo
 ON CONFLICT (insumo_id, codigo_lote) DO NOTHING;

@@ -88,10 +88,11 @@ export const YogurGriegoSummaryModal: React.FC<YogurGriegoSummaryModalProps> = (
     envasado.formatosSinEstevia?.vasito120ml ||
     envasado.formatosSinEstevia?.tarrina120g ||
     0;
+  const sinEstBolsa4L = envasado.formatosSinEstevia?.bolsa4L || 0;
   const masaEnvasadaSinEstevia = Number(
-    (sinEst1L * 1.0 + sinEst500ml * 0.5 + sinEst120ml * 0.12).toFixed(2)
+    (sinEst1L * 1.0 + sinEst500ml * 0.5 + sinEst120ml * 0.12 + sinEstBolsa4L * 4.0).toFixed(2)
   );
-  const undsSinEstevia = sinEst1L + sinEst500ml + sinEst120ml;
+  const undsSinEstevia = sinEst1L + sinEst500ml + sinEst120ml + sinEstBolsa4L;
 
   // Griego con estevia: Tarro 1000g + Tarro 500g + Vasito 120g
   const conEst1L =
@@ -106,10 +107,11 @@ export const YogurGriegoSummaryModal: React.FC<YogurGriegoSummaryModalProps> = (
     envasado.formatosConEstevia?.vasito120ml ||
     envasado.formatosConEstevia?.tarrina120g ||
     0;
+  const conEstBolsa4L = envasado.formatosConEstevia?.bolsa4L || 0;
   const masaEnvasadaConEstevia = Number(
-    (conEst1L * 1.0 + conEst500ml * 0.5 + conEst120ml * 0.12).toFixed(2)
+    (conEst1L * 1.0 + conEst500ml * 0.5 + conEst120ml * 0.12 + conEstBolsa4L * 4.0).toFixed(2)
   );
-  const undsConEstevia = conEst1L + conEst500ml + conEst120ml;
+  const undsConEstevia = conEst1L + conEst500ml + conEst120ml + conEstBolsa4L;
 
   const masaTotalEnvasadaKg = Number((masaEnvasadaSinEstevia + masaEnvasadaConEstevia).toFixed(2));
   const totalUnidades = undsSinEstevia + undsConEstevia;
@@ -458,7 +460,7 @@ export const YogurGriegoSummaryModal: React.FC<YogurGriegoSummaryModalProps> = (
                     <p className="text-xs text-gray-600 mb-3">
                       Total unidades: <strong className="text-gray-900">{undsSinEstevia}</strong>
                     </p>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                       <div className="p-2 bg-white rounded-xl border border-blue-100">
                         <span className="text-gray-500 block text-[10px]">Tarrina 1000 g:</span>
                         <span className="font-bold text-blue-900">{sinEst1L} und</span>
@@ -470,6 +472,10 @@ export const YogurGriegoSummaryModal: React.FC<YogurGriegoSummaryModalProps> = (
                       <div className="p-2 bg-white rounded-xl border border-blue-100">
                         <span className="text-gray-500 block text-[10px]">Tarrina 120 g:</span>
                         <span className="font-bold text-blue-900">{sinEst120ml} und</span>
+                      </div>
+                      <div className="p-2 bg-white rounded-xl border border-blue-100">
+                        <span className="text-gray-500 block text-[10px]">Bolsa 4 L:</span>
+                        <span className="font-bold text-blue-900">{sinEstBolsa4L} und</span>
                       </div>
                     </div>
                   </div>
@@ -491,7 +497,7 @@ export const YogurGriegoSummaryModal: React.FC<YogurGriegoSummaryModalProps> = (
                         {batidoYAdiciones.formulacion.variedadConEstevia.loteEstevia || 'Sin registrar'})
                       </strong>
                     </p>
-                    <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                       <div className="p-2 bg-white rounded-xl border border-emerald-100">
                         <span className="text-gray-500 block text-[10px]">Tarro 1000 g:</span>
                         <span className="font-bold text-emerald-900">{conEst1L} und</span>
@@ -503,6 +509,10 @@ export const YogurGriegoSummaryModal: React.FC<YogurGriegoSummaryModalProps> = (
                       <div className="p-2 bg-white rounded-xl border border-emerald-100">
                         <span className="text-gray-500 block text-[10px]">Vasito 120 g:</span>
                         <span className="font-bold text-purple-900">{conEst120ml} und</span>
+                      </div>
+                      <div className="p-2 bg-white rounded-xl border border-emerald-100">
+                        <span className="text-gray-500 block text-[10px]">Bolsa 4 L:</span>
+                        <span className="font-bold text-emerald-900">{conEstBolsa4L} und</span>
                       </div>
                     </div>
                   </div>

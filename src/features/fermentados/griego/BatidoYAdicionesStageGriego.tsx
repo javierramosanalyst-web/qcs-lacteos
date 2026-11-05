@@ -8,12 +8,12 @@ import {
   getCurrentTimeString,
 } from '../../../utils/timer';
 import { useStageCountdown } from '../../../hooks/useStageCountdown';
+import { insumoOptions, useInsumoLotesVersion } from '../../../data/insumoLotes';
 import {
   StageHeader,
   Card,
   InputField,
   SelectField,
-  SelectOption,
   Button,
   PopoverTimePicker,
   TimerBanner,
@@ -33,16 +33,16 @@ interface BatidoYAdicionesStageGriegoProps {
   showToast: (msg: string, type?: 'success' | 'info' | 'warning') => void;
 }
 
-const LOTES_STEVIA_OPTIONS: SelectOption[] = [
-  { value: 'EST-2026-01', label: 'EST-2026-01 (Stevia Orgánica 98% Reb A)' },
-  { value: 'EST-2026-02', label: 'EST-2026-02 (Stevia Alta Pureza Bio)' },
-  { value: 'EST-2026-03', label: 'EST-2026-03 (Extracto Puro de Stevia)' },
-];
+// Lotes de Stevia: vienen de la base de datos (Admin > Insumos, tipo 'estevia').
+// Conserva el lote ya registrado aunque hoy no esté activo en Insumos.
+const conLoteActual = (opts: { value: string; label: string }[], val: string) =>
+  val && !opts.some((o) => o.value === val) ? [{ value: val, label: val }, ...opts] : opts;
 
 export const BatidoYAdicionesStageGriego: React.FC<
   BatidoYAdicionesStageGriegoProps
 > = ({ state, onChange, onNextStage, showToast }) => {
   const { batido, formulacion } = state;
+  useInsumoLotesVersion();
 
   // Estado Paso 1: Insumo Stevia
   const [cantidadSteviaInput, setCantidadSteviaInput] = useState<string>(
@@ -51,7 +51,7 @@ export const BatidoYAdicionesStageGriego: React.FC<
       : ''
   );
   const [loteSteviaSelected, setLoteSteviaSelected] = useState<string>(
-    formulacion.variedadConEstevia?.loteEstevia || 'EST-2026-01'
+    formulacion.variedadConEstevia?.loteEstevia || ''
   );
   const [manualStevia, setManualStevia] = useState<boolean>(false);
   const [horaManualStevia, setHoraManualStevia] = useState<string>(
@@ -287,7 +287,7 @@ export const BatidoYAdicionesStageGriego: React.FC<
           <SelectField
             label="Lote de Stevia"
             icon="label"
-            options={LOTES_STEVIA_OPTIONS}
+            options={conLoteActual(insumoOptions('estevia'), loteSteviaSelected)}
             value={loteSteviaSelected}
             onChange={(e) => setLoteSteviaSelected(e.target.value)}
             disabled={isSteviaConfirmada && !manualStevia}

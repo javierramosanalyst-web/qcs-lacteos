@@ -129,7 +129,7 @@ INSERT INTO tipos_insumo (codigo, nombre, unidad_base, gestionable_admin) VALUES
   ('colorante', 'Colorante', 'ml', TRUE),
   ('leche_acida', 'Leche ácida', 'L', FALSE),
   ('cultivo_lactico', 'Cultivo láctico (proceso)', 'g', FALSE),
-  ('estevia', 'Estevia', 'g', FALSE),
+  ('estevia', 'Estevia', 'g', TRUE),
   ('acido_acetico', 'Ácido acético', 'ml', FALSE),
   ('agua', 'Agua', 'ml', FALSE),
   ('especia', 'Especia', 'g', FALSE),

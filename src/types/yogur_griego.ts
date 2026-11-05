@@ -158,6 +158,7 @@ export interface FormatosGriegoSinEstevia {
   tarrina1000g?: number;
   tarrina500g?: number;
   tarrina120g?: number;
+  bolsa4L?: number; // Bolsa de 4 L (≈ 4 kg)
 }
 
 export interface FormatosGriegoConEstevia {
@@ -167,6 +168,7 @@ export interface FormatosGriegoConEstevia {
   tarrina1000g?: number;
   tarrina500g?: number;
   tarrina120g?: number;
+  bolsa4L?: number; // Bolsa de 4 L (≈ 4 kg)
 }
 
 export interface EnvasadoYAlmacenamientoYogurGriegoState {

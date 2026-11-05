@@ -47,14 +47,17 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
     state.formatosSinEstevia?.vasito120ml ||
     state.formatosSinEstevia?.tarrina120g ||
     0;
+  const sinEsteviaBolsa4L = state.formatosSinEstevia?.bolsa4L || 0;
   const kgSinEstevia = Number(
     (
       sinEstevia1000g * 1.0 +
       sinEstevia500g * 0.5 +
-      sinEstevia120g * 0.12
+      sinEstevia120g * 0.12 +
+      sinEsteviaBolsa4L * 4.0
     ).toFixed(2)
   );
-  const undsSinEstevia = sinEstevia1000g + sinEstevia500g + sinEstevia120g;
+  const undsSinEstevia =
+    sinEstevia1000g + sinEstevia500g + sinEstevia120g + sinEsteviaBolsa4L;
 
   // Categoría 2: Con Stevia - 1000 g, 500 g, 120 g
   const conEstevia1000g =
@@ -69,15 +72,17 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
     state.formatosConEstevia?.vasito120ml ||
     state.formatosConEstevia?.tarrina120g ||
     0;
+  const conEsteviaBolsa4L = state.formatosConEstevia?.bolsa4L || 0;
   const kgConEstevia = Number(
     (
       conEstevia1000g * 1.0 +
       conEstevia500g * 0.5 +
-      conEstevia120g * 0.12
+      conEstevia120g * 0.12 +
+      conEsteviaBolsa4L * 4.0
     ).toFixed(2)
   );
   const undsConEstevia =
-    conEstevia1000g + conEstevia500g + conEstevia120g;
+    conEstevia1000g + conEstevia500g + conEstevia120g + conEsteviaBolsa4L;
 
   // Totales
   const totalUnidades = undsSinEstevia + undsConEstevia;
@@ -167,7 +172,7 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
                 <Badge variant="success">100% Puro</Badge>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <InputField
                   label="Tarrina / Vaso 1000 g"
                   type="number"
@@ -239,6 +244,29 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
                     }));
                   }}
                 />
+
+                <InputField
+                  label="Bolsa 4 L"
+                  type="number"
+                  min="0"
+                  unit="und"
+                  placeholder="Ej: 10"
+                  showZero={false}
+                  value={sinEsteviaBolsa4L}
+                  onChange={(e) => {
+                    const val =
+                      e.target.value === ''
+                        ? 0
+                        : Math.max(0, parseInt(e.target.value, 10) || 0);
+                    onChange((prev) => ({
+                      ...prev,
+                      formatosSinEstevia: {
+                        ...prev.formatosSinEstevia,
+                        bolsa4L: val,
+                      },
+                    }));
+                  }}
+                />
               </div>
             </div>
 
@@ -267,7 +295,7 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
                 <Badge variant="warning">Endulzado Stevia</Badge>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <InputField
                   label="Tarrina / Vaso 1000 g"
                   type="number"
@@ -335,6 +363,29 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
                         ...prev.formatosConEstevia,
                         vasito120ml: val,
                         tarrina120g: val,
+                      },
+                    }));
+                  }}
+                />
+
+                <InputField
+                  label="Bolsa 4 L"
+                  type="number"
+                  min="0"
+                  unit="und"
+                  placeholder="Ej: 8"
+                  showZero={false}
+                  value={conEsteviaBolsa4L}
+                  onChange={(e) => {
+                    const val =
+                      e.target.value === ''
+                        ? 0
+                        : Math.max(0, parseInt(e.target.value, 10) || 0);
+                    onChange((prev) => ({
+                      ...prev,
+                      formatosConEstevia: {
+                        ...prev.formatosConEstevia,
+                        bolsa4L: val,
                       },
                     }));
                   }}

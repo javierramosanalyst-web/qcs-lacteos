@@ -54,13 +54,16 @@ INSERT INTO tipos_insumo (codigo, nombre, unidad_base, gestionable_admin) VALUES
   ('colorante', 'Colorante', 'ml', TRUE),
   ('leche_acida', 'Leche ácida', 'L', FALSE),
   ('cultivo_lactico', 'Cultivo láctico (proceso)', 'g', FALSE),
-  ('estevia', 'Estevia', 'g', FALSE),
+  ('estevia', 'Estevia', 'g', TRUE),
   ('acido_acetico', 'Ácido acético', 'ml', FALSE),
   ('agua', 'Agua', 'ml', FALSE),
   ('especia', 'Especia', 'g', FALSE),
   ('arequipe', 'Arequipe', 'g', FALSE),
   ('bocadillo', 'Bocadillo', 'g', FALSE)
 ON CONFLICT (codigo) DO NOTHING;
+
+-- La Stevia se registra por lotes en Insumos (bases creadas antes la tenían como no gestionable).
+UPDATE tipos_insumo SET gestionable_admin = TRUE WHERE codigo = 'estevia' AND gestionable_admin = FALSE;
 
 INSERT INTO tipos_insumo (codigo, nombre, unidad_base)
 SELECT DISTINCT tipo_insumo, tipo_insumo, 'unidades' FROM insumos_catalogo
@@ -96,6 +99,12 @@ CREATE TABLE IF NOT EXISTS sabores_yogur (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_sabores_yogur_nombre ON sabores_yogur (LOWER(nombre));
+
+-- Yogur Griego: Bolsa de 4 L (natural y con stevia). Se mide en kg como el resto del Griego.
+INSERT INTO formatos_envase (codigo, descripcion, tipo_linea, categoria_variedad, capacidad_unitaria, unidad_medida) VALUES
+  ('griego_natural_bolsa4L', 'Bolsa de 4 L (Griego Natural)',    'fermentacion', 'natural', 4.000, 'kg'),
+  ('griego_stevia_bolsa4L',  'Bolsa de 4 L (Griego con Stevia)', 'fermentacion', 'stevia',  4.000, 'kg')
+ON CONFLICT (codigo) DO NOTHING;
 `;
 
 export async function ensureSchema(): Promise<void> {

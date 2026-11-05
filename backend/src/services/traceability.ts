@@ -520,8 +520,8 @@ export async function normalizeBatchTraceability(
     const fmts: Record<string, number> = {};
     for (const [k, v] of Object.entries((e.formatos ?? {}) as Json)) fmts[k] = num(v) ?? 0;
     const griegoMap: Record<string, Record<string, string>> = {
-      formatosSinEstevia: { tarro1L: 'griego_natural_tarrina1000g', tarro500ml: 'griego_natural_tarrina500g', vasito120ml: 'griego_natural_tarrina120g' },
-      formatosConEstevia: { tarro1L: 'griego_stevia_tarrina1000g', tarro500ml: 'griego_stevia_tarrina500g', vasito120ml: 'griego_stevia_tarrina120g' },
+      formatosSinEstevia: { tarro1L: 'griego_natural_tarrina1000g', tarro500ml: 'griego_natural_tarrina500g', vasito120ml: 'griego_natural_tarrina120g', bolsa4L: 'griego_natural_bolsa4L' },
+      formatosConEstevia: { tarro1L: 'griego_stevia_tarrina1000g', tarro500ml: 'griego_stevia_tarrina500g', vasito120ml: 'griego_stevia_tarrina120g', bolsa4L: 'griego_stevia_bolsa4L' },
     };
     if (isGriego(b)) {
       for (const [grupo, mapa] of Object.entries(griegoMap)) {

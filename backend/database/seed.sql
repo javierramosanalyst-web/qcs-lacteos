@@ -211,6 +211,8 @@ INSERT INTO formatos_envase (codigo, descripcion, tipo_linea, categoria_variedad
     ('griego_stevia_tarrina1000g',  'Tarrina / Vaso 1000 g (Griego con Stevia)', 'fermentacion', 'stevia', 1.000, 'kg'),
     ('griego_stevia_tarrina500g',   'Tarrina / Vaso 500 g (Griego con Stevia)',  'fermentacion', 'stevia', 0.500, 'kg'),
     ('griego_stevia_tarrina120g',   'Tarrina / Vaso 120 g (Griego con Stevia)',  'fermentacion', 'stevia', 0.120, 'kg'),
+    ('griego_natural_bolsa4L',      'Bolsa de 4 L (Griego Natural)',             'fermentacion', 'natural', 4.000, 'kg'),
+    ('griego_stevia_bolsa4L',       'Bolsa de 4 L (Griego con Stevia)',          'fermentacion', 'stevia',  4.000, 'kg'),
     -- Quesos: Doble Crema (MoldeoStage: 100/200/400/800/1600 g)
     ('moldes100g',  'Molde de 100 g',  'pasta_hilada', 'estandar', 0.100, 'kg'),
     ('moldes200g',  'Molde de 200 g',  'pasta_hilada', 'estandar', 0.200, 'kg'),
