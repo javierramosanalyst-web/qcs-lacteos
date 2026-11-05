@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BatchData,
   ChildBatchReference,
@@ -155,6 +155,12 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
     useState<KumisBatchData>(INITIAL_KUMIS_BATCH);
   const [batchYogurGriego, setBatchYogurGriego] =
     useState<YogurGriegoBatchData>(INITIAL_YOGUR_GRIEGO_BATCH);
+
+  // Kumis y Griego no se abren desde el selector sino desde el Yogur (partición).
+  // Si en esta sesión ya se cerró un Kumis/Griego anterior, la persistencia lo tiene
+  // marcado como "completado" y no guardaría el nuevo (y lo borraría al volver a él).
+  // Este ref permite liberar esa marca justo antes de crear el sub-lote nuevo.
+  const liberarSubLoteCerradoRef = useRef<(productId: string) => boolean>(() => false);
 
   // Modales de resumen por línea
   const [reviewModalOpen, setReviewModalOpen] = useState<boolean>(false);
@@ -449,6 +455,7 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
       const timeStr = getCurrentTimeString();
       const now = Date.now();
       const childKumisId = `${batchYogur.id}-KUM`;
+      liberarSubLoteCerradoRef.current('prod-kumis');
 
       // Volumen disponible reversible: leche actual de yogur + lo que ya se había extraído para kumis
       const prevExtraidosKumis =
@@ -722,6 +729,7 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
       const timeStr = getCurrentTimeString();
       const now = Date.now();
       const childGriegoId = `${batchYogur.id}-YGR`;
+      liberarSubLoteCerradoRef.current('prod-yogur-griego');
 
       // Volumen disponible reversible: leche actual de yogur + lo que ya se había extraído para griego
       const prevExtraidosGriego =
@@ -1498,6 +1506,7 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
       setStagesByProduct((prev) => ({ ...prev, [productId]: DEFAULT_STAGES[productId] ?? 'acidificar' })),
   });
   const { resetIfCompleted, resetParentSaved } = persistence;
+  liberarSubLoteCerradoRef.current = resetIfCompleted;
 
   useEffect(() => {
     if (persistenceEnabled) return;
