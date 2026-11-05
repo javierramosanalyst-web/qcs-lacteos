@@ -6,6 +6,10 @@ const TIPOS: Record<string, { codigo: string; nombre: string; unidad: string }> 
   cultivo: { codigo: 'CULTIVO-LACT', nombre: 'Cultivo láctico', unidad: 'g' },
   cuajo: { codigo: 'CUAJO', nombre: 'Cuajo (coagulante)', unidad: 'ml' },
   sal: { codigo: 'SAL', nombre: 'Sal', unidad: 'kg' },
+  azucar: { codigo: 'AZUCAR', nombre: 'Azúcar', unidad: 'kg' },
+  saborizante: { codigo: 'SABORIZANTE', nombre: 'Saborizante', unidad: 'ml' },
+  colorante: { codigo: 'COLORANTE', nombre: 'Colorante', unidad: 'ml' },
+  sabor: { codigo: 'SABOR-YOGUR', nombre: 'Sabores de yogur', unidad: 'und' },
 };
 
 const SELECT_LOTE = `

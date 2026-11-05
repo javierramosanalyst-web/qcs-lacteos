@@ -21,12 +21,6 @@ import {
 import { useStageCountdown } from '../../../hooks/useStageCountdown';
 import { insumoOptions } from '../../../data/insumoLotes';
 
-export const LOTES_AZUCAR_OPTIONS: SelectOption[] = [
-  { value: 'AZU-2026-09', label: 'AZU-2026-09 (Ingenio Riopaila - Bulto 50 kg)' },
-  { value: 'AZU-2026-10A', label: 'AZU-2026-10A (Ingenio Manuelita - Bulto 50 kg)' },
-  { value: 'AZU-2026-11', label: 'AZU-2026-11 (Ingenio Providencia - Bulto 50 kg)' },
-];
-
 const ensureOption = (
   options: SelectOption[],
   val?: string | null
@@ -1092,7 +1086,7 @@ export const PasteurizacionStageCommon: React.FC<
                 label="Lote de Azúcar"
                 icon="qr_code"
                 options={ensureOption(
-                  LOTES_AZUCAR_OPTIONS,
+                  insumoOptions('azucar'),
                   state.azucar?.loteAzucar || state.loteAzucarPastur
                 )}
                 value={state.azucar?.loteAzucar || state.loteAzucarPastur || ''}

@@ -11,6 +11,7 @@ import {
   Badge,
 } from '../../../components/ui';
 import { ProcessTimerState } from '../../../types';
+import { insumoOptions } from '../../../data/insumoLotes';
 import { BatidoYAdicionesYogurState, SaborYogurReceta } from '../../../types/yogur';
 import { BatidoYAdicionesKumisState } from '../../../types/kumis';
 import {
@@ -35,7 +36,9 @@ export interface BatidoYSaboresStageCommonProps {
   showToast: (msg: string, type?: 'success' | 'info' | 'warning') => void;
 }
 
-const SABORES_YOGUR = ['Mora', 'Fresa', 'Melocotón', 'Frutos Rojos', 'Vainilla', 'Arequipe', 'Natural'];
+const conActual = (opts: { value: string; label: string }[], val: string) =>
+  val && !opts.some((o) => o.value === val) ? [{ value: val, label: val }, ...opts] : opts;
+
 
 const nuevoSabor = (): SaborYogurReceta => ({
   id: `sabor-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -173,7 +176,6 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
     }
     const sinInsumos = sabores.find(
       (s) =>
-        s.sabor !== 'Natural' &&
         (!(Number(s.saborizanteMl) > 0) || !s.loteSaborizante.trim())
     );
     if (sinInsumos) {
@@ -440,9 +442,9 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
                       className="w-full bg-white px-3 py-2.5 rounded-xl border border-[#D6DEEA] font-bold text-sm text-[#191C1E] outline-none shadow-2xs disabled:opacity-70"
                     >
                       <option value="">Selecciona sabor</option>
-                      {SABORES_YOGUR.map((nombre) => (
-                        <option key={nombre} value={nombre}>
-                          {nombre}
+                      {conActual(insumoOptions('sabor'), s.sabor).map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.value}
                         </option>
                       ))}
                     </select>
@@ -460,10 +462,10 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
                       })
                     }
                   />
-                  <InputField
+                  <SelectField
                     label="Lote de Saborizante"
-                    type="text"
-                    placeholder="Código del frasco"
+                    icon="qr_code"
+                    options={conActual(insumoOptions('saborizante'), s.loteSaborizante)}
                     disabled={isRecetaConfirmada}
                     value={s.loteSaborizante}
                     onChange={(e) => handleCambioSabor(s.id, { loteSaborizante: e.target.value })}
@@ -481,10 +483,10 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
                       })
                     }
                   />
-                  <InputField
+                  <SelectField
                     label="Lote de Colorante"
-                    type="text"
-                    placeholder="Código del frasco"
+                    icon="qr_code"
+                    options={conActual(insumoOptions('colorante'), s.loteColorante)}
                     disabled={isRecetaConfirmada}
                     value={s.loteColorante}
                     onChange={(e) => handleCambioSabor(s.id, { loteColorante: e.target.value })}

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-export type InsumoTipo = 'leche_fresca' | 'cultivo' | 'cuajo' | 'sal';
+export type InsumoTipo = 'leche_fresca' | 'cultivo' | 'cuajo' | 'sal' | 'azucar' | 'saborizante' | 'colorante' | 'sabor';
 
 export interface InsumoLoteRow {
   id: string;
@@ -19,12 +19,20 @@ export const LOTES_LECHE_PROVEEDOR_DEFAULT: string[] = [];
 export const LOTES_CULTIVO_LACTEO_DEFAULT: string[] = [];
 export const LOTES_CUAJO_PERA_DEFAULT: string[] = [];
 export const LOTES_SAL_CATALOG: string[] = [];
+export const LOTES_AZUCAR_CATALOG: string[] = [];
+export const LOTES_SABORIZANTE_CATALOG: string[] = [];
+export const LOTES_COLORANTE_CATALOG: string[] = [];
+export const SABORES_YOGUR_CATALOG: string[] = [];
 
 const BY_TIPO: Record<InsumoTipo, string[]> = {
   leche_fresca: LOTES_LECHE_PROVEEDOR_DEFAULT,
   cultivo: LOTES_CULTIVO_LACTEO_DEFAULT,
   cuajo: LOTES_CUAJO_PERA_DEFAULT,
   sal: LOTES_SAL_CATALOG,
+  azucar: LOTES_AZUCAR_CATALOG,
+  saborizante: LOTES_SABORIZANTE_CATALOG,
+  colorante: LOTES_COLORANTE_CATALOG,
+  sabor: SABORES_YOGUR_CATALOG,
 };
 
 let version = 0;
