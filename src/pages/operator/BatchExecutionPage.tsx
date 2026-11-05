@@ -105,6 +105,7 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
   } = batchManager;
 
   const isReadOnly = activeHeaderBatch.status === 'COMPLETADO';
+  const griegoHeredaDeYogur = Boolean(batchYogurGriego.origenYogur);
 
   const handleInoculacionToBatidoYSabores = React.useCallback(() => {
     if (isKumis) {
@@ -204,6 +205,34 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
       {/* RAMA 1: YOGUR GRIEGO */}
       {isYogurGriego ? (
         <>
+          {/* Etapas 1 y 2 heredadas del Yogur de origen: solo lectura */}
+          {griegoHeredaDeYogur &&
+            (currentStage === 'acidificar' || currentStage === 'calentar-y-cuajar') && (
+              <div className="mb-4 p-4 rounded-2xl bg-[#F7F9FC] border-2 border-[#D6DEEA] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-[#1B4E9B] text-white flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-[22px]">lock</span>
+                  </div>
+                  <div className="text-xs sm:text-sm text-[#434655]">
+                    <p className="font-bold text-[#191C1E]">
+                      Etapa heredada del Yogur {batchYogurGriego.origenYogur?.yogurId}
+                    </p>
+                    <p>
+                      Es la misma leche: estos datos se registraron en el Yogur y se
+                      muestran solo para consulta. Si hay que corregir algo, corrígelo en
+                      el Yogur y se actualizará aquí. Este Griego recibió{' '}
+                      <strong>{batchYogurGriego.origenYogur?.litros} L</strong> a las{' '}
+                      {batchYogurGriego.origenYogur?.hora}.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          <fieldset
+            disabled={griegoHeredaDeYogur && (currentStage === 'acidificar' || currentStage === 'calentar-y-cuajar')}
+            className="contents"
+          >
           {currentStage === 'acidificar' && (
             <PasteurizacionStageGriego
               state={batchYogurGriego.pasteurizacion}
@@ -242,6 +271,7 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
               showToast={showToast}
             />
           )}
+          </fieldset>
 
           {currentStage === 'desuerar' && (
             <MaduracionYFiltradoStageGriego

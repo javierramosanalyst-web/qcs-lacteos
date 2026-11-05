@@ -29,6 +29,8 @@ import {
 } from '../utils/timer';
 import { useIndependentBatchTimer } from './useProcessTimer';
 import { PersistedProduct, useBatchPersistence } from './useBatchPersistence';
+import { maxLitrosDesviables } from '../config/fermentados';
+import { heredarEtapasDeYogur } from '../features/fermentados/common/herenciaYogur';
 
 export const STAGE_ORDER: StageId[] = [
   'acidificar',
@@ -455,7 +457,7 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
         batchYogur.pasteurizacion.litrosLeche + prevExtraidosKumis;
       const nuevoLitrosKumis = Math.min(
         Math.max(0, litrosKumis),
-        volumenBaseDisponible
+        maxLitrosDesviables(volumenBaseDisponible)
       );
       const nuevoVolumenYogur = Math.max(
         0,
@@ -543,6 +545,13 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
           ...prev,
           id: childKumisId,
           productId: 'prod-kumis',
+          origenYogur: {
+            yogurId: batchYogur.id,
+            yogurProductUiId: 'prod-yogur',
+            litros: nuevoLitrosKumis,
+            hora: timeStr,
+            desvioTotal: esDesvioTotal,
+          },
           productName: 'Kumis Tradicional Fermentado',
           lineId: 'line-fermentacion',
           line: 'Línea de Fermentación',
@@ -721,7 +730,7 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
         batchYogur.pasteurizacion.litrosLeche + prevExtraidosGriego;
       const nuevoLitrosGriego = Math.min(
         Math.max(0, litrosGriego),
-        volumenBaseDisponible
+        maxLitrosDesviables(volumenBaseDisponible)
       );
       const nuevoVolumenYogur = Math.max(
         0,
@@ -772,35 +781,41 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
         };
       });
 
-      // Configurar el Lote Hijo de Yogur Griego heredando materias primas y etapas previas
+      // Configurar el Lote Hijo de Yogur Griego: hereda TODO lo medido en el Yogur
+      // (Pasteurización + Inoculación/Incubación), excepto la cantidad de leche.
       setBatchYogurGriego((prev) => {
-        const loteLecheHeredado =
-          batchYogur.pasteurizacion.loteLeche || prev.pasteurizacion.loteLeche;
-        const loteCultivoHeredado =
-          batchYogur.inoculacion.loteCultivo ||
-          batchYogur.pasteurizacion.loteCultivoLacticoPastur ||
-          prev.inoculacion.loteCultivo;
+        const heredado = heredarEtapasDeYogur(
+          prev,
+          batchYogur,
+          nuevoLitrosGriego,
+          volumenBaseDisponible
+        );
 
         const horaEntradaFrio =
           batchYogur.inoculacion.incubacion.horaEntradaCuartoFrio ||
           batchYogur.inoculacion.incubacion.horaFin ||
           timeStr;
-        const timestampEntradaFrio =
-          batchYogur.inoculacion.incubacion.horaEntradaCuartoFrio
-            ? timeStringToTimestampToday(
-                batchYogur.inoculacion.incubacion.horaEntradaCuartoFrio
-              )
-            : now;
-
-        const masaEstimada = 0;
-        const sueroEstimado = 0;
+        const timestampEntradaFrio = batchYogur.inoculacion.incubacion
+          .horaEntradaCuartoFrio
+          ? timeStringToTimestampToday(
+              batchYogur.inoculacion.incubacion.horaEntradaCuartoFrio
+            )
+          : now;
 
         return {
           ...prev,
+          ...heredado,
           id: childGriegoId,
           productId: 'prod-yogur-griego',
           productName: 'Yogur Griego',
           lineId: 'line-fermentacion',
+          origenYogur: {
+            yogurId: batchYogur.id,
+            yogurProductUiId: 'prod-yogur',
+            litros: nuevoLitrosGriego,
+            hora: timeStr,
+            desvioTotal: esDesvioTotal,
+          },
           operator: batchYogur.operator || prev.operator,
           responsableProceso:
             batchYogur.responsableProceso ||
@@ -824,76 +839,6 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
             hilar: 'pendiente',
             moldeo: 'pendiente',
           },
-          pasteurizacion: {
-            ...prev.pasteurizacion,
-            litrosLeche: nuevoLitrosGriego,
-            loteLeche: loteLecheHeredado,
-            calentamiento: {
-              ...prev.pasteurizacion.calentamiento,
-              iniciado: true,
-              completado: true,
-              horaInicio:
-                batchYogur.pasteurizacion.calentamiento?.horaInicio || timeStr,
-              horaFin:
-                batchYogur.pasteurizacion.calentamiento?.horaFin || timeStr,
-              tiempoCalentamiento:
-                batchYogur.pasteurizacion.calentamiento?.tiempoCalentamiento ||
-                null,
-            },
-            sostenimiento: {
-              ...prev.pasteurizacion.sostenimiento,
-              iniciado: true,
-              completado: true,
-              horaInicio:
-                batchYogur.pasteurizacion.sostenimiento?.horaInicio || timeStr,
-              horaFin:
-                batchYogur.pasteurizacion.sostenimiento?.horaFin || timeStr,
-              duracionReal:
-                batchYogur.pasteurizacion.sostenimiento?.duracionReal ||
-                null,
-            },
-            enfriamiento: {
-              ...prev.pasteurizacion.enfriamiento,
-              enfriamientoIniciado: true,
-              enfriamientoCompletado: true,
-              horaInicio:
-                batchYogur.pasteurizacion.enfriamiento?.horaInicio || timeStr,
-              horaFinEnfriamiento:
-                batchYogur.pasteurizacion.enfriamiento?.horaFinEnfriamiento ||
-                timeStr,
-              tiempoEnfriamiento:
-                batchYogur.pasteurizacion.enfriamiento?.tiempoEnfriamiento ||
-                null,
-            },
-            trasiego: {
-              ...prev.pasteurizacion.trasiego,
-              iniciado: true,
-              completado: true,
-              horaInicio:
-                batchYogur.pasteurizacion.trasiego?.horaInicio || timeStr,
-              horaFin: batchYogur.pasteurizacion.trasiego?.horaFin || timeStr,
-              tiempoTrasiego:
-                batchYogur.pasteurizacion.trasiego?.tiempoTrasiego || null,
-            },
-          },
-          inoculacion: {
-            ...prev.inoculacion,
-            loteCultivo: loteCultivoHeredado,
-            temperaturaConfirmada: true,
-            mezcladoConfirmado: true,
-            inoculacionConfirmada: true,
-            horaInoculacion: batchYogur.inoculacion.horaInoculacion || timeStr,
-            incubacion: {
-              ...prev.inoculacion.incubacion,
-              iniciada: true,
-              completada: true,
-              horaInicio:
-                batchYogur.inoculacion.incubacion?.horaInicio || timeStr,
-              horaFin: batchYogur.inoculacion.incubacion?.horaFin || timeStr,
-              tiempoTranscurrido:
-                batchYogur.inoculacion.incubacion?.tiempoTranscurrido || null,
-            },
-          },
           maduracionYFiltrado: {
             cuartoFrio: {
               ...prev.maduracionYFiltrado.cuartoFrio,
@@ -910,8 +855,8 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
               horaInicio: null,
               timestampInicio: null,
               tiempoTranscurrido: null,
-              masaFiltradaKg: masaEstimada,
-              sueroEliminadoEstimadoLitros: sueroEstimado,
+              masaFiltradaKg: 0,
+              sueroEliminadoEstimadoLitros: 0,
             },
           },
         };
@@ -992,6 +937,31 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
       showToast,
     ]
   );
+
+  // Mientras el Griego no termine, cualquier corrección hecha en Pasteurización o
+  // Inoculación del Yogur de origen se refleja en el Griego (es la misma leche).
+  useEffect(() => {
+    if (!batchYogurGriego.origenYogur) return;
+    if (batchYogurGriego.origenYogur.yogurId !== batchYogur.id) return;
+    if (batchYogurGriego.status === 'COMPLETADO') return;
+    setBatchYogurGriego((prev) => {
+      if (!prev.origenYogur || prev.status === 'COMPLETADO') return prev;
+      const litrosGriego = prev.pasteurizacion.litrosLeche;
+      const volumenTotal = batchYogur.pasteurizacion.litrosLeche + litrosGriego;
+      const heredado = heredarEtapasDeYogur(prev, batchYogur, litrosGriego, volumenTotal);
+      const sinCambios =
+        JSON.stringify(heredado.pasteurizacion) === JSON.stringify(prev.pasteurizacion) &&
+        JSON.stringify(heredado.inoculacion) === JSON.stringify(prev.inoculacion);
+      return sinCambios ? prev : { ...prev, ...heredado };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    batchYogur.id,
+    batchYogur.pasteurizacion,
+    batchYogur.inoculacion,
+    batchYogurGriego.origenYogur?.yogurId,
+    batchYogurGriego.status,
+  ]);
 
   // Sincronizar automáticamente la hora de fin de retención del Yogur con el inicio de enfriamiento del Kumis
   useEffect(() => {

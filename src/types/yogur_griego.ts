@@ -1,4 +1,5 @@
 import { ProcessTimerState, StageId } from './pastaHilada';
+import type { OrigenYogur } from './yogur';
 
 export interface PasteurizacionYogurGriegoState {
   loteYogurSinAzucar: string; // Lote compartido con el Yogur sin Azúcar del día
@@ -220,6 +221,9 @@ export interface YogurGriegoBatchData {
   maduracionYFiltrado: MaduracionYFiltradoYogurGriegoState;
   batidoYAdiciones: BatidoYAdicionesYogurGriegoState;
   envasado: EnvasadoYAlmacenamientoYogurGriegoState;
+
+  /** Lote de Yogur del que se desvió este Griego (toda la leche entra por el Yogur). */
+  origenYogur?: OrigenYogur;
 
   observaciones?: string;
 }
