@@ -77,8 +77,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     ? [
         { id: 'acidificar', label: '1. Pasteurizar Leche', icon: 'local_fire_department' },
         { id: 'calentar-y-cuajar', label: '2. Inocular e Incubar', icon: 'biotech' },
-        { id: 'hilar', label: '3. Batido', icon: 'blender' },
-        { id: 'moldeo', label: '4. Envasar y Guardar', icon: 'inventory_2' },
+        { id: 'desuerar', label: '3. Receta y Sabores', icon: 'menu_book' },
+        { id: 'hilar', label: '4. Batido y Envasado', icon: 'blender' },
+        { id: 'moldeo', label: '5. Guardar', icon: 'inventory_2' },
       ]
     : isQueso7Cueros
     ? [

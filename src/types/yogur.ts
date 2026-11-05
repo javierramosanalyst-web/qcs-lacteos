@@ -24,6 +24,7 @@ export interface PasteurizacionYogurState {
   // Interruptor: ¿Este lote lleva azúcar? (Sí/No)
   llevaAzucar: boolean;
   azucarElegido?: boolean;
+  azucarGuardado?: boolean;
   loteAzucar?: string;
   cantidadAzucarKg?: number;
   azucar: {
@@ -172,7 +173,30 @@ export interface MaduracionFrioYogurState {
   };
 }
 
+export interface SaborYogurReceta {
+  id: string;
+  sabor: string;
+  saborizanteMl: number | '';
+  loteSaborizante: string;
+  coloranteMl: number | '';
+  loteColorante: string;
+}
+
+export interface LoteSaborYogurProceso {
+  id: string;
+  sabor: string;
+  batidoInicio: string | null;
+  batidoFin: string | null;
+  envasadoInicio: string | null;
+  envasadoFin: string | null;
+  tiempoBatido: string | null;
+  tiempoEnvasado: string | null;
+  tiempoTotal: string | null;
+}
+
 export interface BatidoYAdicionesYogurState {
+  lotesSabor?: LoteSaborYogurProceso[];
+  salidaCuartoFrio?: { hora: string | null; confirmada: boolean };
   // Proceso en batidora industrial
   batidora: {
     iniciado: boolean;
@@ -226,6 +250,8 @@ export interface BatidoYAdicionesYogurState {
     };
 
 
+
+    sabores?: SaborYogurReceta[];
 
     // Compatibilidad y totales generales
     sabor?: string;

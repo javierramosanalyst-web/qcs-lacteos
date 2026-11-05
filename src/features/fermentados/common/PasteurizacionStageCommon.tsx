@@ -69,7 +69,8 @@ export const PasteurizacionStageCommon: React.FC<
   const isYogur =
     productName.toLowerCase().includes('yogur') &&
     !productName.toLowerCase().includes('griego');
-  const isYogurConAzucar = isYogur && state.llevaAzucar !== false;
+  const azucarFijado = Boolean(state.azucarGuardado ?? state.azucarElegido);
+  const isYogurConAzucar = isYogur && azucarFijado && state.llevaAzucar !== false;
   const targetCoolingTemp = isKumis ? 35.0 : 45.0;
   const targetCoolingTempStr = isKumis ? '35 °C' : '45 °C';
   const coolingStepTitle = isKumis
@@ -368,7 +369,7 @@ export const PasteurizacionStageCommon: React.FC<
     const faltantes: string[] = [];
     if (!state.loteLeche) faltantes.push('lote de leche fresca');
     if (!state.loteCultivoLacticoPastur) faltantes.push('lote de cultivo láctico');
-    if (isYogur && state.azucarElegido === false) faltantes.push('si lleva azúcar (Sí o No)');
+    if (isYogur && !azucarFijado) faltantes.push('si lleva azúcar (Sí o No)');
     if (faltantes.length > 0) {
       showToast(`Antes de iniciar selecciona: ${faltantes.join(', ')}.`, 'warning');
       return;
@@ -892,27 +893,45 @@ export const PasteurizacionStageCommon: React.FC<
               </p>
             </div>
 
-            <div className="flex items-center gap-2.5 shrink-0">
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               <Button
-                variant={state.azucarElegido && state.llevaAzucar ? 'primary' : 'outline'}
+                variant={azucarFijado && state.llevaAzucar ? 'success' : 'outline'}
                 size="md"
                 icon="check"
+                disabled={Boolean(azucarFijado)}
                 onClick={() =>
-                  onChange((prev: any) => ({ ...prev, llevaAzucar: true, azucarElegido: true }))
+                  onChange((prev: any) => ({ ...prev, llevaAzucar: true, azucarElegido: true, azucarGuardado: true }))
                 }
               >
                 Sí, con azúcar
               </Button>
               <Button
-                variant={state.azucarElegido && !state.llevaAzucar ? 'primary' : 'outline'}
+                variant={azucarFijado && !state.llevaAzucar ? 'success' : 'outline'}
                 size="md"
                 icon="close"
+                disabled={Boolean(azucarFijado)}
                 onClick={() =>
-                  onChange((prev: any) => ({ ...prev, llevaAzucar: false, azucarElegido: true }))
+                  onChange((prev: any) => ({ ...prev, llevaAzucar: false, azucarElegido: true, azucarGuardado: true }))
                 }
               >
                 No (Sin azúcar)
               </Button>
+              {azucarFijado && (
+                <Button
+                  variant="outline"
+                  size="md"
+                  icon="edit"
+                  onClick={() => {
+                    if (state.extraccionKumis?.realizado || state.extraccionGriego?.realizado) {
+                      showToast('Ya se derivó leche a otro producto; no se puede cambiar la opción de azúcar.', 'warning');
+                      return;
+                    }
+                    onChange((prev: any) => ({ ...prev, azucarGuardado: false }));
+                  }}
+                >
+                  Editar
+                </Button>
+              )}
             </div>
           </div>
         </div>

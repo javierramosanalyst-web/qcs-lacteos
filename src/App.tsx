@@ -610,7 +610,15 @@ export default function App() {
         onFinalizeBatch={() => {
           handleFinalizeYogurBatch(false);
           setYogurReviewModalOpen(false);
-          setCurrentView('operator_line_select');
+          if (
+            batchYogur.pasteurizacion.extraccionKumis?.realizado &&
+            batchKumis.status !== 'COMPLETADO'
+          ) {
+            selectProductBatch('prod-kumis', true);
+            setCurrentView('batch_process');
+          } else {
+            setCurrentView('operator_line_select');
+          }
         }}
         onChangeObservaciones={(obs) =>
           setBatchYogur((prev) => ({ ...prev, observaciones: obs }))

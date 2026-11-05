@@ -435,14 +435,14 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
     <div className="flex flex-col w-full p-4 lg:p-6 gap-5 bg-[#FFFFFF] min-h-[calc(100vh-4rem)] pb-16">
       {/* CABECERA ESTÁNDAR MAESTRA */}
       <StageHeader
-        stageNumber={isKumis ? 3 : 4}
-        totalStages={isKumis ? 3 : 4}
+        stageNumber={isKumis ? 3 : 5}
+        totalStages={isKumis ? 3 : 5}
         lineName={
           isYogur
             ? `Línea de Fermentados · Yogur (${isConAzucar ? 'Con Azúcar' : 'Sin Azúcar - Stevia'})`
             : 'Línea de Fermentados · Kumis Tradicional'
         }
-        title={isKumis ? '3. Envasar y Guardar' : '4. Envasar y Guardar'}
+        title={isKumis ? '3. Envasar y Guardar' : '5. Guardar'}
         subtitle={
           isConAzucar
             ? 'Conteo de envases por presentación comercial, balance y rendimiento del lote, y traslado final a cuarto frío.'
@@ -611,7 +611,7 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
               {isKumis
                 ? 'Volumen Base Extraído (Kumis)'
                 : totalDesviadoSublotes > 0
-                ? 'Volumen Neto Remanente (Yogur)'
+                ? 'Leche Base de Yogur (sin lo desviado)'
                 : 'Leche Base del Lote'}
             </span>
             <div className="text-2xl font-black font-mono text-[#191C1E] mt-1">
@@ -621,7 +621,7 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
               {isKumis
                 ? 'Volumen desviado exclusivamente para Kumis'
                 : totalDesviadoSublotes > 0
-                ? `Remanente tras desviar ${totalDesviadoSublotes} L a sub-lotes`
+                ? `${lecheBaseLitros + totalDesviadoSublotes} L iniciales - ${totalDesviadoSublotes} L desviados = ${lecheBaseLitros} L`
                 : 'Litros procesados desde Etapa 1'}
             </span>
           </div>

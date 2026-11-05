@@ -32,6 +32,7 @@ import { MoldeoStage7Cueros } from '../../features/pasta-hilada/siete-cueros/Mol
 import { PasteurizacionStageYogur } from '../../features/fermentados/yogur/PasteurizacionStageYogur';
 import { InoculacionStageYogur } from '../../features/fermentados/yogur/InoculacionStageYogur';
 import { BatidoYAdicionesStageYogur } from '../../features/fermentados/yogur/BatidoYAdicionesStageYogur';
+import { BatidoEnvasadoYogurStage } from '../../features/fermentados/yogur/BatidoEnvasadoYogurStage';
 import { EnvasadoYogurStage } from '../../features/fermentados/yogur/EnvasadoYogurStage';
 
 // FERMENTADOS · KUMIS
@@ -124,10 +125,10 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
         stageStatuses: {
           ...prev.stageStatuses,
           'calentar-y-cuajar': 'completada',
-          hilar: 'en_proceso',
+          desuerar: 'en_proceso',
         },
       }));
-      setCurrentStage('hilar');
+      setCurrentStage('desuerar');
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       return;
     }
@@ -423,6 +424,25 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
           )}
 
           {currentStage === 'hilar' && (
+            <BatidoEnvasadoYogurStage
+              state={batchYogur.batidoYAdiciones}
+              onChange={(updater) =>
+                setBatchYogur((prev) => ({
+                  ...prev,
+                  batidoYAdiciones: updater(prev.batidoYAdiciones),
+                }))
+              }
+              llevaAzucar={batchYogur.pasteurizacion.llevaAzucar}
+              litrosLecheBase={batchYogur.pasteurizacion.litrosLeche}
+              horaIngresoCuartoFrio={
+                batchYogur.envasado.almacenamientoCuartoFrio.horaIngreso
+              }
+              onNextStage={handleNextStage}
+              showToast={showToast}
+            />
+          )}
+
+          {currentStage === 'desuerar' && (
             <BatidoYAdicionesStageYogur
               state={batchYogur.batidoYAdiciones}
               onChange={(updater) =>

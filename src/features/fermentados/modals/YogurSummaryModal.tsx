@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal } from '../../../components/ui';
 import { UserProfile } from '../../../types';
 import { YogurBatchData } from '../../../types/yogur';
+import { computeDurationBetweenTimes } from '../../../utils/timer';
 
 interface YogurSummaryModalProps {
   batch: YogurBatchData;
@@ -1257,6 +1258,45 @@ export const YogurSummaryModal: React.FC<YogurSummaryModalProps> = ({
                     </span>
                   </div>
                 </div>
+
+                {(batidoYAdiciones.lotesSabor || []).length > 0 && (
+                  <div className="mt-2.5 overflow-x-auto rounded-xl border border-[#D6DEEA]/80">
+                    <table className="w-full text-[11px]">
+                      <thead className="bg-[#F2F4F7] text-[#4A5263] uppercase text-[9px]">
+                        <tr>
+                          <th className="text-left px-2.5 py-1.5">Sabor</th>
+                          <th className="text-left px-2.5 py-1.5">Batido</th>
+                          <th className="text-left px-2.5 py-1.5">Envasado</th>
+                          <th className="text-left px-2.5 py-1.5">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(batidoYAdiciones.lotesSabor || []).map((l) => (
+                          <tr key={l.id} className="border-t border-[#D6DEEA]/60">
+                            <td className="px-2.5 py-1.5 font-bold text-gray-900">{l.sabor}</td>
+                            <td className="px-2.5 py-1.5 font-mono">
+                              {l.batidoInicio || '--'} → {l.batidoFin || '--'} ({l.tiempoBatido || '--'})
+                            </td>
+                            <td className="px-2.5 py-1.5 font-mono">
+                              {l.envasadoInicio || '--'} → {l.envasadoFin || '--'} ({l.tiempoEnvasado || '--'})
+                            </td>
+                            <td className="px-2.5 py-1.5 font-mono font-bold text-purple-900">{l.tiempoTotal || '--'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {batidoYAdiciones.salidaCuartoFrio?.hora && (
+                      <div className="px-2.5 py-1.5 text-[11px] text-[#4A5263] border-t border-[#D6DEEA]/60">
+                        Salida de cuarto frío: <strong>{batidoYAdiciones.salidaCuartoFrio.hora}</strong>
+                        {batch.envasado.almacenamientoCuartoFrio.horaIngreso &&
+                          ` · Reingreso: ${batch.envasado.almacenamientoCuartoFrio.horaIngreso} · Tiempo afuera: ${computeDurationBetweenTimes(
+                            batidoYAdiciones.salidaCuartoFrio.hora,
+                            batch.envasado.almacenamientoCuartoFrio.horaIngreso
+                          ).human}`}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-2.5">
                   <div className="p-2.5 rounded-xl bg-[#FFFFFF] border border-[#D6DEEA]/80 flex flex-col">

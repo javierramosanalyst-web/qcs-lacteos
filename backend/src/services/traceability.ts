@@ -128,6 +128,13 @@ function collectHitosFerm(b: Json): Hito[] {
   const bt = b.batidoYAdiciones ?? {};
   const bb = bt.batidora ?? bt.batido ?? {};
   add('hilar', 'batido', bb.horaInicio, bb.horaFin, parseDuracion(bb.tiempoBatido), bb.esManual);
+  add('hilar', 'salida_cuarto_frio', bt.salidaCuartoFrio?.hora, null, null, false);
+  for (const l of (Array.isArray(bt.lotesSabor) ? bt.lotesSabor : []) as Json[]) {
+    const clave = String(l.sabor ?? l.id).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    add('hilar', `batido_${clave}`, l.batidoInicio, l.batidoFin, parseDuracion(l.tiempoBatido), false);
+    add('hilar', `envasado_${clave}`, l.envasadoInicio, l.envasadoFin, parseDuracion(l.tiempoEnvasado), false);
+    add('hilar', `batido_a_envasado_${clave}`, l.batidoInicio, l.envasadoFin, parseDuracion(l.tiempoTotal), false);
+  }
   add('hilar', 'adiciones', bt.adiciones?.horaRegistro ?? bt.formulacion?.horaRegistro, null, null, false);
   add('hilar', 'preparacion_tolva', bt.preparacionTolva?.horaPreparacion, null, null, false);
   const e = b.envasado ?? {};
@@ -288,8 +295,16 @@ function collectInsumosFerm(b: Json): Insumo[] {
   add('acidificar', 'azucar', 'Azúcar', p.azucar?.loteAzucar || p.loteAzucarPastur || p.loteAzucar, 'kg', p.azucar?.adicionado ? p.azucar?.cantidadKg : null, p.azucar?.esManual, p.azucar?.horaAdicion);
   add('calentar-y-cuajar', 'cultivo_lactico', 'Cultivo láctico (inoculación)', i.loteCultivo, 'g', i.cantidadCultivoGramos, i.esManualMezclado, i.horaInoculacion);
   const v = a.variedadAzucar ?? {};
-  add('hilar', 'saborizante', 'Saborizante', a.loteSaborizante || v.loteSaborizante, 'ml', a.saborizanteMl ?? v.saborizanteMl, false, a.horaRegistro);
-  add('hilar', 'colorante', 'Colorante', a.loteColorante || v.loteColorante, 'ml', a.coloranteMl ?? v.coloranteMl, false, a.horaRegistro);
+  const saboresReceta: Json[] = Array.isArray(a.sabores) ? a.sabores : [];
+  if (saboresReceta.length > 0) {
+    for (const s of saboresReceta) {
+      add('desuerar', 'saborizante', `Saborizante (${s.sabor})`, s.loteSaborizante, 'ml', s.saborizanteMl, false, a.horaRegistro);
+      add('desuerar', 'colorante', `Colorante (${s.sabor})`, s.loteColorante, 'ml', s.coloranteMl, false, a.horaRegistro);
+    }
+  } else {
+    add('hilar', 'saborizante', 'Saborizante', a.loteSaborizante || v.loteSaborizante, 'ml', a.saborizanteMl ?? v.saborizanteMl, false, a.horaRegistro);
+    add('hilar', 'colorante', 'Colorante', a.loteColorante || v.loteColorante, 'ml', a.coloranteMl ?? v.coloranteMl, false, a.horaRegistro);
+  }
   add('hilar', 'azucar', 'Azúcar (batido)', a.loteAzucar || v.loteAzucar, 'kg', a.kilosAzucar ?? v.kilosAzucar, false, a.horaRegistro);
   const est = a.variedadEstevia ?? f.variedadConEstevia ?? {};
   add('hilar', 'estevia', 'Estevia', est.loteEstevia, 'g', est.gramosEstevia, false, a.horaRegistro ?? f.horaRegistro);
