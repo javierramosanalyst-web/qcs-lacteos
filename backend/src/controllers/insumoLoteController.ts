@@ -1,31 +1,30 @@
 import { Request, Response } from 'express';
 import { pool } from '../db';
 
-const TIPOS: Record<string, { codigo: string; nombre: string; unidad: string }> = {
-  leche_fresca: { codigo: 'LECHE-PROV', nombre: 'Leche fresca de proveedor', unidad: 'L' },
-  cultivo: { codigo: 'CULTIVO-LACT', nombre: 'Cultivo láctico', unidad: 'g' },
-  cuajo: { codigo: 'CUAJO', nombre: 'Cuajo (coagulante)', unidad: 'ml' },
-  sal: { codigo: 'SAL', nombre: 'Sal', unidad: 'kg' },
-  azucar: { codigo: 'AZUCAR', nombre: 'Azúcar', unidad: 'kg' },
-  saborizante: { codigo: 'SABORIZANTE', nombre: 'Saborizante', unidad: 'ml' },
-  colorante: { codigo: 'COLORANTE', nombre: 'Colorante', unidad: 'ml' },
-  sabor: { codigo: 'SABOR-YOGUR', nombre: 'Sabores de yogur', unidad: 'und' },
-};
-
 const SELECT_LOTE = `
   SELECT il.id, ic.tipo_insumo AS tipo, il.codigo_lote, il.descripcion, il.proveedor,
          il.fecha_vencimiento, il.cantidad_recibida, ic.unidad_base AS unidad, il.activo, il.created_at, il.eliminado_at
   FROM insumos_lotes il
   JOIN insumos_catalogo ic ON ic.id = il.insumo_id`;
 
-async function catalogoId(tipo: string): Promise<string> {
-  const t = TIPOS[tipo];
+async function tipoGestionable(tipo: string): Promise<{ codigo: string; nombre: string; unidad_base: string } | null> {
+  const { rows } = await pool.query(
+    `SELECT codigo, nombre, unidad_base FROM tipos_insumo WHERE codigo = $1 AND gestionable_admin AND activo;`,
+    [tipo]
+  );
+  return rows[0] ?? null;
+}
+
+async function catalogoId(t: { codigo: string; nombre: string; unidad_base: string }): Promise<string> {
+  const found = await pool.query(
+    `SELECT id FROM insumos_catalogo WHERE tipo_insumo = $1 ORDER BY created_at LIMIT 1;`,
+    [t.codigo]
+  );
+  if (found.rows[0]) return found.rows[0].id;
   const { rows } = await pool.query(
     `INSERT INTO insumos_catalogo (codigo, nombre, tipo_insumo, unidad_base)
-     VALUES ($1, $2, $3, $4)
-     ON CONFLICT (codigo) DO UPDATE SET nombre = insumos_catalogo.nombre
-     RETURNING id;`,
-    [t.codigo, t.nombre, tipo, t.unidad]
+     VALUES ($1, $2, $3, $4) RETURNING id;`,
+    ['INS-' + t.codigo.toUpperCase().replace(/_/g, '-'), t.nombre, t.codigo, t.unidad_base]
   );
   return rows[0].id;
 }
@@ -69,14 +68,14 @@ export async function listInsumoLotes(req: Request, res: Response): Promise<void
     const todos = isAdmin && req.query.todos === '1';
     const papelera = isAdmin && req.query.papelera === '1';
     if (papelera) await purgeExpiredInsumoLotes();
-    const tipo = typeof req.query.tipo === 'string' && TIPOS[req.query.tipo] ? req.query.tipo : null;
+    const tipo = typeof req.query.tipo === 'string' ? req.query.tipo : null;
     const { rows } = await pool.query(
       `${SELECT_LOTE}
-       WHERE ic.tipo_insumo = ANY($1::text[]) AND ($2::boolean OR il.activo = TRUE)
-         AND ($3::text IS NULL OR ic.tipo_insumo = $3)
-         AND (il.eliminado_at IS NOT NULL) = $4::boolean
+       WHERE ic.tipo_insumo IN (SELECT codigo FROM tipos_insumo WHERE gestionable_admin AND activo) AND ($1::boolean OR il.activo = TRUE)
+         AND ($2::text IS NULL OR ic.tipo_insumo = $2)
+         AND (il.eliminado_at IS NOT NULL) = $3::boolean
        ORDER BY il.created_at DESC;`,
-      [Object.keys(TIPOS), todos || papelera, tipo, papelera]
+      [todos || papelera, tipo, papelera]
     );
     res.json(rows);
   } catch (error) {
@@ -87,12 +86,13 @@ export async function listInsumoLotes(req: Request, res: Response): Promise<void
 
 export async function createInsumoLote(req: Request, res: Response): Promise<void> {
   const tipo = String(req.body.tipo ?? '');
-  if (!TIPOS[tipo]) return invalid(res, 'Tipo de insumo no válido.');
   const b = parseBody(req.body);
   if (!b.codigo) return invalid(res, 'El código del lote es obligatorio.');
   if (b.cantidad !== null && (!Number.isFinite(b.cantidad) || b.cantidad < 0)) return invalid(res, 'La cantidad recibida no es válida.');
   try {
-    const insumoId = await catalogoId(tipo);
+    const t = await tipoGestionable(tipo);
+    if (!t) return invalid(res, 'Tipo de insumo no válido.');
+    const insumoId = await catalogoId(t);
     const { rows } = await pool.query(
       `INSERT INTO insumos_lotes (insumo_id, codigo_lote, descripcion, proveedor, fecha_vencimiento, cantidad_recibida)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING id;`,

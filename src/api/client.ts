@@ -8,7 +8,7 @@ import {
   UserRole,
 } from '../types';
 import { INITIAL_PRODUCTS } from '../data/initialData';
-import type { InsumoLoteRow, InsumoTipo } from '../data/insumoLotes';
+import type { InsumoLoteRow, InsumoTipo, SaborYogurRow } from '../data/insumoLotes';
 
 const TOKEN_KEY = 'qcs_token';
 const API_BASE = '/api';
@@ -360,6 +360,21 @@ export const updateInsumoLoteRequest = (id: string, payload: InsumoLotePayload) 
 
 export const deactivateInsumoLoteRequest = (id: string) =>
   apiFetch<{ message: string }>(`/insumos-lotes/${id}`, { method: 'DELETE' });
+
+export const fetchSaboresYogur = (todos = false) =>
+  apiFetch<SaborYogurRow[]>(`/sabores-yogur${todos ? '?todos=1' : ''}`);
+
+export const createSaborYogurRequest = (nombre: string) =>
+  apiFetch<SaborYogurRow>('/sabores-yogur', { method: 'POST', body: JSON.stringify({ nombre }) });
+
+export const updateSaborYogurRequest = (id: string, nombre: string) =>
+  apiFetch<SaborYogurRow>(`/sabores-yogur/${id}`, { method: 'PUT', body: JSON.stringify({ nombre }) });
+
+export const deactivateSaborYogurRequest = (id: string) =>
+  apiFetch<{ message: string }>(`/sabores-yogur/${id}`, { method: 'DELETE' });
+
+export const reactivateSaborYogurRequest = (id: string) =>
+  apiFetch<{ message: string }>(`/sabores-yogur/${id}/reactivar`, { method: 'POST' });
 
 export const fetchInsumoPapelera = () => apiFetch<InsumoLoteRow[]>('/insumos-lotes?papelera=1');
 

@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-export type InsumoTipo = 'leche_fresca' | 'cultivo' | 'cuajo' | 'sal' | 'azucar' | 'saborizante' | 'colorante' | 'sabor';
+export type InsumoTipo = 'leche_fresca' | 'cultivo' | 'cuajo' | 'sal' | 'azucar' | 'saborizante' | 'colorante';
 
 export interface InsumoLoteRow {
   id: string;
@@ -24,6 +24,12 @@ export const LOTES_SABORIZANTE_CATALOG: string[] = [];
 export const LOTES_COLORANTE_CATALOG: string[] = [];
 export const SABORES_YOGUR_CATALOG: string[] = [];
 
+export interface SaborYogurRow {
+  id: string;
+  nombre: string;
+  activo: boolean;
+}
+
 const BY_TIPO: Record<InsumoTipo, string[]> = {
   leche_fresca: LOTES_LECHE_PROVEEDOR_DEFAULT,
   cultivo: LOTES_CULTIVO_LACTEO_DEFAULT,
@@ -32,7 +38,6 @@ const BY_TIPO: Record<InsumoTipo, string[]> = {
   azucar: LOTES_AZUCAR_CATALOG,
   saborizante: LOTES_SABORIZANTE_CATALOG,
   colorante: LOTES_COLORANTE_CATALOG,
-  sabor: SABORES_YOGUR_CATALOG,
 };
 
 let version = 0;
@@ -50,6 +55,15 @@ export function setInsumoLotes(rows: InsumoLoteRow[]): void {
   version += 1;
   listeners.forEach((l) => l());
 }
+
+export function setSaboresYogur(rows: SaborYogurRow[]): void {
+  SABORES_YOGUR_CATALOG.splice(0, SABORES_YOGUR_CATALOG.length, ...rows.filter((r) => r.activo).map((r) => r.nombre));
+  version += 1;
+  listeners.forEach((l) => l());
+}
+
+export const saborOptions = (): { value: string; label: string }[] =>
+  SABORES_YOGUR_CATALOG.map((n) => ({ value: n, label: n }));
 
 let detailByCode = new Map<string, InsumoLoteRow>();
 

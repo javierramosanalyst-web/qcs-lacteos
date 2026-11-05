@@ -110,24 +110,60 @@ CREATE TABLE parametros_medicion (
     unidad VARCHAR(20) NOT NULL                    -- '°C','pH','% LA','°D','RPM','kg','L'
 );
 
+CREATE TABLE tipos_insumo (
+    codigo VARCHAR(50) PRIMARY KEY,
+    nombre VARCHAR(120) NOT NULL,
+    unidad_base VARCHAR(20) NOT NULL,
+    gestionable_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO tipos_insumo (codigo, nombre, unidad_base, gestionable_admin) VALUES
+  ('leche_fresca', 'Leche fresca de proveedor', 'L', TRUE),
+  ('cultivo', 'Cultivo láctico', 'g', TRUE),
+  ('cuajo', 'Cuajo (coagulante)', 'ml', TRUE),
+  ('sal', 'Sal', 'kg', TRUE),
+  ('azucar', 'Azúcar', 'kg', TRUE),
+  ('saborizante', 'Saborizante', 'ml', TRUE),
+  ('colorante', 'Colorante', 'ml', TRUE),
+  ('leche_acida', 'Leche ácida', 'L', FALSE),
+  ('cultivo_lactico', 'Cultivo láctico (proceso)', 'g', FALSE),
+  ('estevia', 'Estevia', 'g', FALSE),
+  ('acido_acetico', 'Ácido acético', 'ml', FALSE),
+  ('agua', 'Agua', 'ml', FALSE),
+  ('especia', 'Especia', 'g', FALSE),
+  ('arequipe', 'Arequipe', 'g', FALSE),
+  ('bocadillo', 'Bocadillo', 'g', FALSE);
+
 CREATE TABLE insumos_catalogo (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     codigo VARCHAR(40) UNIQUE NOT NULL,
     nombre VARCHAR(120) NOT NULL,
-    tipo_insumo VARCHAR(50) NOT NULL,              -- 'leche_fresca','leche_acida','cuajo','cultivo','azucar','sal','estevia','saborizante','colorante','acido_acetico','especia','arequipe','bocadillo'
+    tipo_insumo VARCHAR(50) NOT NULL
+        CONSTRAINT fk_insumos_catalogo_tipo REFERENCES tipos_insumo(codigo) ON UPDATE CASCADE ON DELETE RESTRICT,
     unidad_base VARCHAR(20) NOT NULL,              -- 'L','g','kg','ml','unidades','cucharadas'
     activo BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Lotes de insumo recibidos (bultos, frascos). Permite trazabilidad hacia atrás.
+CREATE TABLE sabores_yogur (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nombre VARCHAR(80) NOT NULL,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX uq_sabores_yogur_nombre ON sabores_yogur (LOWER(nombre));
+
 CREATE TABLE insumos_lotes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     insumo_id UUID NOT NULL REFERENCES insumos_catalogo(id) ON DELETE RESTRICT,
     codigo_lote VARCHAR(80) NOT NULL,
     proveedor VARCHAR(150),
     fecha_vencimiento DATE,
-    cantidad_recibida NUMERIC(12,3),
+    cantidad_recibida NUMERIC(12,3)
+        CONSTRAINT chk_insumos_lotes_cantidad CHECK (cantidad_recibida IS NULL OR cantidad_recibida >= 0),
     activo BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (insumo_id, codigo_lote)
@@ -342,7 +378,8 @@ CREATE TABLE lote_insumos_utilizados (
     derivacion_id UUID REFERENCES lote_derivaciones_quesos(id) ON DELETE CASCADE,
     insumo_lote_id UUID REFERENCES insumos_lotes(id) ON DELETE RESTRICT,
     -- Snapshot: sobrevive a cambios o bajas del maestro
-    tipo_insumo VARCHAR(50) NOT NULL,
+    tipo_insumo VARCHAR(50) NOT NULL
+        CONSTRAINT fk_insumos_utilizados_tipo REFERENCES tipos_insumo(codigo) ON UPDATE CASCADE ON DELETE RESTRICT,
     insumo_nombre_snapshot VARCHAR(120) NOT NULL,
     codigo_lote_insumo VARCHAR(80) NOT NULL,
     proveedor VARCHAR(150),

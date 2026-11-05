@@ -11,7 +11,7 @@ import {
   Badge,
 } from '../../../components/ui';
 import { ProcessTimerState } from '../../../types';
-import { insumoOptions } from '../../../data/insumoLotes';
+import { insumoOptions, saborOptions } from '../../../data/insumoLotes';
 import { BatidoYAdicionesYogurState, SaborYogurReceta } from '../../../types/yogur';
 import { BatidoYAdicionesKumisState } from '../../../types/kumis';
 import {
@@ -442,7 +442,7 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
                       className="w-full bg-white px-3 py-2.5 rounded-xl border border-[#D6DEEA] font-bold text-sm text-[#191C1E] outline-none shadow-2xs disabled:opacity-70"
                     >
                       <option value="">Selecciona sabor</option>
-                      {conActual(insumoOptions('sabor'), s.sabor).map((o) => (
+                      {conActual(saborOptions(), s.sabor).map((o) => (
                         <option key={o.value} value={o.value}>
                           {o.value}
                         </option>

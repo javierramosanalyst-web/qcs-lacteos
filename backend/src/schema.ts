@@ -34,6 +34,68 @@ ALTER TABLE insumos_lotes ADD COLUMN IF NOT EXISTS descripcion VARCHAR(200);
 ALTER TABLE insumos_lotes ADD COLUMN IF NOT EXISTS eliminado_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_borradores_lote_linea ON borradores_lote(linea_id);
+
+CREATE TABLE IF NOT EXISTS tipos_insumo (
+    codigo VARCHAR(50) PRIMARY KEY,
+    nombre VARCHAR(120) NOT NULL,
+    unidad_base VARCHAR(20) NOT NULL,
+    gestionable_admin BOOLEAN NOT NULL DEFAULT FALSE,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO tipos_insumo (codigo, nombre, unidad_base, gestionable_admin) VALUES
+  ('leche_fresca', 'Leche fresca de proveedor', 'L', TRUE),
+  ('cultivo', 'Cultivo láctico', 'g', TRUE),
+  ('cuajo', 'Cuajo (coagulante)', 'ml', TRUE),
+  ('sal', 'Sal', 'kg', TRUE),
+  ('azucar', 'Azúcar', 'kg', TRUE),
+  ('saborizante', 'Saborizante', 'ml', TRUE),
+  ('colorante', 'Colorante', 'ml', TRUE),
+  ('leche_acida', 'Leche ácida', 'L', FALSE),
+  ('cultivo_lactico', 'Cultivo láctico (proceso)', 'g', FALSE),
+  ('estevia', 'Estevia', 'g', FALSE),
+  ('acido_acetico', 'Ácido acético', 'ml', FALSE),
+  ('agua', 'Agua', 'ml', FALSE),
+  ('especia', 'Especia', 'g', FALSE),
+  ('arequipe', 'Arequipe', 'g', FALSE),
+  ('bocadillo', 'Bocadillo', 'g', FALSE)
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO tipos_insumo (codigo, nombre, unidad_base)
+SELECT DISTINCT tipo_insumo, tipo_insumo, 'unidades' FROM insumos_catalogo
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO tipos_insumo (codigo, nombre, unidad_base)
+SELECT DISTINCT tipo_insumo, tipo_insumo, 'unidades' FROM lote_insumos_utilizados
+ON CONFLICT (codigo) DO NOTHING;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_insumos_catalogo_tipo') THEN
+    ALTER TABLE insumos_catalogo ADD CONSTRAINT fk_insumos_catalogo_tipo
+      FOREIGN KEY (tipo_insumo) REFERENCES tipos_insumo(codigo) ON UPDATE CASCADE ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_insumos_utilizados_tipo') THEN
+    ALTER TABLE lote_insumos_utilizados ADD CONSTRAINT fk_insumos_utilizados_tipo
+      FOREIGN KEY (tipo_insumo) REFERENCES tipos_insumo(codigo) ON UPDATE CASCADE ON DELETE RESTRICT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_insumos_lotes_cantidad') THEN
+    ALTER TABLE insumos_lotes ADD CONSTRAINT chk_insumos_lotes_cantidad
+      CHECK (cantidad_recibida IS NULL OR cantidad_recibida >= 0);
+  END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_insumos_catalogo_tipo ON insumos_catalogo(tipo_insumo);
+CREATE INDEX IF NOT EXISTS idx_insumos_utilizados_tipo ON lote_insumos_utilizados(tipo_insumo);
+
+CREATE TABLE IF NOT EXISTS sabores_yogur (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    nombre VARCHAR(80) NOT NULL,
+    activo BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_sabores_yogur_nombre ON sabores_yogur (LOWER(nombre));
 `;
 
 export async function ensureSchema(): Promise<void> {

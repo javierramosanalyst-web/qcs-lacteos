@@ -11,6 +11,7 @@ import {
   updateInsumoLoteRequest,
 } from '../../api/client';
 import { InsumoLoteRow, InsumoTipo, setInsumoLotes } from '../../data/insumoLotes';
+import { SaboresManager } from './SaboresManager';
 
 const card = 'bg-white rounded-2xl border border-[#D6DEEA] shadow-xs';
 const inputClass =
@@ -22,7 +23,6 @@ const TIPOS: { key: InsumoTipo; label: string; icon: string; unidad: string; hin
   { key: 'cuajo', label: 'Cuajo (coagulante)', icon: 'science', unidad: 'ml', hint: 'Ej. CJ-2026-09A', descLabel: 'Tipo / referencia' },
   { key: 'sal', label: 'Sal', icon: 'grain', unidad: 'kg', hint: 'Ej. SAL-2026-44B', descLabel: 'Referencia' },
   { key: 'azucar', label: 'Azúcar (fermentados)', icon: 'cookie', unidad: 'kg', hint: 'Ej. AZU-2026-10A', descLabel: 'Ingenio / referencia' },
-  { key: 'sabor', label: 'Sabores de yogur', icon: 'icecream', unidad: 'und', hint: 'Ej. Mora', descLabel: 'Descripción' },
   { key: 'saborizante', label: 'Saborizante (yogur)', icon: 'water_drop', unidad: 'ml', hint: 'Ej. SAB-2026-10A', descLabel: 'Sabor / referencia' },
   { key: 'colorante', label: 'Colorante (yogur)', icon: 'palette', unidad: 'ml', hint: 'Ej. COL-2026-10A', descLabel: 'Color / referencia' },
 ];
@@ -344,6 +344,7 @@ export const InsumosManager: React.FC = () => {
         )}
       </div>
       </>)}
+      <SaboresManager />
     </div>
   );
 };

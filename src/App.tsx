@@ -31,6 +31,7 @@ import {
   fetchLines,
   fetchProducts,
   fetchUsers,
+  fetchSaboresYogur,
   getToken,
   meRequest,
   rectifyRequest,
@@ -46,7 +47,7 @@ import {
   UserProfile,
   UserRole,
 } from './types';
-import { setInsumoLotes, useInsumoLotesVersion } from './data/insumoLotes';
+import { setInsumoLotes, setSaboresYogur, useInsumoLotesVersion } from './data/insumoLotes';
 
 const ACTIVITY_KEY = 'qcs_last_activity';
 const IDLE_LIMIT_MS = 15 * 60 * 1000;
@@ -155,6 +156,7 @@ export default function App() {
         fetchInsumoLotes().catch(() => []),
       ]);
       setInsumoLotes(apiInsumos);
+      fetchSaboresYogur().then(setSaboresYogur).catch(() => undefined);
       setLines(apiLines);
       if (apiProducts.length > 0) setProducts(apiProducts);
       setUsers(apiUsers);
@@ -223,6 +225,7 @@ export default function App() {
     if (!isAuthenticated) return;
     const id = window.setInterval(() => {
       fetchInsumoLotes().then(setInsumoLotes).catch(() => undefined);
+      fetchSaboresYogur().then(setSaboresYogur).catch(() => undefined);
     }, 60000);
     return () => window.clearInterval(id);
   }, [isAuthenticated]);
