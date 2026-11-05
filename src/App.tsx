@@ -51,6 +51,7 @@ import { setInsumoLotes, setSaboresYogur, useInsumoLotesVersion } from './data/i
 
 const ACTIVITY_KEY = 'qcs_last_activity';
 const IDLE_LIMIT_MS = 15 * 60 * 1000;
+const SPLASH_MIN_MS = 6000;
 
 export default function App() {
   useInsumoLotesVersion();
@@ -177,6 +178,7 @@ export default function App() {
 
   useEffect(() => {
     if (!getToken()) return;
+    const splashStart = Date.now();
     const lastAct = Number(localStorage.getItem(ACTIVITY_KEY) || 0);
     if (lastAct && Date.now() - lastAct >= IDLE_LIMIT_MS) {
       clearToken();
@@ -214,12 +216,36 @@ export default function App() {
         }
       })
       .finally(() => {
-        if (!cancelled) setRestoring(false);
+        const wait = Math.max(0, SPLASH_MIN_MS - (Date.now() - splashStart));
+        window.setTimeout(() => {
+          if (!cancelled) setRestoring(false);
+        }, wait);
       });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (window.history.state?.qcsView !== currentView) {
+      window.history.pushState({ qcsView: currentView }, '');
+    }
+  }, [isAuthenticated, currentView]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const onPop = (e: PopStateEvent) => {
+      const v = e.state?.qcsView as AppView | undefined;
+      if (v && (v !== 'admin_dashboard' || userRole === 'administrador')) {
+        setCurrentView(v);
+      } else {
+        window.history.pushState({ qcsView: currentView }, '');
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [isAuthenticated, userRole, currentView]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
