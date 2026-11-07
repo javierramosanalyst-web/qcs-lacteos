@@ -115,6 +115,27 @@ async function createProductionBatch(
     estadoUi: unknown;
   }
 ): Promise<{ id: string; codigo_lote: string }> {
+  // Kumis / Griego nacen de un Yogur: se enlaza con el lote de Yogur de origen
+  // (lote_origen_id) y con su leche (lote_padre_id), y se deja el desvío en el historial.
+  const origenUi = (params.estadoUi as any)?.batch?.origenYogur ?? (params.estadoUi as any)?.origenYogur ?? null;
+  let origen: { id: string; lote_padre_id: string | null; estado: string } | null = null;
+  if (origenUi && typeof origenUi === 'object') {
+    const byCode = origenUi.yogurId
+      ? await client.query(
+          `SELECT id, lote_padre_id, estado FROM lotes_produccion WHERE codigo_lote = $1 AND producto_ui_id = 'prod-yogur' LIMIT 1;`,
+          [String(origenUi.yogurId)]
+        )
+      : { rows: [] as any[] };
+    const found = byCode.rows[0]
+      ?? (await client.query(
+            `SELECT id, lote_padre_id, estado FROM lotes_produccion
+              WHERE producto_ui_id = 'prod-yogur' AND linea_id = $1
+              ORDER BY iniciado_at DESC NULLS LAST LIMIT 1;`,
+            [params.lineId]
+          )).rows[0];
+    if (found) origen = { id: found.id, lote_padre_id: found.lote_padre_id ?? null, estado: String(found.estado) };
+  }
+
   const prod = await client.query(
     `SELECT id, codigo, norma_tecnica, nombre FROM productos WHERE codigo = $1 LIMIT 1;`,
     [params.productCode]
@@ -144,8 +165,8 @@ async function createProductionBatch(
     `INSERT INTO lotes_produccion (
        codigo_lote, producto_id, linea_id, responsable_id, norma_tecnica_aplicada, receta_snapshot,
        variante_fermentado, volumen_leche_base_litros, lleva_azucar, estado, etapa_actual_codigo,
-       estado_ui, producto_ui_id
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'EN_PROCESO',$10,$11,$12)
+       estado_ui, producto_ui_id, lote_origen_id, lote_padre_id
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'EN_PROCESO',$10,$11,$12,$13,$14)
      RETURNING id, codigo_lote;`,
     [
       codigo,
@@ -160,9 +181,31 @@ async function createProductionBatch(
       stages.rows[0]?.codigo_ui ?? 'acidificar',
       params.estadoUi,
       params.productUiId,
+      origen?.id ?? null,
+      origen?.lote_padre_id ?? null,
     ]
   );
   const batch = inserted.rows[0];
+
+  // El historial de desvíos solo admite filas mientras el Yogur siga abierto (trigger de bloqueo).
+  // Si ya se cerró, el enlace lote_origen_id basta y no se arriesga el guardado del sub-lote.
+  if (origen && origen.estado === 'EN_PROCESO') {
+    const litros = Math.max(0, Number(origenUi.litros) || params.volumen || 0);
+    await client.query(
+      `INSERT INTO lote_extracciones_sublote
+         (lote_origen_id, lote_destino_id, etapa_origen_codigo, litros_anteriores, litros_nuevos, es_desvio_total, operario_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+      [
+        origen.id,
+        batch.id,
+        params.productUiId === 'prod-kumis' ? 'acidificar' : 'calentar-y-cuajar',
+        0,
+        litros,
+        origenUi.desvioTotal === true,
+        params.userId,
+      ]
+    );
+  }
 
   for (let i = 0; i < stages.rows.length; i++) {
     await client.query(

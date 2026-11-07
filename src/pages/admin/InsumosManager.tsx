@@ -25,6 +25,7 @@ const TIPOS: { key: InsumoTipo; label: string; icon: string; unidad: string; hin
   { key: 'azucar', label: 'Azúcar (fermentados)', icon: 'cookie', unidad: 'kg', hint: 'Ej. AZU-2026-10A', descLabel: 'Ingenio / referencia' },
   { key: 'saborizante', label: 'Saborizante (yogur)', icon: 'water_drop', unidad: 'ml', hint: 'Ej. SAB-2026-10A', descLabel: 'Sabor / referencia' },
   { key: 'colorante', label: 'Colorante (yogur)', icon: 'palette', unidad: 'ml', hint: 'Ej. COL-2026-10A', descLabel: 'Color / referencia' },
+  { key: 'estevia', label: 'Stevia (yogur y griego)', icon: 'eco', unidad: 'g', hint: 'Ej. EST-2026-10A', descLabel: 'Pureza / referencia' },
 ];
 
 interface FormState {

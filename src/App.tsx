@@ -617,6 +617,19 @@ export default function App() {
           products={products}
           onSelectProduct={handleSelectProduct}
           onBackToLines={() => setCurrentView('operator_line_select')}
+          derivedLots={{
+            'prod-kumis': {
+              activo: Boolean(batchKumis.origenYogur) && batchKumis.status !== 'COMPLETADO',
+              yogurId: batchKumis.origenYogur?.yogurId,
+              litros: batchKumis.origenYogur?.litros,
+            },
+            'prod-yogur-griego': {
+              activo:
+                Boolean(batchYogurGriego.origenYogur) && batchYogurGriego.status !== 'COMPLETADO',
+              yogurId: batchYogurGriego.origenYogur?.yogurId,
+              litros: batchYogurGriego.origenYogur?.litros,
+            },
+          }}
         />
       )}
 

@@ -1,3 +1,4 @@
+import type { OrigenYogur } from './yogur';
 export interface PasteurizacionKumisState {
   litrosLeche: number;
   loteLeche: string;
@@ -301,6 +302,8 @@ export interface KumisBatchData {
     elapsedSeconds: number;
     formattedTime: string;
   };
+  /** Lote de Yogur del que se desvió este Kumis (toda la leche entra por el Yogur). */
+  origenYogur?: OrigenYogur;
   stageStatuses: {
     acidificar: 'pendiente' | 'en_proceso' | 'completada'; // Pasteurización y Enfriamiento
     'calentar-y-cuajar': 'pendiente' | 'en_proceso' | 'completada'; // Inoculación (Cultivo Kumis)

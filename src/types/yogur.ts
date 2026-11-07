@@ -1,3 +1,12 @@
+/** Referencia al lote de Yogur del que nace un sub-lote (Kumis o Griego). */
+export interface OrigenYogur {
+  yogurId: string; // id UI del lote de Yogur (ej. 'YOG-...')
+  yogurProductUiId: string; // 'prod-yogur'
+  litros: number; // litros desviados al sub-lote
+  hora: string; // hora del desvío
+  desvioTotal?: boolean; // true si el Yogur quedó en 0 L
+}
+
 export interface PasteurizacionYogurState {
   litrosLeche: number;
   loteLeche: string;

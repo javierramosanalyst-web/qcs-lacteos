@@ -7,7 +7,14 @@ interface OperatorProductSelectorProps {
   products: ProductDefinition[];
   onSelectProduct: (productId: string) => void;
   onBackToLines: () => void;
+  /**
+   * Sub-lotes que nacen del Yogur (Kumis / Griego). No se pueden iniciar desde aquí:
+   * toda la leche entra por el Yogur. Solo se puede continuar uno que ya exista.
+   */
+  derivedLots?: Record<string, { activo: boolean; yogurId?: string; litros?: number }>;
 }
+
+const DERIVADOS_DE_YOGUR = ['prod-kumis', 'prod-yogur-griego'];
 
 const QUESO_STAGES = ['Acidificar (35 °C)', 'Calentar y Cuajar', 'Desuerar (40 °C)', 'Hilar (65 °C / Hebra / Extrusión)', 'Moldeo y Balance'];
 
@@ -36,6 +43,7 @@ export const OperatorProductSelector: React.FC<OperatorProductSelectorProps> = (
   products,
   onSelectProduct,
   onBackToLines,
+  derivedLots = {},
 }) => {
   const [infoModalProduct, setInfoModalProduct] = useState<ProductDefinition | null>(null);
 
@@ -93,7 +101,7 @@ export const OperatorProductSelector: React.FC<OperatorProductSelectorProps> = (
           <p className="mt-0.5 leading-relaxed">
             {isPastaHilada
               ? 'Elige el queso que vas a preparar hoy.'
-              : 'Elige el producto fermentado a trabajar. Puedes dividir un mismo lote padre de leche entre yogur, kumis y yogur griego y llevar sus cronómetros por separado.'}
+              : 'Todo empieza en el Yogur. Durante el proceso del Yogur se decide si de esa misma leche sale Kumis (con azúcar) o Yogur Griego (sin azúcar); cada uno sigue después con su propio cronómetro.'}
           </p>
         </div>
       </div>
@@ -146,7 +154,35 @@ export const OperatorProductSelector: React.FC<OperatorProductSelectorProps> = (
               </div>
 
               <div className="w-full md:w-auto shrink-0">
-                {stages ? (
+                {stages && DERIVADOS_DE_YOGUR.includes(prod.id) ? (
+                  derivedLots[prod.id]?.activo ? (
+                    <button
+                      onClick={() => onSelectProduct(prod.id)}
+                      className="w-full md:w-auto px-6 py-3.5 rounded-2xl bg-[#1B4E9B] hover:bg-[#143A73] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95"
+                    >
+                      <span>
+                        Continuar {START_LABEL[prod.id] ?? prod.name}
+                        {derivedLots[prod.id]?.litros ? ` (${derivedLots[prod.id]?.litros} L)` : ''}
+                      </span>
+                      <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                    </button>
+                  ) : (
+                    <div className="flex flex-col items-stretch md:items-end gap-1">
+                      <button
+                        disabled
+                        className="w-full md:w-auto px-6 py-3.5 rounded-2xl bg-[#F2F4F7] text-gray-400 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-[#D6DEEA] cursor-not-allowed"
+                      >
+                        <span className="material-symbols-outlined text-[18px]">call_split</span>
+                        <span>Se crea desde un lote de Yogur</span>
+                      </button>
+                      <span className="text-[10px] text-gray-500 text-center md:text-right">
+                        {prod.id === 'prod-kumis'
+                          ? 'Inicia un Yogur con azúcar y desvía leche a Kumis.'
+                          : 'Inicia un Yogur sin azúcar y desvía leche a Griego tras el cuarto frío.'}
+                      </span>
+                    </div>
+                  )
+                ) : stages ? (
                   <button
                     onClick={() => onSelectProduct(prod.id)}
                     className="w-full md:w-auto px-6 py-3.5 rounded-2xl bg-[#1B4E9B] hover:bg-[#143A73] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95"

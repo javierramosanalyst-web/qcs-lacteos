@@ -20,6 +20,7 @@ import {
   timeStringToTimestampToday,
 } from '../../../utils/timer';
 import { useStageCountdown } from '../../../hooks/useStageCountdown';
+import { PERMITIR_DESVIO_TOTAL, maxLitrosDesviables } from '../../../config/fermentados';
 
 export interface InoculacionStageCommonProps {
   productType: 'yogur' | 'kumis';
@@ -368,15 +369,16 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
 
   // Manejo de Partición (Lote Hijo Kumis o Griego)
   const parsedLitrosParticion = Number(litrosParticionInput);
+  const maxLitrosParticion = maxLitrosDesviables(volumenTotalDisponible);
   const esParticionValida =
     litrosParticionInput !== '' &&
     parsedLitrosParticion > 0 &&
-    parsedLitrosParticion <= volumenTotalDisponible;
+    parsedLitrosParticion <= maxLitrosParticion;
 
   const handleConfirmarParticion = () => {
     if (!esParticionValida) {
       setErrorParticion(
-        `Ingresa una cantidad mayor a 0 y menor o igual a ${volumenTotalDisponible} L.`
+        `Ingresa una cantidad mayor a 0 y menor o igual a ${maxLitrosParticion} L.`
       );
       return;
     }
@@ -969,6 +971,51 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
           </div>
         )}
 
+        {/* ========================================================================= */}
+        {/* PUNTO DE PARTICIÓN (solo Yogur SIN azúcar, tras confirmar cuarto frío):   */}
+        {/* se desvía una parte de esta misma leche para Yogur Griego. Una sola vez.  */}
+        {/* ========================================================================= */}
+        {isYogur && !llevaAzucar && isCuartoFrioConfirmado && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#F7F9FC] border-2 border-[#D6DEEA] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-2">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-[#1B4E9B] text-white flex items-center justify-center shrink-0 shadow-sm">
+                <span className="material-symbols-outlined text-[24px]">call_split</span>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h4 className="text-sm font-black text-gray-900">
+                    Punto de Partición: ¿Sacar Yogur Griego de este lote?
+                  </h4>
+                  {extraccionGriegoRealizada && (
+                    <Badge variant="success">Partición realizada</Badge>
+                  )}
+                </div>
+                <p className="text-xs text-gray-600 mt-0.5">
+                  {extraccionGriegoRealizada
+                    ? `Se desviaron ${litrosExtraidosPrevios || 0} L a Yogur Griego. El Griego hereda todo lo registrado hasta aquí; el Yogur continúa con ${litrosLecheBase} L hacia Batido.`
+                    : 'Puedes desviar una parte de esta cuajada sin azúcar para Yogur Griego (escurrido en telas). El Griego hereda pasteurización e incubación de este lote; el Yogur restante sigue hacia Batido. Solo se puede hacer una vez.'}
+                </p>
+              </div>
+            </div>
+
+            {!extraccionGriegoRealizada && onExtractGriego && (
+              <Button
+                variant="secondary"
+                size="md"
+                icon="call_split"
+                onClick={() => {
+                  setTipoParticion('griego');
+                  setLitrosParticionInput('');
+                  setErrorParticion(null);
+                  setShowModalParticion(true);
+                }}
+                className="bg-white hover:bg-[#EEF3FA] text-[#1B4E9B] border-[#1B4E9B] font-bold shadow-2xs shrink-0 cursor-pointer"
+              >
+                Sacar Yogur Griego
+              </Button>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* ========================================================================= */}
@@ -1154,7 +1201,7 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
                 }
                 type="number"
                 min="1"
-                max={volumenTotalDisponible}
+                max={maxLitrosParticion}
                 unit="Litros"
                 icon="water_drop"
                 placeholder="Ej: 100"
@@ -1166,9 +1213,11 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
                   const num = Number(rawVal);
                   if (rawVal !== '' && num <= 0) {
                     setErrorParticion('La cantidad debe ser mayor a 0 litros.');
-                  } else if (num > volumenTotalDisponible) {
+                  } else if (num > maxLitrosParticion) {
                     setErrorParticion(
-                      `Los litros desviados no pueden superar el volumen disponible (${volumenTotalDisponible} L).`
+                      PERMITIR_DESVIO_TOTAL
+                        ? `Los litros desviados no pueden superar el volumen disponible (${volumenTotalDisponible} L).`
+                        : `El Yogur debe conservar leche: máximo ${maxLitrosParticion} L para desviar.`
                     );
                   } else {
                     setErrorParticion(null);
@@ -1185,7 +1234,7 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
             </div>
 
             {/* Vista Previa del Balance */}
-            {parsedLitrosParticion > 0 && parsedLitrosParticion <= volumenTotalDisponible && (
+            {parsedLitrosParticion > 0 && parsedLitrosParticion <= maxLitrosParticion && (
               <div className="p-4 rounded-2xl bg-[#F7F9FC] border border-[#D6DEEA] flex flex-col gap-2.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500">
