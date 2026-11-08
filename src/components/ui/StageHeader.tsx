@@ -70,9 +70,12 @@ export const StageHeader: React.FC<StageHeaderProps> = ({
 
   return (
     <header
-      className={`bg-white border border-[#D6DEEA] rounded-2xl p-5 sm:p-6 shadow-sm flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 ${className}`}
+      className={`@container bg-white border border-[#D6DEEA] rounded-2xl p-4 sm:p-6 shadow-sm ${className}`}
     >
-      <div className="flex items-start gap-4 min-w-0">
+      {/* El acomodo depende del ancho real de la cabecera (no de la pantalla): con el menú
+          lateral abierto en tablet, las métricas bajan debajo del título en vez de aplastarlo. */}
+      <div className="flex flex-col @5xl:flex-row @5xl:items-center @5xl:justify-between gap-4">
+      <div className="flex items-start gap-3 sm:gap-4 min-w-0 @5xl:flex-1">
         <div
           className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
             isCompleted
@@ -118,7 +121,7 @@ export const StageHeader: React.FC<StageHeaderProps> = ({
             {badges}
           </div>
 
-          <h2 className="text-xl sm:text-2xl font-extrabold text-[#191c1e] tracking-tight">
+          <h2 className="text-lg sm:text-2xl font-extrabold text-[#191c1e] tracking-tight leading-snug break-words">
             {resolvedTitle}
           </h2>
 
@@ -130,14 +133,14 @@ export const StageHeader: React.FC<StageHeaderProps> = ({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 shrink-0">
+      <div className="flex flex-wrap items-stretch gap-2 sm:gap-3 w-full @5xl:w-auto @5xl:shrink-0 @5xl:justify-end">
         {metrics &&
           metrics.map((metric, idx) => {
             const toneStyle = METRIC_TONES[metric.tone || 'default'];
             return (
               <div
                 key={idx}
-                className={`px-3.5 py-2 rounded-xl border flex items-center gap-2.5 shadow-2xs ${toneStyle}`}
+                className={`flex-1 min-w-[10.5rem] @5xl:flex-none px-3.5 py-2 rounded-xl border flex items-center gap-2.5 shadow-2xs ${toneStyle}`}
               >
                 <span className="material-symbols-outlined text-[22px] opacity-80">
                   {metric.icon}
@@ -209,6 +212,7 @@ export const StageHeader: React.FC<StageHeaderProps> = ({
         )}
 
         {rightContent}
+      </div>
       </div>
     </header>
   );

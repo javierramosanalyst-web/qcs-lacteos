@@ -3,9 +3,6 @@ import { pool } from './db';
 const MIGRATIONS = `
 ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS estado_ui JSONB;
 ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS producto_ui_id VARCHAR(60);
-ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS finalizado_por_id UUID REFERENCES usuarios(id) ON DELETE SET NULL;
-
-CREATE INDEX IF NOT EXISTS idx_lotes_produccion_producto_ui ON lotes_produccion(producto_ui_id, estado);
 
 CREATE TABLE IF NOT EXISTS borradores_lote (
     producto_ui_id VARCHAR(60) PRIMARY KEY,
@@ -108,24 +105,6 @@ INSERT INTO formatos_envase (codigo, descripcion, tipo_linea, categoria_variedad
   ('griego_natural_bolsa4L', 'Bolsa de 4 L (Griego Natural)',    'fermentacion', 'natural', 4.000, 'kg'),
   ('griego_stevia_bolsa4L',  'Bolsa de 4 L (Griego con Stevia)', 'fermentacion', 'stevia',  4.000, 'kg')
 ON CONFLICT (codigo) DO NOTHING;
-
-CREATE TABLE IF NOT EXISTS lote_etapa_operarios (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    lote_id UUID NOT NULL REFERENCES lotes_produccion(id) ON DELETE CASCADE,
-    etapa_codigo VARCHAR(40) NOT NULL,
-    fase_nombre VARCHAR(120) NOT NULL,
-    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
-    primera_accion_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    ultima_accion_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (lote_id, etapa_codigo, usuario_id)
-);
-CREATE INDEX IF NOT EXISTS idx_lote_etapa_operarios_lote ON lote_etapa_operarios(lote_id);
-CREATE INDEX IF NOT EXISTS idx_lote_etapa_operarios_usuario ON lote_etapa_operarios(usuario_id);
-
-DROP TRIGGER IF EXISTS trg_lock_lote_etapa_operarios ON lote_etapa_operarios;
-CREATE TRIGGER trg_lock_lote_etapa_operarios
-    BEFORE INSERT OR UPDATE OR DELETE ON lote_etapa_operarios
-    FOR EACH ROW EXECUTE FUNCTION fn_bloquear_hijas_de_lote_cerrado();
 `;
 
 export async function ensureSchema(): Promise<void> {
