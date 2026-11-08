@@ -469,8 +469,13 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
             Productos con un borrador guardado. Los que tienen lote oficial en proceso se continúan
             desde la selección de líneas; los que nunca iniciaron lote se pueden descartar aquí.
           </p>
+          {loading && (
+            <p className="text-xs text-[#1B4E9B] font-semibold py-2 text-center">Cargando borradores...</p>
+          )}
           {openDrafts.length === 0 ? (
-            <p className="text-xs text-gray-500 py-4 text-center">No hay borradores abiertos.</p>
+            <p className="text-xs text-gray-500 py-4 text-center">
+              {loading ? 'Consultando borradores...' : 'No hay borradores abiertos.'}
+            </p>
           ) : (
             <div className="flex flex-col gap-2">
               {openDrafts.map((d) => (

@@ -15,6 +15,7 @@ import { NextFunction, Request, Response } from 'express';
 export type RolUsuario = 'superadmin' | 'administrador' | 'operador';
 
 export const SESSION_COOKIE = 'qcs_session';
+export const SESSION_ID_COOKIE = 'qcs_sid';
 
 /** Lee una cookie del encabezado sin dependencias externas. */
 export function readCookie(req: Request, name: string): string | null {
@@ -63,6 +64,7 @@ interface JwtPayload {
   sub?: unknown;
   rol?: unknown;
   linea_asignada_id?: unknown;
+  sid?: unknown;
   exp?: unknown;
 }
 
@@ -149,6 +151,19 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
       rol: payload.rol as RolUsuario,
       lineaAsignadaId: typeof payload.linea_asignada_id === 'string' ? payload.linea_asignada_id : null,
     };
+
+    const sid = typeof payload.sid === 'string' ? payload.sid : null;
+    if (sid) {
+      const cookieSid = readCookie(req, SESSION_ID_COOKIE);
+      if (cookieSid && cookieSid !== sid) {
+        res.status(401).json({
+          error: 'SESSION_REPLACED',
+          message: 'Se inició sesión con otro usuario en este dispositivo. Vuelve a ingresar.',
+        });
+        return;
+      }
+    }
+
     next();
   } catch (error) {
     res.status(401).json({

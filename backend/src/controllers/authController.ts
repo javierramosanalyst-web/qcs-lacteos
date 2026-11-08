@@ -1,6 +1,12 @@
 import { Request, Response } from 'express';
 import { pool } from '../db';
-import { SESSION_COOKIE, sessionCookieOptions, signJwtHS256 } from '../middlewares/authMiddleware';
+import { randomBytes } from 'node:crypto';
+import {
+  SESSION_COOKIE,
+  SESSION_ID_COOKIE,
+  sessionCookieOptions,
+  signJwtHS256,
+} from '../middlewares/authMiddleware';
 
 /**
  * POST /api/auth/login
@@ -64,17 +70,22 @@ export async function login(req: Request, res: Response): Promise<void> {
 
     const user = result.rows[0];
 
+    const sessionId = randomBytes(16).toString('hex');
     const token = signJwtHS256(
       {
         sub: user.id,
         rol: user.rol,
         linea_asignada_id: user.linea_asignada_id,
+        sid: sessionId,
       },
       secret,
       8 * 3600 // 8 horas (jornada de turno)
     );
 
-    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${encodeURIComponent(token)}; ${sessionCookieOptions(8 * 3600)}`);
+    res.setHeader('Set-Cookie', [
+      `${SESSION_COOKIE}=${encodeURIComponent(token)}; ${sessionCookieOptions(8 * 3600)}`,
+      `${SESSION_ID_COOKIE}=${sessionId}; ${sessionCookieOptions(8 * 3600)}`,
+    ]);
 
     res.status(200).json({
       user: {
@@ -118,6 +129,9 @@ export async function me(req: Request, res: Response): Promise<void> {
 
 /** POST /api/auth/logout  Borra la cookie de sesión httpOnly. */
 export async function logout(_req: Request, res: Response): Promise<void> {
-  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; ${sessionCookieOptions(0)}`);
+  res.setHeader('Set-Cookie', [
+    `${SESSION_COOKIE}=; ${sessionCookieOptions(0)}`,
+    `${SESSION_ID_COOKIE}=; ${sessionCookieOptions(0)}`,
+  ]);
   res.status(200).json({ message: 'Sesión cerrada.' });
 }

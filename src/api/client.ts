@@ -19,6 +19,7 @@ try {
   Object.keys(localStorage)
     .filter((key) => key.startsWith('qcs_backup_'))
     .forEach((key) => localStorage.removeItem(key));
+  if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('qcs_respaldo');
 } catch {
   void 0;
 }
@@ -60,7 +61,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   }
   const body = await res.json().catch(() => ({}));
   if (res.status === 401 && hasSession() && !path.startsWith('/auth/login')) {
-    window.dispatchEvent(new CustomEvent('qcs:session-expired'));
+    window.dispatchEvent(new CustomEvent('qcs:session-expired', { detail: { error: body.error } }));
   }
   if (!res.ok) throw new ApiError(res.status, body.message ?? 'Error del servidor.', body);
   return body as T;

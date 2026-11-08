@@ -63,13 +63,63 @@ interface LocalBackup {
   ts: number;
 }
 
+const BACKUP_DB = 'qcs_respaldo';
+const BACKUP_STORE = 'lotes';
 const backupStore = new Map<string, LocalBackup>();
+
+const abrirRespaldo = (): Promise<IDBDatabase | null> =>
+  new Promise((resolve) => {
+    try {
+      if (typeof indexedDB === 'undefined') {
+        resolve(null);
+        return;
+      }
+      const req = indexedDB.open(BACKUP_DB, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(BACKUP_STORE)) db.createObjectStore(BACKUP_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+
+const leerRespaldoDisco = async (productId: string): Promise<LocalBackup | null> => {
+  const db = await abrirRespaldo();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(BACKUP_STORE, 'readonly');
+      const req = tx.objectStore(BACKUP_STORE).get(productId);
+      req.onsuccess = () => resolve((req.result as LocalBackup) ?? null);
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+};
+
+const escribirRespaldoDisco = async (productId: string, backup: LocalBackup | null) => {
+  const db = await abrirRespaldo();
+  if (!db) return;
+  try {
+    const tx = db.transaction(BACKUP_STORE, 'readwrite');
+    const store = tx.objectStore(BACKUP_STORE);
+    if (backup) store.put(backup, productId);
+    else store.delete(productId);
+  } catch {
+    return;
+  }
+};
 
 const readBackup = (productId: string): LocalBackup | null => {
   const parsed = backupStore.get(productId);
   if (!parsed) return null;
   if (!parsed.batch || Date.now() - parsed.ts > BACKUP_MAX_AGE_MS) {
     backupStore.delete(productId);
+    void escribirRespaldoDisco(productId, null);
     return null;
   }
   return parsed;
@@ -77,10 +127,12 @@ const readBackup = (productId: string): LocalBackup | null => {
 
 const writeBackup = (productId: string, backup: LocalBackup) => {
   backupStore.set(productId, backup);
+  void escribirRespaldoDisco(productId, backup);
 };
 
 const clearBackup = (productId: string) => {
   backupStore.delete(productId);
+  void escribirRespaldoDisco(productId, null);
 };
 
 const isStarted = (b: AnyBatch) =>
@@ -168,11 +220,8 @@ export function useBatchPersistence({
     [setStagesByProduct]
   );
 
-  const restoreBackup = useCallback(
-    (productId: string) => {
-      const p = productsRef.current.find((x) => x.productId === productId);
-      const backup = readBackup(productId);
-      if (!p || !backup) return;
+  const aplicarRespaldo = useCallback(
+    (productId: string, p: PersistedProduct, backup: LocalBackup) => {
       const current = versions.current[productId] !== undefined ? lastSaved.current[productId] : undefined;
       if (current === backup.sig) {
         clearBackup(productId);
@@ -187,6 +236,28 @@ export function useBatchPersistence({
       showToast('Se recuperaron cambios guardados en este equipo y se enviarán al servidor.', 'info');
     },
     [setStagesByProduct, showToast]
+  );
+
+  const restoreBackup = useCallback(
+    (productId: string) => {
+      const p = productsRef.current.find((x) => x.productId === productId);
+      if (!p) return;
+      const enMemoria = readBackup(productId);
+      if (enMemoria) {
+        aplicarRespaldo(productId, p, enMemoria);
+        return;
+      }
+      void leerRespaldoDisco(productId).then((desdeDisco) => {
+        if (!desdeDisco || !desdeDisco.batch) return;
+        if (Date.now() - desdeDisco.ts > BACKUP_MAX_AGE_MS) {
+          void escribirRespaldoDisco(productId, null);
+          return;
+        }
+        backupStore.set(productId, desdeDisco);
+        aplicarRespaldo(productId, p, desdeDisco);
+      });
+    },
+    [aplicarRespaldo]
   );
 
   const loadFromServer = useCallback(

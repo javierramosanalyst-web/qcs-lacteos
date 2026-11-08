@@ -76,7 +76,7 @@ export default function App() {
     codigo: string | null;
     por: string | null;
   } | null>(null);
-  const loteEnProcesoRef = useRef<Record<string, boolean>>({});
+  const loteEnProcesoRef = useRef<Record<string, string>>({});
   const loteCerradoMostradoRef = useRef<string | null>(null);
   const [lines, setLines] = useState<ProductionLine[]>(INITIAL_LINES);
   const [products, setProducts] = useState<ProductDefinition[]>(INITIAL_PRODUCTS);
@@ -273,10 +273,19 @@ export default function App() {
 
   useEffect(() => {
     let last = 0;
-    const onExpired = () => {
+    const onExpired = (event: Event) => {
       const now = Date.now();
       if (now - last < 30000) return;
       last = now;
+      const detalle = (event as CustomEvent<{ error?: string }>).detail;
+      if (detalle?.error === 'SESSION_REPLACED') {
+        showToast(
+          'Se inició sesión con otro usuario en este dispositivo. Esta pestaña se cerró; ingresa de nuevo.',
+          'warning'
+        );
+        handleLogoutRef.current('Se inició sesión con otro usuario en este dispositivo.');
+        return;
+      }
       showToast('Tu sesion vencio y los cambios no se estan guardando en el servidor. Cierra sesion e ingresa de nuevo; tu avance local se conserva.', 'warning');
     };
     window.addEventListener('qcs:session-expired', onExpired);
@@ -291,7 +300,9 @@ export default function App() {
   }, [isAuthenticated, currentView, selectedLineId, activeProductId]);
 
   useEffect(() => {
-    if (!isAuthenticated || currentView !== 'operator_line_select') return;
+    const vistaConBorradores =
+      currentView === 'operator_line_select' || currentView === 'admin_dashboard';
+    if (!isAuthenticated || !vistaConBorradores) return;
     let cancelled = false;
     const cargar = () => {
       fetchOpenDrafts()
@@ -322,15 +333,17 @@ export default function App() {
         const estado = await fetchDraftStatus(activeProductId);
         if (cancelado) return;
         if (estado.estado === 'EN_PROCESO') {
-          loteEnProcesoRef.current[activeProductId] = true;
+          loteEnProcesoRef.current[activeProductId] = estado.codigo_lote ?? '';
           return;
         }
         if (estado.estado !== 'COMPLETADO' && estado.estado !== 'ANULADO') return;
-        if (!loteEnProcesoRef.current[activeProductId]) return;
-        const clave = `${activeProductId}:${estado.codigo_lote ?? ''}`;
+        const abierto = loteEnProcesoRef.current[activeProductId];
+        if (!abierto) return;
+        if (!estado.codigo_lote || estado.codigo_lote !== abierto) return;
+        const clave = `${activeProductId}:${estado.codigo_lote}`;
         if (loteCerradoMostradoRef.current === clave) return;
         loteCerradoMostradoRef.current = clave;
-        loteEnProcesoRef.current[activeProductId] = false;
+        delete loteEnProcesoRef.current[activeProductId];
         setLoteCerrado({
           estado: estado.estado,
           codigo: estado.codigo_lote,
@@ -675,7 +688,12 @@ export default function App() {
           auditLogsCount={auditLogs.length}
           history={batchHistory}
           loading={loadingData}
-          onRefresh={() => void handleRefreshDashboard()}
+          onRefresh={() => {
+            void handleRefreshDashboard();
+            void fetchOpenDrafts()
+              .then(setOpenDrafts)
+              .catch(() => undefined);
+          }}
           onCreateLine={() => {
             setEditingLine(null);
             setCreateLineModalOpen(true);

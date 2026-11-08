@@ -26,7 +26,7 @@ workspaceRouter.post('/batches/:loteId/anular', requireRole('administrador', 'su
 workspaceRouter.get('/drafts', listOpenDrafts);
 workspaceRouter.put('/drafts/:productUiId', saveDraft);
 workspaceRouter.get('/drafts/:productUiId/estado', getDraftStatus);
-workspaceRouter.delete('/drafts/:productUiId', discardDraft);
+workspaceRouter.delete('/drafts/:productUiId', requireRole('administrador', 'superadmin'), discardDraft);
 workspaceRouter.get('/:lineCode', getWorkspace);
 workspaceRouter.put('/:lineCode', saveWorkspace);
 
