@@ -51,6 +51,16 @@ const ETAPAS = {
   'prod-yogur-griego': ['acidificar', 'calentar-y-cuajar', 'desuerar', 'hilar', 'moldeo'],
 };
 
+// Kumis y Griego nacen de un Yogur: se declara el yogur de origen para que el
+// estado_ui traiga `origenYogur` y el backend enlace lote_origen_id / lote_padre_id.
+const origenYogur = (yogurId, litros, horaDesvio, desvioTotal = false) => ({
+  yogurId,
+  yogurProductUiId: 'prod-yogur',
+  litros,
+  hora: horaDesvio,
+  desvioTotal,
+});
+
 const timerCompleto = (inicio, fin) => ({
   isRunning: false,
   isCompleted: true,
@@ -245,6 +255,40 @@ const LOTES = [
     },
   },
   {
+    codigo: 'DEMO-YOG-003',
+    producto: 'YOG-101',
+    ui: 'prod-yogur',
+    estado: 'EN_PROCESO',
+    etapa: 'hilar',
+    litros: 240,
+    dias: 0,
+    responsable: 'OP-105',
+    operarios: ['OP-105'],
+    overrides: {
+      status: 'NOMINAL',
+      stageStatuses: etapasCompletas(ETAPAS['prod-yogur'], 3),
+      processTimer: { isRunning: true, isCompleted: false, startTime: hora(4), startTimestamp: null, elapsedSeconds: 16200, formattedTime: '04:30:00' },
+      pasteurizacion: {
+        litrosLeche: 240,
+        loteLeche: 'LCH-DEMO-002',
+        llevaAzucar: true,
+        azucarElegido: true,
+        azucar: { adicionado: true, horaAdicion: hora(4, 20), cantidadKg: 19.2, loteAzucar: 'AZU-DEMO-001', esManual: false },
+        calentamiento: { iniciado: true, completado: true, horaInicio: hora(4), horaFin: hora(4, 40), temperaturaAlcanzada: 88, llego85a90: true, horaLlegada85a90: hora(4, 35), tiempoCalentamiento: '40 min' },
+        sostenimiento: { iniciado: true, completado: true, horaInicio: hora(4, 40), horaFin: hora(4, 55), duracionReal: '15 min' },
+        enfriamiento: { enfriamientoIniciado: true, enfriamientoCompletado: true, horaInicio: hora(4, 55), horaFinEnfriamiento: hora(5, 25), temperaturaFinal: 45, tiempoEnfriamiento: '30 min' },
+        trasiego: { iniciado: true, completado: true, horaInicio: hora(5, 25), horaFin: hora(5, 40), tiempoTrasiego: '15 min' },
+        divisionLeche: { litrosYogurConAzucar: 240, litrosKumis: 80, litrosYogurSinAzucar: 0, litrosYogurGriego: 120 },
+      },
+      inoculacion: { temperaturaConfirmada: true, loteCultivo: 'CUL-DEMO-002', cantidadCultivoGramos: 6, mezcladoConfirmado: true, inoculacionConfirmada: true, horaInoculacion: hora(5, 50), incubacion: { iniciada: true, completada: true, horaInicio: hora(6), horaFin: hora(14), temperaturaIncubacion: 45, phFinal: 4.55 } },
+      maduracionFrio: { refrigeracion: { iniciada: true, completada: true, horaInicio: hora(14), horaFin: hora(22), temperatura: 4 } },
+      batidoYAdiciones: {
+        salidaCuartoFrio: { hora: hora(22, 5), confirmada: true },
+        adiciones: { recetaConfirmada: true, registrado: true, horaRegistro: hora(22, 10), variedadAzucar: { loteAzucar: 'AZU-DEMO-001', gramosAzucar: 19200 } },
+      },
+    },
+  },
+  {
     codigo: 'DEMO-KUM-001',
     producto: 'KUM-102',
     ui: 'prod-kumis',
@@ -256,6 +300,7 @@ const LOTES = [
     operarios: ['OP-106', 'OP-104'],
     overrides: {
       status: 'COMPLETADO',
+      origenYogur: origenYogur('DEMO-YOG-003', 80, hora(5, 40)),
       stageStatuses: etapasCompletas(ETAPAS['prod-kumis'], 3),
       processTimer: timerCompleto(hora(6), '08:30:00'),
       pasteurizacion: {
@@ -298,6 +343,7 @@ const LOTES = [
     operarios: ['OP-104'],
     overrides: {
       status: 'EN_PROCESO',
+      origenYogur: origenYogur('DEMO-YOG-003', 60, hora(5, 40)),
       stageStatuses: etapasCompletas(ETAPAS['prod-kumis'], 2),
       processTimer: { isRunning: true, isCompleted: false, startTime: hora(6), startTimestamp: null, elapsedSeconds: 9000, formattedTime: '02:30:00' },
       pasteurizacion: {
@@ -326,6 +372,7 @@ const LOTES = [
     operarios: ['OP-105', 'OP-106'],
     overrides: {
       status: 'COMPLETADO',
+      origenYogur: origenYogur('DEMO-YOG-003', 120, hora(22)),
       stageStatuses: etapasCompletas(ETAPAS['prod-yogur-griego'], 5),
       processTimer: timerCompleto(hora(4), '18:00:00'),
       pasteurizacion: {
@@ -378,6 +425,7 @@ const LOTES = [
     operarios: ['OP-106'],
     overrides: {
       status: 'EN_PROCESO',
+      origenYogur: origenYogur('DEMO-YOG-003', 120, hora(22)),
       stageStatuses: etapasCompletas(ETAPAS['prod-yogur-griego'], 2),
       processTimer: { isRunning: true, isCompleted: false, startTime: hora(5), startTimestamp: null, elapsedSeconds: 14400, formattedTime: '04:00:00' },
       pasteurizacion: {
@@ -412,6 +460,12 @@ async function limpiar(client) {
   );
   const ids = rows.map((r) => r.id);
   if (ids.length > 0) {
+    // El desvío Yogur → Kumis/Griego referencia ambos lotes: se borra primero el registro del desvío.
+    await client.query(
+      `DELETE FROM lote_extracciones_sublote
+        WHERE lote_origen_id = ANY($1::uuid[]) OR lote_destino_id = ANY($1::uuid[]);`,
+      [ids]
+    );
     await client.query(`DELETE FROM lotes_produccion WHERE id = ANY($1::uuid[]);`, [ids]);
   }
   const retenidos = await client.query(
@@ -459,7 +513,8 @@ async function main() {
     );
 
     const usuarios = await client.query(`SELECT id, codigo_empleado FROM usuarios;`);
-    const usuarioId = new Map(usuarios.rows.map((u) => [u.codigo_empleado, u.id]));    const productos = await client.query(`SELECT id, codigo, nombre, norma_tecnica FROM productos;`);
+    const usuarioId = new Map(usuarios.rows.map((u) => [u.codigo_empleado, u.id]));
+    const productos = await client.query(`SELECT id, codigo, nombre, norma_tecnica FROM productos;`);
     const productoPorCodigo = new Map(productos.rows.map((p) => [p.codigo, p]));
     const lineas = await client.query(`SELECT id, codigo FROM lineas_produccion;`);
     const lineaPorCodigo = new Map(lineas.rows.map((l) => [l.codigo, l.id]));
@@ -505,22 +560,32 @@ async function main() {
       if (!producto) throw new Error(`Producto ${lote.producto} no existe.`);
       const lineaCodigo = lote.ui.startsWith('prod-yogur') || lote.ui === 'prod-kumis' ? 'L-FERMENT-02' : 'L-HILADA-01';
       const estadoUi = mezclar(plantillas[lote.ui], lote.overrides);
+      // estado_ui se guarda siempre envuelto como { batch, stage } (mismo formato que el endpoint).
+      const estadoGuardado = { batch: estadoUi, stage: lote.etapa };
       estadoUi.id = lote.codigo;
       estadoUi.operator = 'Operador de Planta';
       estadoUi.responsableProceso = lote.responsable;
       estadoUi.operariosIntervinientes = lote.operarios;
 
       const finalizado = lote.estado === 'COMPLETADO' || lote.estado === 'ANULADO';
+      const origen = lote.overrides.origenYogur ?? null;
+      const origenRow = origen
+        ? (await client.query(`SELECT id, lote_padre_id FROM lotes_produccion WHERE codigo_lote = $1;`, [origen.yogurId])).rows[0]
+        : null;
+      if (origen && !origenRow) {
+        throw new Error(`El yogur de origen ${origen.yogurId} de ${lote.codigo} no existe; cárgalo antes.`);
+      }
       const ins = await client.query(
         `INSERT INTO lotes_produccion (
            codigo_lote, producto_id, linea_id, responsable_id, norma_tecnica_aplicada, receta_snapshot,
            variante_fermentado, volumen_leche_base_litros, lleva_azucar, estado, etapa_actual_codigo,
            iniciado_at, finalizado_at, duracion_total_segundos, motivo_cierre, ingreso_cuarto_frio_at,
            temp_almacenamiento_celsius, lote_producto_terminado, observaciones_finales,
-           anulado_at, anulado_por_id, motivo_anulacion, estado_ui, producto_ui_id
+           anulado_at, anulado_por_id, motivo_anulacion, estado_ui, producto_ui_id,
+           lote_origen_id, lote_padre_id
          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,
                    NOW() - ($12::int || ' days')::interval,
-                   $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+                   $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
          RETURNING id;`,
         [
           lote.codigo,
@@ -548,8 +613,10 @@ async function main() {
           null,
           null,
           null,
-          JSON.stringify(estadoUi),
+          JSON.stringify(estadoGuardado),
           lote.ui,
+          origenRow?.id ?? null,
+          origenRow?.lote_padre_id ?? null,
         ]
       );
       const loteId = ins.rows[0].id;
@@ -573,6 +640,41 @@ async function main() {
           `INSERT INTO lote_operarios_intervinientes (lote_id, usuario_id, rol_en_proceso)
            VALUES ($1,$2,$3) ON CONFLICT (lote_id, usuario_id) DO NOTHING;`,
           [loteId, usuarioId.get(codigo), codigo === lote.responsable ? 'Responsable del lote' : 'Operador de Etapa']
+        );
+      }
+
+      // Desvío Yogur → Kumis/Griego (mismo registro que deja el endpoint al crear el sub-lote).
+      if (origenRow) {
+        await client.query(
+          `INSERT INTO lote_extracciones_sublote
+             (lote_origen_id, lote_destino_id, etapa_origen_codigo, litros_anteriores, litros_nuevos, es_desvio_total, operario_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7);`,
+          [
+            origenRow.id,
+            loteId,
+            lote.ui === 'prod-kumis' ? 'acidificar' : 'calentar-y-cuajar',
+            0,
+            Number(origen.litros) || 0,
+            origen.desvioTotal === true,
+            usuarioId.get(lote.responsable),
+          ]
+        );
+      }
+
+      // Borrador abierto: es lo que alimenta "Continuar" por línea y "Borradores Abiertos" del panel.
+      if (!finalizado) {
+        await client.query(
+          `INSERT INTO borradores_lote (producto_ui_id, linea_id, estado, etapa_actual, version, lote_id, actualizado_por_id)
+           VALUES ($1,$2,$3,$4,1,$5,$6)
+           ON CONFLICT (producto_ui_id) DO UPDATE SET
+             linea_id = EXCLUDED.linea_id,
+             estado = EXCLUDED.estado,
+             etapa_actual = EXCLUDED.etapa_actual,
+             lote_id = EXCLUDED.lote_id,
+             actualizado_por_id = EXCLUDED.actualizado_por_id,
+             version = borradores_lote.version + 1,
+             updated_at = NOW();`,
+          [lote.ui, lineaPorCodigo.get(lineaCodigo), JSON.stringify(estadoGuardado), lote.etapa, loteId, usuarioId.get(lote.responsable)]
         );
       }
 
