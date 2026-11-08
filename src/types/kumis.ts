@@ -1,3 +1,4 @@
+import type { ActividadOperario } from './pastaHilada';
 import type { OrigenYogur } from './yogur';
 export interface PasteurizacionKumisState {
   litrosLeche: number;
@@ -288,6 +289,7 @@ export interface KumisBatchData {
   operatorRole: string;
   responsableProceso?: string;
   operariosIntervinientes?: string[];
+  actividadOperarios?: ActividadOperario[];
   status: 'NOMINAL' | 'EN AJUSTE' | 'COMPLETADO';
   pasteurizacion: PasteurizacionKumisState;
   inoculacion: InoculacionKumisState;

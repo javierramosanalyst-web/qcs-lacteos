@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
 import {
   Badge,
   Button,
@@ -1041,15 +1042,7 @@ export const PasteurizacionStageCommon: React.FC<
           variant={state.azucar?.adicionado ? 'success' : 'default'}
           headerRight={
             state.azucar?.adicionado ? (
-              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-gray-700 bg-white px-3 py-1.5 rounded-xl border border-gray-300 shadow-2xs hover:border-amber-400 transition-all">
-                <input
-                  type="checkbox"
-                  checked={manualAzucar}
-                  onChange={(e) => setManualAzucar(e.target.checked)}
-                  className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
-                />
-                <span>Habilitar edición manual</span>
-              </label>
+              <ManualEditToggle manual={Boolean(manualAzucar)} onChange={(checked: boolean) => setManualAzucar(checked)} />
             ) : undefined
           }
         >
@@ -1190,15 +1183,7 @@ export const PasteurizacionStageCommon: React.FC<
         variant={state.calentamiento?.completado ? 'success' : 'default'}
         headerRight={
           state.calentamiento?.completado ? (
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-gray-700 bg-white px-3 py-1.5 rounded-xl border border-gray-300 shadow-2xs hover:border-amber-400 transition-all">
-              <input
-                type="checkbox"
-                checked={manualPaso2}
-                onChange={(e) => setManualPaso2(e.target.checked)}
-                className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso2)} onChange={(checked: boolean) => setManualPaso2(checked)} />
           ) : undefined
         }
       >
@@ -1319,15 +1304,7 @@ export const PasteurizacionStageCommon: React.FC<
         }
         headerRight={
           state.sostenimiento?.completado ? (
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-gray-700 bg-white px-3 py-1.5 rounded-xl border border-gray-300 shadow-2xs hover:border-amber-400 transition-all">
-              <input
-                type="checkbox"
-                checked={manualPaso3}
-                onChange={(e) => setManualPaso3(e.target.checked)}
-                className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso3)} onChange={(checked: boolean) => setManualPaso3(checked)} />
           ) : undefined
         }
       >
@@ -1511,15 +1488,7 @@ export const PasteurizacionStageCommon: React.FC<
           }
           headerRight={
             state.enfriamiento?.enfriamientoCompletado ? (
-              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-gray-700 bg-white px-3 py-1.5 rounded-xl border border-gray-300 shadow-2xs hover:border-amber-400 transition-all">
-                <input
-                  type="checkbox"
-                  checked={manualPaso4}
-                  onChange={(e) => setManualPaso4(e.target.checked)}
-                  className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
-                />
-                <span>Habilitar edición manual</span>
-              </label>
+              <ManualEditToggle manual={Boolean(manualPaso4)} onChange={(checked: boolean) => setManualPaso4(checked)} />
             ) : undefined
           }
         >
@@ -1675,15 +1644,7 @@ export const PasteurizacionStageCommon: React.FC<
         }
         headerRight={
           state.trasiego?.completado ? (
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-gray-700 bg-white px-3 py-1.5 rounded-xl border border-gray-300 shadow-2xs hover:border-amber-400 transition-all">
-              <input
-                type="checkbox"
-                checked={manualPaso5}
-                onChange={(e) => setManualPaso5(e.target.checked)}
-                className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso5)} onChange={(checked: boolean) => setManualPaso5(checked)} />
           ) : undefined
         }
       >
@@ -1717,7 +1678,7 @@ export const PasteurizacionStageCommon: React.FC<
             !state.trasiego?.completado ? (
               <div className="pt-2">
                 <Button
-                  variant="success"
+                  variant="primary"
                   size="xl"
                   icon="check_circle"
                   onClick={handleYaTrasegue}
@@ -1727,34 +1688,49 @@ export const PasteurizacionStageCommon: React.FC<
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-4 rounded-xl bg-white border border-[#D6DEEA]">
-                  <span className="text-[10px] uppercase font-bold text-gray-500 block">
-                    INICIO DE TRASLADO
-                  </span>
-                  <span className="text-xl font-mono font-black text-gray-900 mt-1 block">
-                    {state.trasiego?.horaInicio}
-                  </span>
-                </div>
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 rounded-xl bg-white border border-[#D6DEEA]">
+                    <span className="text-[10px] uppercase font-bold text-gray-500 block">
+                      INICIO DE TRASLADO
+                    </span>
+                    <span className="text-xl font-mono font-black text-gray-900 mt-1 block">
+                      {state.trasiego?.horaInicio}
+                    </span>
+                  </div>
 
-                <div className="p-4 rounded-xl bg-white border border-[#D6DEEA]">
-                  <span className="text-[10px] uppercase font-bold text-gray-500 block">
-                    FIN DE TRASLADO
-                  </span>
-                  <span className="text-xl font-mono font-black text-emerald-900 mt-1 block">
-                    {state.trasiego?.horaFin}
-                  </span>
-                </div>
+                  <div className="p-4 rounded-xl bg-white border border-[#D6DEEA]">
+                    <span className="text-[10px] uppercase font-bold text-gray-500 block">
+                      FIN DE TRASLADO
+                    </span>
+                    <span className="text-xl font-mono font-black text-emerald-900 mt-1 block">
+                      {state.trasiego?.horaFin}
+                    </span>
+                  </div>
 
-                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300">
-                  <span className="text-[10px] uppercase font-bold text-emerald-800 block">
-                    TIEMPO DE TRASLADO (SOLO LECTURA)
-                  </span>
-                  <span className="text-xl font-mono font-black text-emerald-950 mt-1 block">
-                    {state.trasiego?.tiempoTrasiego}
-                  </span>
+                  <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-300">
+                    <span className="text-[10px] uppercase font-bold text-emerald-800 block">
+                      TIEMPO DE TRASLADO (SOLO LECTURA)
+                    </span>
+                    <span className="text-xl font-mono font-black text-emerald-950 mt-1 block">
+                      {state.trasiego?.tiempoTrasiego}
+                    </span>
+                  </div>
                 </div>
-              </div>
+                <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
+                  <Button
+                    variant="outline"
+                    size="md"
+                    icon="edit"
+                    onClick={() => setManualPaso5(true)}
+                  >
+                    Editar
+                  </Button>
+                  <Button variant="success" size="xl" icon="check_circle" disabled>
+                    ¡Leche trasladada a cantinas!
+                  </Button>
+                </div>
+              </>
             )
           ) : (
             <div className="p-4 rounded-xl bg-amber-50/90 border-2 border-amber-300 flex flex-col gap-3">

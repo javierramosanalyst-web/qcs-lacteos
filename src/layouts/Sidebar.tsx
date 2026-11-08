@@ -1,5 +1,6 @@
 import React from 'react';
 import { AppView, LotesLeche, StageId, UserRole } from '../types';
+import { STAGE_NAV } from '../utils/stageNav';
 
 interface SidebarProps {
   currentStage: StageId;
@@ -59,51 +60,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
     productName.toLowerCase().includes('7 cueros') ||
     productName.toLowerCase().includes('siete cueros');
 
-  const navItems: { id: StageId; label: string; icon: string }[] = isYogurGriego
-    ? [
-        { id: 'acidificar', label: '1. Pasteurizar Leche', icon: 'local_fire_department' },
-        { id: 'calentar-y-cuajar', label: '2. Inocular e Incubar', icon: 'biotech' },
-        { id: 'desuerar', label: '3. Cuarto Frío y Escurrido', icon: 'filter_alt' },
-        { id: 'hilar', label: '4. Batido', icon: 'blender' },
-        { id: 'moldeo', label: '5. Envasar y Guardar', icon: 'inventory_2' },
-      ]
-    : isKumis
-    ? [
-        { id: 'acidificar', label: '1. Pasteurizar Leche', icon: 'local_fire_department' },
-        { id: 'calentar-y-cuajar', label: '2. Inocular e Incubar', icon: 'biotech' },
-        { id: 'moldeo', label: '3. Envasar y Guardar', icon: 'inventory_2' },
-      ]
-    : isYogur
-    ? [
-        { id: 'acidificar', label: '1. Pasteurizar Leche', icon: 'local_fire_department' },
-        { id: 'calentar-y-cuajar', label: '2. Inocular e Incubar', icon: 'biotech' },
-        { id: 'desuerar', label: '3. Receta y Sabores', icon: 'menu_book' },
-        { id: 'hilar', label: '4. Batido y Envasado', icon: 'blender' },
-        { id: 'moldeo', label: '5. Guardar', icon: 'inventory_2' },
-      ]
-    : isQueso7Cueros
-    ? [
-        { id: 'acidificar', label: '1. Acidificar Leche', icon: 'science' },
-        { id: 'calentar-y-cuajar', label: '2. Agregar Cuajo', icon: 'thermostat' },
-        { id: 'desuerar', label: '3. Desuerar y Escurrir', icon: 'filter_alt' },
-        { id: 'hilar', label: '4. Hilar y Salar', icon: 'waves' },
-        { id: 'moldeo', label: '5. Moldear y Pesar', icon: 'scale' },
-      ]
-    : isQuesoPera
-    ? [
-        { id: 'acidificar', label: '1. Leche e Insumos', icon: 'water_drop' },
-        { id: 'calentar-y-cuajar', label: '2. Premadurar y Cuajar', icon: 'biotech' },
-        { id: 'desuerar', label: '3. Desuerar y Escurrir', icon: 'filter_alt' },
-        { id: 'hilar', label: '4. Hilar y Salmueras', icon: 'waves' },
-        { id: 'moldeo', label: '5. Moldear y Pesar', icon: 'scale' },
-      ]
-    : [
-        { id: 'acidificar', label: '1. Acidificar Leche', icon: 'science' },
-        { id: 'calentar-y-cuajar', label: '2. Calentar y Cuajar', icon: 'thermostat' },
-        { id: 'desuerar', label: '3. Desuerar y Escurrir', icon: 'filter_alt' },
-        { id: 'hilar', label: '4. Hilar y Salar', icon: 'waves' },
-        { id: 'moldeo', label: '5. Moldear y Pesar', icon: 'scale' },
-      ];
+  const navItems = STAGE_NAV[
+    isYogurGriego
+      ? 'griego'
+      : isKumis
+      ? 'kumis'
+      : isYogur
+      ? 'yogur'
+      : isQueso7Cueros
+      ? 'siete-cueros'
+      : isQuesoPera
+      ? 'pera'
+      : 'doble-crema'
+  ];
   // El menú izquierdo de etapas (acidificar, calentar y cuajar, desuerar, hilar, etc.)
   // SOLO debe aparecer cuando se está dentro de un proceso o producto
   if (currentView !== 'batch_process') {

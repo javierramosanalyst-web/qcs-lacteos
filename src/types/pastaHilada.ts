@@ -24,6 +24,16 @@ export interface UserProfile {
   assignedLineId?: string;
 }
 
+export interface ActividadOperario {
+  codigo: string;
+  nombre: string;
+  rol: 'Operador' | 'Administrador';
+  etapa: string;
+  fase: string;
+  primeraAccion: string;
+  ultimaAccion: string;
+}
+
 export type LineType = 'pasta_hilada' | 'fermentacion' | 'dulces';
 
 export interface ProductDefinition {
@@ -476,6 +486,7 @@ export interface BatchData {
   loteSal: string; // Lote de la sal
   observaciones?: string; // Formulario de observaciones al final del proceso
   operariosIntervinientes?: string[]; // Lista de operarios que intervinieron en el proceso
+  actividadOperarios?: ActividadOperario[];
   moldesDesglose?: MoldesDesglose; // Desglose automático de moldes
   derivaciones?: DerivacionesBatchState; // Derivaciones opcionales: Queso Mexicano y Finas Hierbas (Queso Pera)
   derivaciones7Cueros?: Derivaciones7CuerosState; // Derivaciones opcionales: Quesadillas Arequipe y Bocadillo (7 Cueros)

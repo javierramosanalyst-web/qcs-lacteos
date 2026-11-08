@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
 import {
   AcidificarState,
   LOTES_LECHE_PROVEEDOR_DEFAULT,
@@ -810,15 +811,7 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
 
           {/* Checkbox Estándar Global: Habilitar edición manual */}
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualPh}
-                onChange={(e) => setManualPh(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-amber-300 cursor-pointer"
-              />
-              <span>Habilitar edición manual del pH</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPh)} onChange={(checked: boolean) => setManualPh(checked)} />
             <Badge variant={manualPh ? 'warning' : 'neutral'} size="sm">
               {manualPh ? 'Modo Manual Activo' : 'Confirmado'}
             </Badge>
@@ -930,14 +923,32 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
             )}
           </div>
 
-          <ConfirmButton
-            confirmed={isSaved}
-            onConfirm={handleRegistrarAcidificacion}
-            label="Guardar Acidificación 7 Cueros"
-            confirmedLabel="✓ Acidificación Guardada (Actualizar)"
-            icon="save"
-            fullWidth={false}
-          />
+          <div className="flex flex-col sm:flex-row items-stretch gap-2">
+            <ConfirmButton
+              confirmed={isSaved}
+              onConfirm={handleRegistrarAcidificacion}
+              label="Guardar Acidificación 7 Cueros"
+              confirmedLabel="✓ Acidificación Guardada"
+              icon="save"
+              fullWidth={false}
+            />
+            {isSaved && (
+              <Button
+                variant="outline"
+                size="md"
+                icon="edit"
+                className="min-h-[48px]"
+                onClick={() =>
+                  onChange((prev) => ({
+                    ...prev,
+                    insumos: { ...prev.insumos, saved: false },
+                  }))
+                }
+              >
+                Editar
+              </Button>
+            )}
+          </div>
         </div>
       </Card>
 
@@ -976,15 +987,7 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
 
           {/* Checkbox de Edición Manual de Tiempos (Estándar Inquebrantable) */}
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manual35}
-                onChange={(e) => setManual35(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-amber-300 cursor-pointer"
-              />
-              <span>Habilitar edición manual (Paso 2: Calentamiento 35 °C)</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manual35)} onChange={(checked: boolean) => setManual35(checked)} />
             <Badge variant={manual35 ? 'warning' : 'neutral'} size="sm">
               {manual35 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>

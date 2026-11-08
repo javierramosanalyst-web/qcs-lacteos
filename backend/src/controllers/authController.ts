@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { pool } from '../db';
-import { signJwtHS256 } from '../middlewares/authMiddleware';
+import { SESSION_COOKIE, sessionCookieOptions, signJwtHS256 } from '../middlewares/authMiddleware';
 
 /**
  * POST /api/auth/login
@@ -74,8 +74,9 @@ export async function login(req: Request, res: Response): Promise<void> {
       8 * 3600 // 8 horas (jornada de turno)
     );
 
+    res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${encodeURIComponent(token)}; ${sessionCookieOptions(8 * 3600)}`);
+
     res.status(200).json({
-      token,
       user: {
         id: user.id,
         codigo_empleado: user.codigo_empleado,
@@ -113,4 +114,10 @@ export async function me(req: Request, res: Response): Promise<void> {
     console.error('[auth] Error en /me:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al validar la sesión.' });
   }
+}
+
+/** POST /api/auth/logout  Borra la cookie de sesión httpOnly. */
+export async function logout(_req: Request, res: Response): Promise<void> {
+  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=; ${sessionCookieOptions(0)}`);
+  res.status(200).json({ message: 'Sesión cerrada.' });
 }

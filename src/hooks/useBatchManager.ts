@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { operarioLabel } from '../utils/operariosActividad';
 import {
   BatchData,
   ChildBatchReference,
@@ -93,7 +94,8 @@ const totalTimeOf = (timer: ProcessTimerState): { seconds: number; hms: string }
 const withOperator = <T extends { processTimer: ProcessTimerState }>(
   prev: T,
   respName: string,
-  roleStr: string
+  roleStr: string,
+  label: string
 ): T =>
   prev.processTimer.startTimestamp
     ? prev
@@ -102,15 +104,16 @@ const withOperator = <T extends { processTimer: ProcessTimerState }>(
         operator: respName,
         responsableProceso: respName,
         operatorRole: roleStr,
-        operariosIntervinientes: [respName],
+        operariosIntervinientes: [label],
       };
 
 interface UseBatchManagerParams {
   showToast: (message: string, type?: 'success' | 'info' | 'warning') => void;
   persistenceEnabled?: boolean;
+  currentUser?: UserProfile | null;
 }
 
-export function useBatchManager({ showToast, persistenceEnabled = false }: UseBatchManagerParams) {
+export function useBatchManager({ showToast, persistenceEnabled = false, currentUser }: UseBatchManagerParams) {
   // Producto activo y línea activa
   const [selectedLineId, setSelectedLineId] = useState<string>('line-pasta-hilada');
   const [activeProductId, setActiveProductId] = useState<string>(
@@ -209,16 +212,17 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
   // Asignar operario responsable a TODOS los lotes (incluyendo Yogur Griego y Lote Padre)
   const assignOperatorToAllBatches = useCallback((user: UserProfile) => {
     const respName = user.name;
+    const operarioLabelStr = operarioLabel(user);
     const roleStr = `Operador Responsable · ${user.shift || 'Jornada Continua'}`;
 
     setParentBatch((prev) => (prev.isStarted ? prev : { ...prev, responsable: respName }));
-    setBatchIndustrial((prev) => withOperator(prev, respName, roleStr));
-    setBatchPremium((prev) => withOperator(prev, respName, roleStr));
-    setBatchPera((prev) => withOperator(prev, respName, roleStr));
-    setBatch7Cueros((prev) => withOperator(prev, respName, roleStr));
-    setBatchYogur((prev) => withOperator(prev, respName, roleStr));
-    setBatchKumis((prev) => withOperator(prev, respName, roleStr));
-    setBatchYogurGriego((prev) => withOperator(prev, respName, roleStr));
+    setBatchIndustrial((prev) => withOperator(prev, respName, roleStr, operarioLabelStr));
+    setBatchPremium((prev) => withOperator(prev, respName, roleStr, operarioLabelStr));
+    setBatchPera((prev) => withOperator(prev, respName, roleStr, operarioLabelStr));
+    setBatch7Cueros((prev) => withOperator(prev, respName, roleStr, operarioLabelStr));
+    setBatchYogur((prev) => withOperator(prev, respName, roleStr, operarioLabelStr));
+    setBatchKumis((prev) => withOperator(prev, respName, roleStr, operarioLabelStr));
+    setBatchYogurGriego((prev) => withOperator(prev, respName, roleStr, operarioLabelStr));
   }, []);
 
   // 1. INICIAR LOTE PADRE (Recepción / Pasteurización Base)
@@ -1502,6 +1506,7 @@ export function useBatchManager({ showToast, persistenceEnabled = false }: UseBa
     parentBatch,
     setParentBatch,
     showToast,
+    currentUser,
     onDraftRemoved: (productId: string) =>
       setStagesByProduct((prev) => ({ ...prev, [productId]: DEFAULT_STAGES[productId] ?? 'acidificar' })),
   });

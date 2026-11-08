@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
 import {
   StageHeader,
   Card,
@@ -161,6 +162,7 @@ export interface EnvasadoStageCommonProps {
   onFinalizeProcess: () => void;
   onOpenReviewModal: () => void;
   showToast: (msg: string, type?: 'success' | 'info' | 'warning') => void;
+  batidoSlot?: React.ReactNode;
 }
 
 export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
@@ -170,6 +172,7 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
   onChange,
   onOpenReviewModal,
   showToast,
+  batidoSlot,
 }) => {
   const isYogur = productType === 'yogur';
   const isKumis = productType === 'kumis';
@@ -465,6 +468,8 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
         ]}
       />
 
+      {batidoSlot}
+
       {/* ========================================================================= */}
       {/* PASO 01: CONTEO DE ENVASES Y RENDIMIENTO CON EDICIÓN MANUAL Y GUARDAR     */}
       {/* ========================================================================= */}
@@ -486,31 +491,6 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
           label: `${totalUnidades} unidades · ${totalLitrosEnvasados.toFixed(2)} L totales`,
           variant: totalUnidades > 0 ? 'success' : 'info',
         }}
-        headerAction={
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-[#4A5263] bg-[#F2F4F7] px-3 py-1.5 rounded-lg border border-[#D6DEEA] hover:bg-[#E6ECF5] transition-colors">
-              <input
-                type="checkbox"
-                checked={isManualFormatos}
-                onChange={(e) => setIsManualFormatos(e.target.checked)}
-                className="rounded border-[#C5D0E0] text-[#191C1E] focus:ring-amber-500 w-4 h-4 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
-
-            {/* Botón de Guardar para bloquear inputs tras edición manual */}
-            <Button
-              variant={areInputsLocked ? 'secondary' : 'primary'}
-              size="md"
-              icon={areInputsLocked ? 'lock' : 'save'}
-              onClick={handleGuardarFormatos}
-              disabled={areInputsLocked}
-              className="font-bold shadow-2xs"
-            >
-              {areInputsLocked ? '✓ Guardado y Bloqueado' : 'Guardar'}
-            </Button>
-          </div>
-        }
       >
         {!isConAzucar ? (
           <div className="flex flex-col gap-6">
@@ -587,6 +567,37 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
             {allActiveConfigs.map((fmt) => renderFormatCard(fmt))}
           </div>
         )}
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 mt-4 border-t border-[#D6DEEA]">
+          <span className="text-xs text-[#4A5263]">
+            {areInputsLocked
+              ? 'Conteo guardado. Pulsa Editar si necesitas corregirlo.'
+              : 'Guarda el conteo de envases para registrar las presentaciones.'}
+          </span>
+          <div className="flex flex-col sm:flex-row items-stretch gap-2">
+          <Button
+            variant={areInputsLocked ? 'success' : 'primary'}
+            size="md"
+            icon={areInputsLocked ? 'check_circle' : 'save'}
+            onClick={handleGuardarFormatos}
+            disabled={areInputsLocked}
+            className="font-bold shadow-2xs w-full sm:w-auto disabled:opacity-100"
+          >
+            {areInputsLocked ? 'Guardado' : 'Guardar'}
+          </Button>
+          {areInputsLocked && (
+            <Button
+              variant="outline"
+              size="md"
+              icon="edit"
+              onClick={() => setIsManualFormatos(true)}
+              className="font-bold w-full sm:w-auto"
+            >
+              Editar
+            </Button>
+          )}
+          </div>
+        </div>
       </Card>
 
       {/* ========================================================================= */}
@@ -673,15 +684,7 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
         }
         headerAction={
           <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-[#4A5263] bg-[#F2F4F7] px-3 py-1.5 rounded-lg border border-[#D6DEEA] hover:bg-[#E6ECF5] transition-colors">
-              <input
-                type="checkbox"
-                checked={manualPaso3}
-                onChange={(e) => setManualPaso3(e.target.checked)}
-                className="rounded border-[#C5D0E0] text-[#191C1E] focus:ring-amber-500 w-4 h-4 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso3)} onChange={(checked: boolean) => setManualPaso3(checked)} />
 
             {/* Botón único de confirmación tipo "¡Producto ingresado al cuarto frío!" */}
             <Button

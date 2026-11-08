@@ -9,3 +9,4 @@ export * from './TimerBanner';
 export * from './Modal';
 export * from './Toast';
 export * from './PopoverTimePicker';
+export * from './ManualEditToggle';

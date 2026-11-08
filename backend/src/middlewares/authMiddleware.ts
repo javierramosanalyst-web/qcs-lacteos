@@ -14,6 +14,27 @@ import { NextFunction, Request, Response } from 'express';
 
 export type RolUsuario = 'superadmin' | 'administrador' | 'operador';
 
+export const SESSION_COOKIE = 'qcs_session';
+
+/** Lee una cookie del encabezado sin dependencias externas. */
+export function readCookie(req: Request, name: string): string | null {
+  const header = req.headers.cookie;
+  if (!header) return null;
+  for (const part of header.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx < 0) continue;
+    if (part.slice(0, idx).trim() !== name) continue;
+    return decodeURIComponent(part.slice(idx + 1).trim());
+  }
+  return null;
+}
+
+/** Cookie de sesión httpOnly: el navegador la envía sola y JavaScript no puede leerla. */
+export function sessionCookieOptions(maxAgeSeconds: number): string {
+  const secure = process.env.COOKIE_SECURE === 'true' ? '; Secure' : '';
+  return `Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAgeSeconds}${secure}`;
+}
+
 export interface AuthUser {
   id: string;
   rol: RolUsuario;
@@ -106,13 +127,15 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   }
 
   const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'UNAUTHENTICATED', message: 'Falta el token Bearer.' });
+  const bearer = header && header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : null;
+  const token = bearer || readCookie(req, SESSION_COOKIE);
+  if (!token) {
+    res.status(401).json({ error: 'UNAUTHENTICATED', message: 'Sesión no iniciada.' });
     return;
   }
 
   try {
-    const payload = verifyJwtHS256(header.slice('Bearer '.length).trim(), secret);
+    const payload = verifyJwtHS256(token, secret);
 
     if (typeof payload.sub !== 'string' || !payload.sub) {
       throw new Error('Token sin sujeto.');

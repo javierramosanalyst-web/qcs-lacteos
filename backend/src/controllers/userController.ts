@@ -23,13 +23,12 @@ export async function listUsers(req: Request, res: Response): Promise<void> {
       res.status(403).json({ error: 'FORBIDDEN_ROLE', message: 'Tu rol no tiene permiso para esta acción.' });
       return;
     }
-    const soloOperarios = req.user?.rol === 'operador';
     const { rows } = await pool.query(
       `SELECT ${USER_COLUMNS}
        FROM usuarios u LEFT JOIN lineas_produccion l ON l.id = u.linea_asignada_id
-       WHERE u.activo = $1 AND ($2::boolean = FALSE OR u.rol = 'operador')
+       WHERE u.activo = $1
        ORDER BY u.rol, u.nombre_completo;`,
-      [!inactivos, soloOperarios]
+      [!inactivos]
     );
     res.json(rows);
   } catch (error) {

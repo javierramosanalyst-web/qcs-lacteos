@@ -1,0 +1,1557 @@
+{
+  "templates": {
+    "prod-doble-crema-premium": {
+      "id": "QDC-PREM · Nuevo lote",
+      "productName": "Queso Doble Crema Premium (Tradicional)",
+      "productId": "prod-doble-crema-premium",
+      "lineId": "line-pasta-hilada",
+      "line": "Línea de Pasta Hilada · Tradicional",
+      "operator": "",
+      "operatorRole": "Operador de Planta",
+      "responsableProceso": "",
+      "status": "NOMINAL",
+      "lotesLeche": {
+        "loteLeche1": "",
+        "loteLeche2": "",
+        "litrosLote1": 0,
+        "litrosLote2": 0,
+        "loteLecheBase": "",
+        "loteLecheFresca": ""
+      },
+      "loteCuajo": "",
+      "loteSal": "",
+      "observaciones": "",
+      "operariosIntervinientes": [],
+      "moldesDesglose": {
+        "moldes100g": 0,
+        "moldes200g": 0,
+        "moldes400g": 0,
+        "moldes800g": 0,
+        "moldes1600g": 0,
+        "pesadoTotalHiladoKg": 0,
+        "pesoTotalCalculadoKg": 0,
+        "esPesoManual": false
+      },
+      "processTimer": {
+        "isRunning": false,
+        "isCompleted": false,
+        "startTime": null,
+        "startTimestamp": null,
+        "elapsedSeconds": 0,
+        "formattedTime": "00:00:00"
+      },
+      "stageStatuses": {
+        "acidificar": "en_proceso",
+        "calentar-y-cuajar": "pendiente",
+        "desuerar": "pendiente",
+        "hilar": "pendiente",
+        "moldeo": "pendiente"
+      },
+      "acidificar": {
+        "tempConsigna": 35,
+        "acidezObjetivo": 6.5,
+        "inicioCalentamiento": {
+          "iniciado": false,
+          "horaInicio": null,
+          "timestampInicio": null
+        },
+        "phase1": {
+          "alcanzo35": false,
+          "horaAlcanzo35": null,
+          "tiempoCalentamiento": null,
+          "segundosCalentamiento": 0,
+          "temperaturaAlcanzada": 35,
+          "duration": 10,
+          "saved": false,
+          "temperaturaManual": false
+        },
+        "phase2": {
+          "cuajoAdicionado": false,
+          "horaAdicionCuajo": null,
+          "tiempoDesde35": null,
+          "tiempoTotalHastaCuajo": null,
+          "cantidadCuajo": "",
+          "cantidadCuajoGramos": 0,
+          "tipoCuajo": "Coagulante microbiano / Cuajo líquido",
+          "loteCuajo": "",
+          "esCuajoManual": false,
+          "duration": 1,
+          "saved": false
+        },
+        "insumos": {
+          "lecheFresca": 0,
+          "lecheAcida": 0,
+          "phFresca": 6.6,
+          "phAcida": 4.5,
+          "phMezcla": 0,
+          "saved": false
+        },
+        "telemetria": {
+          "temperatura": 32.5,
+          "acidez": 6.4,
+          "trend": "Estable"
+        }
+      },
+      "calentarYCuajar": {
+        "tempConsigna": 40,
+        "horaAdicionCuajo": null,
+        "adicionCuajo": {
+          "registrado": false,
+          "horaRegistro": null,
+          "timestampCuajo": null,
+          "tiempoTranscurridoDesdeCultivo": null,
+          "cantidadGramos": 0,
+          "loteCuajo": "",
+          "esManual": false
+        },
+        "cuajado": {
+          "registrado": false,
+          "horaRegistro": null,
+          "tiempoTranscurridoDesdeCuajo": null,
+          "segundosCuajado": 0,
+          "consistencia": "Punto de gel óptimo / Corte limpio",
+          "esManual": false
+        },
+        "corte": {
+          "registrado": false,
+          "horaRegistro": null,
+          "tiempoTranscurridoDesdeCuajado": null,
+          "esManual": false
+        },
+        "temperatura40": {
+          "alcanzado": false,
+          "horaRegistro": null,
+          "temperaturaAlcanzada": 40,
+          "tiempoCalentamiento40": null,
+          "esManual": false
+        },
+        "telemetria": {
+          "temperatura": 36.5,
+          "rpm": 0
+        }
+      },
+      "desuerar": {
+        "temperaturaVerificada": 40,
+        "temperaturaEn40Confirmada": false,
+        "acidezSuero": 0.12,
+        "desuerado": {
+          "registrado": false,
+          "horaInicio": null,
+          "horaRegistro": null,
+          "tiempoDesuerado": null,
+          "segundosDesuerado": 0,
+          "esManual": false
+        },
+        "escurrido": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "timestampFin": null,
+          "tiempoTraslado": null,
+          "segundosTraslado": 0,
+          "tiempoEscurrido": null,
+          "segundosEscurrido": 0,
+          "phEscurrido": 0,
+          "phEscurridoManual": false,
+          "tiempoManual": false
+        },
+        "telemetria": {
+          "temperatura": 40,
+          "caudal": 3.5
+        }
+      },
+      "hilar": {
+        "tempBano": 62,
+        "acidezLA": 0.14,
+        "phActual": 5.2,
+        "pesoTotalQueso": 0,
+        "numeroMoldes": 0,
+        "sal": {
+          "registrado": false,
+          "horaRegistro": null,
+          "cantidadGramos": 0,
+          "loteSal": "",
+          "esManual": false
+        },
+        "pruebaHilado": {
+          "exitosa": false,
+          "horaRegistro": null,
+          "resultado": "Hebra continua, elástica y brillante",
+          "esManual": false
+        },
+        "hiladoEnPaila": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "duracion": null,
+          "esManual": false
+        },
+        "extruirYAirear": {
+          "completado": false,
+          "horaFin": null,
+          "duracion": null
+        },
+        "procesoFinalizado": {
+          "finalizado": false,
+          "horaFinalizacion": null,
+          "tiempoTotalProceso": null
+        }
+      }
+    },
+    "prod-doble-crema-industrial": {
+      "id": "QDC-IND · Nuevo lote",
+      "productName": "Queso Doble Crema Industrial",
+      "productId": "prod-doble-crema-industrial",
+      "lineId": "line-pasta-hilada",
+      "line": "Línea de Pasta Hilada · Industrial",
+      "operator": "",
+      "operatorRole": "Operador de Planta",
+      "responsableProceso": "",
+      "status": "NOMINAL",
+      "lotesLeche": {
+        "loteLeche1": "",
+        "loteLeche2": "",
+        "litrosLote1": 0,
+        "litrosLote2": 0,
+        "loteLecheBase": "",
+        "loteLecheFresca": "",
+        "loteCultivoLacteo": "",
+        "cultivoLacteoGramos": 0
+      },
+      "loteCuajo": "",
+      "loteSal": "",
+      "observaciones": "",
+      "operariosIntervinientes": [],
+      "moldesDesglose": {
+        "moldes100g": 0,
+        "moldes200g": 0,
+        "moldes400g": 0,
+        "moldes800g": 0,
+        "moldes1600g": 0,
+        "pesadoTotalHiladoKg": 0,
+        "pesoTotalCalculadoKg": 0,
+        "esPesoManual": false
+      },
+      "processTimer": {
+        "isRunning": false,
+        "isCompleted": false,
+        "startTime": null,
+        "startTimestamp": null,
+        "elapsedSeconds": 0,
+        "formattedTime": "00:00:00"
+      },
+      "stageStatuses": {
+        "acidificar": "en_proceso",
+        "calentar-y-cuajar": "pendiente",
+        "desuerar": "pendiente",
+        "hilar": "pendiente",
+        "moldeo": "pendiente"
+      },
+      "acidificar": {
+        "tempConsigna": 35,
+        "acidezObjetivo": 6.5,
+        "inicioCalentamiento": {
+          "iniciado": false,
+          "horaInicio": null,
+          "timestampInicio": null
+        },
+        "phase1": {
+          "alcanzo35": false,
+          "horaAlcanzo35": null,
+          "tiempoCalentamiento": null,
+          "segundosCalentamiento": 0,
+          "temperaturaAlcanzada": 35,
+          "duration": 10,
+          "saved": false,
+          "temperaturaManual": false
+        },
+        "phase2": {
+          "cuajoAdicionado": false,
+          "horaAdicionCuajo": null,
+          "tiempoDesde35": null,
+          "tiempoTotalHastaCuajo": null,
+          "cantidadCuajo": "",
+          "cantidadCuajoGramos": 0,
+          "tipoCuajo": "Coagulante microbiano / Cuajo líquido",
+          "loteCuajo": "",
+          "esCuajoManual": false,
+          "duration": 1,
+          "saved": false
+        },
+        "insumos": {
+          "lecheFresca": 0,
+          "lecheAcida": 0,
+          "phFresca": 6.6,
+          "phAcida": 4.5,
+          "phMezcla": 0,
+          "saved": false,
+          "cultivoLacteoGramos": 0,
+          "loteCultivoLacteo": ""
+        },
+        "telemetria": {
+          "temperatura": 32.5,
+          "acidez": 6.4,
+          "trend": "Estable"
+        }
+      },
+      "calentarYCuajar": {
+        "tempConsigna": 40,
+        "horaAdicionCuajo": null,
+        "adicionCuajo": {
+          "registrado": false,
+          "horaRegistro": null,
+          "timestampCuajo": null,
+          "tiempoTranscurridoDesdeCultivo": null,
+          "cantidadGramos": 0,
+          "loteCuajo": "",
+          "esManual": false
+        },
+        "cuajado": {
+          "registrado": false,
+          "horaRegistro": null,
+          "tiempoTranscurridoDesdeCuajo": null,
+          "segundosCuajado": 0,
+          "consistencia": "Punto de gel óptimo / Corte limpio",
+          "esManual": false
+        },
+        "corte": {
+          "registrado": false,
+          "horaRegistro": null,
+          "tiempoTranscurridoDesdeCuajado": null,
+          "esManual": false
+        },
+        "temperatura40": {
+          "alcanzado": false,
+          "horaRegistro": null,
+          "temperaturaAlcanzada": 40,
+          "tiempoCalentamiento40": null,
+          "esManual": false
+        },
+        "telemetria": {
+          "temperatura": 36.5,
+          "rpm": 0
+        }
+      },
+      "desuerar": {
+        "temperaturaVerificada": 40,
+        "temperaturaEn40Confirmada": false,
+        "acidezSuero": 0.12,
+        "desuerado": {
+          "registrado": false,
+          "horaInicio": null,
+          "horaRegistro": null,
+          "tiempoDesuerado": null,
+          "segundosDesuerado": 0,
+          "esManual": false
+        },
+        "escurrido": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "timestampFin": null,
+          "tiempoTraslado": null,
+          "segundosTraslado": 0,
+          "tiempoEscurrido": null,
+          "segundosEscurrido": 0,
+          "phEscurrido": 0,
+          "phEscurridoManual": false,
+          "tiempoManual": false
+        },
+        "telemetria": {
+          "temperatura": 40,
+          "caudal": 3.5
+        }
+      },
+      "hilar": {
+        "tempBano": 62,
+        "acidezLA": 0.14,
+        "phActual": 5.2,
+        "pesoTotalQueso": 0,
+        "numeroMoldes": 0,
+        "sal": {
+          "registrado": false,
+          "horaRegistro": null,
+          "cantidadGramos": 0,
+          "loteSal": "",
+          "esManual": false
+        },
+        "pruebaHilado": {
+          "exitosa": false,
+          "horaRegistro": null,
+          "resultado": "Hebra continua, elástica y brillante",
+          "esManual": false
+        },
+        "hiladoEnPaila": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "duracion": null,
+          "esManual": false
+        },
+        "extruirYAirear": {
+          "completado": false,
+          "horaFin": null,
+          "duracion": null
+        },
+        "procesoFinalizado": {
+          "finalizado": false,
+          "horaFinalizacion": null,
+          "tiempoTotalProceso": null
+        }
+      }
+    },
+    "prod-queso-pera": {
+      "id": "QP · Nuevo lote",
+      "productName": "Queso Pera",
+      "productId": "prod-queso-pera",
+      "lineId": "line-pasta-hilada",
+      "line": "Línea de Pasta Hilada · Queso Pera",
+      "operator": "",
+      "operatorRole": "Operador de Planta",
+      "responsableProceso": "",
+      "status": "NOMINAL",
+      "lotesLeche": {
+        "loteLeche1": "",
+        "loteLeche2": "",
+        "litrosLote1": 0,
+        "litrosLote2": 0,
+        "loteLecheBase": "",
+        "loteLecheFresca": "",
+        "loteCultivoLacteo": "",
+        "cultivoLacteoUnidades": 0
+      },
+      "loteCuajo": "",
+      "loteSal": "",
+      "observaciones": "",
+      "operariosIntervinientes": [],
+      "moldesDesglose": {
+        "moldes100g": 0,
+        "moldes200g": 0,
+        "moldes400g": 0,
+        "moldes800g": 0,
+        "moldes1600g": 0,
+        "moldesPeraGrande350g": 0,
+        "moldesPeraPequeno60g": 0,
+        "pesadoTotalHiladoKg": 0,
+        "pesoTotalCalculadoKg": 0,
+        "esPesoManual": false
+      },
+      "processTimer": {
+        "isRunning": false,
+        "isCompleted": false,
+        "startTime": null,
+        "startTimestamp": null,
+        "elapsedSeconds": 0,
+        "formattedTime": "00:00:00"
+      },
+      "stageStatuses": {
+        "acidificar": "en_proceso",
+        "calentar-y-cuajar": "pendiente",
+        "desuerar": "pendiente",
+        "hilar": "pendiente",
+        "moldeo": "pendiente"
+      },
+      "acidificar": {
+        "tempConsigna": 40,
+        "acidezObjetivo": 6.5,
+        "inicioCalentamiento": {
+          "iniciado": false,
+          "horaInicio": null,
+          "timestampInicio": null
+        },
+        "phase1": {
+          "alcanzo35": false,
+          "horaAlcanzo35": null,
+          "tiempoCalentamiento": null,
+          "segundosCalentamiento": 0,
+          "temperaturaAlcanzada": 40,
+          "duration": 10,
+          "saved": false,
+          "temperaturaManual": false
+        },
+        "phase2": {
+          "cuajoAdicionado": false,
+          "horaAdicionCuajo": null,
+          "tiempoDesde35": null,
+          "tiempoTotalHastaCuajo": null,
+          "cantidadCuajo": "",
+          "cantidadCuajoGramos": 0,
+          "tipoCuajo": "Coagulante microbiano / Cuajo líquido",
+          "loteCuajo": "",
+          "esCuajoManual": false,
+          "duration": 1,
+          "saved": false
+        },
+        "insumos": {
+          "lecheFresca": 0,
+          "lecheAcida": 0,
+          "phFresca": 6.6,
+          "phAcida": 4.5,
+          "phMezcla": 0,
+          "saved": false,
+          "cultivoLacteoUnidades": 0,
+          "loteCultivoLacteo": ""
+        },
+        "telemetria": {
+          "temperatura": 32.5,
+          "acidez": 6.4,
+          "trend": "Estable"
+        }
+      },
+      "calentarYCuajar": {
+        "tempConsigna": 40,
+        "horaAdicionCuajo": null,
+        "adicionCuajo": {
+          "registrado": false,
+          "horaRegistro": null,
+          "timestampCuajo": null,
+          "tiempoTranscurridoDesdeCultivo": null,
+          "cantidadGramos": 0,
+          "loteCuajo": "",
+          "esManual": false
+        },
+        "cuajado": {
+          "registrado": false,
+          "horaRegistro": null,
+          "tiempoTranscurridoDesdeCuajo": null,
+          "segundosCuajado": 0,
+          "consistencia": "Punto de gel óptimo / Corte limpio",
+          "esManual": false
+        },
+        "corte": {
+          "registrado": false,
+          "horaRegistro": null,
+          "tiempoTranscurridoDesdeCuajado": null,
+          "esManual": false
+        },
+        "temperatura40": {
+          "alcanzado": false,
+          "horaRegistro": null,
+          "temperaturaAlcanzada": 40,
+          "tiempoCalentamiento40": null,
+          "esManual": false
+        },
+        "telemetria": {
+          "temperatura": 36.5,
+          "rpm": 0
+        }
+      },
+      "desuerar": {
+        "temperaturaVerificada": 40,
+        "temperaturaEn40Confirmada": false,
+        "acidezSuero": 0.12,
+        "desuerado": {
+          "registrado": false,
+          "horaInicio": null,
+          "horaRegistro": null,
+          "tiempoDesuerado": null,
+          "segundosDesuerado": 0,
+          "esManual": false
+        },
+        "escurrido": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "timestampFin": null,
+          "tiempoTraslado": null,
+          "segundosTraslado": 0,
+          "tiempoEscurrido": null,
+          "segundosEscurrido": 0,
+          "phEscurrido": 0,
+          "phEscurridoManual": false,
+          "tiempoManual": false
+        },
+        "telemetria": {
+          "temperatura": 40,
+          "caudal": 3.5
+        }
+      },
+      "hilar": {
+        "tempBano": 62,
+        "acidezLA": 0.14,
+        "phActual": 5.2,
+        "pesoTotalQueso": 0,
+        "numeroMoldes": 0,
+        "sal": {
+          "registrado": false,
+          "horaRegistro": null,
+          "cantidadGramos": 0,
+          "loteSal": "",
+          "esManual": false
+        },
+        "pruebaHilado": {
+          "exitosa": false,
+          "horaRegistro": null,
+          "resultado": "Hebra continua, elástica y brillante",
+          "esManual": false
+        },
+        "hiladoEnPaila": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "duracion": null,
+          "esManual": false
+        },
+        "extruirYAirear": {
+          "completado": false,
+          "horaFin": null,
+          "duracion": null
+        },
+        "procesoFinalizado": {
+          "finalizado": false,
+          "horaFinalizacion": null,
+          "tiempoTotalProceso": null
+        }
+      },
+      "derivaciones": {
+        "mexicano": {
+          "habilitado": false,
+          "codigoLote": "",
+          "loteBaseOrigen": "",
+          "pesoInicialGramos": 0,
+          "pesoFinalGramos": 0,
+          "pesoUtilizadoGramos": 0,
+          "moldes100g": 0,
+          "moldes200g": 0,
+          "moldes350g": 0,
+          "edicionManualAvanzada": false,
+          "especiasMexicano": {
+            "ajiPicante": {
+              "pesoInicialGramos": 0,
+              "pesoFinalGramos": 0,
+              "pesoUtilizadoGramos": 0
+            },
+            "pimienta": {
+              "pesoInicialGramos": 0,
+              "pesoFinalGramos": 0,
+              "pesoUtilizadoGramos": 0
+            }
+          }
+        },
+        "finasHierbas": {
+          "habilitado": false,
+          "codigoLote": "",
+          "loteBaseOrigen": "",
+          "pesoInicialGramos": 0,
+          "pesoFinalGramos": 0,
+          "pesoUtilizadoGramos": 0,
+          "moldes100g": 0,
+          "moldes200g": 0,
+          "moldes350g": 0,
+          "gramosPorUnidad": 350,
+          "edicionManualAvanzada": false,
+          "especiasFinasHierbas": {
+            "mezclaHierbas": {
+              "pesoInicialGramos": 0,
+              "pesoFinalGramos": 0,
+              "pesoUtilizadoGramos": 0
+            }
+          }
+        }
+      }
+    },
+    "prod-queso-7-cueros": {
+      "id": "Q7C · Nuevo lote",
+      "productName": "Queso 7 Cueros",
+      "productId": "prod-queso-7-cueros",
+      "lineId": "line-pasta-hilada",
+      "line": "Línea de Pasta Hilada · Queso 7 Cueros",
+      "operator": "",
+      "operatorRole": "Operador de Planta",
+      "responsableProceso": "",
+      "status": "NOMINAL",
+      "lotesLeche": {
+        "loteLeche1": "",
+        "loteLeche2": "",
+        "litrosLote1": 0,
+        "litrosLote2": 0,
+        "loteLecheBase": "",
+        "loteLecheFresca": "",
+        "loteAcidoAcetico": "",
+        "confirmacionAcidoDiluido5": false,
+        "confirmacionPh535": false,
+        "acidoBase98Ml": 0,
+        "solucionPreparada5Litros": 0,
+        "phRangoConfirmado": false,
+        "litrosConfirmados": 0
+      },
+      "loteCuajo": "",
+      "loteSal": "",
+      "observaciones": "",
+      "operariosIntervinientes": [],
+      "moldesDesglose": {
+        "moldes100g": 0,
+        "moldes200g": 0,
+        "moldes400g": 0,
+        "moldes800g": 0,
+        "moldes1600g": 0,
+        "moldes7Cueros350g": 0,
+        "moldesTrenza350g": 0,
+        "moldesQuesadillaArequipe60g": 0,
+        "moldesQuesadillaBocadillo60g": 0,
+        "pesadoTotalHiladoKg": 0,
+        "pesoTotalCalculadoKg": 0,
+        "esPesoManual": false
+      },
+      "processTimer": {
+        "isRunning": false,
+        "isCompleted": false,
+        "startTime": null,
+        "startTimestamp": null,
+        "elapsedSeconds": 0,
+        "formattedTime": "00:00:00"
+      },
+      "stageStatuses": {
+        "acidificar": "en_proceso",
+        "calentar-y-cuajar": "pendiente",
+        "desuerar": "pendiente",
+        "hilar": "pendiente",
+        "moldeo": "pendiente"
+      },
+      "acidificar": {
+        "tempConsigna": 35,
+        "acidezObjetivo": 5.35,
+        "inicioCalentamiento": {
+          "iniciado": false,
+          "horaInicio": null,
+          "timestampInicio": null
+        },
+        "phase1": {
+          "alcanzo35": false,
+          "horaAlcanzo35": null,
+          "tiempoCalentamiento": null,
+          "segundosCalentamiento": 0,
+          "temperaturaAlcanzada": 35,
+          "duration": 10,
+          "saved": false,
+          "temperaturaManual": false
+        },
+        "phase2": {
+          "cuajoAdicionado": false,
+          "horaAdicionCuajo": null,
+          "tiempoDesde35": null,
+          "tiempoTotalHastaCuajo": null,
+          "cantidadCuajo": "",
+          "cantidadCuajoGramos": 0,
+          "tipoCuajo": "Coagulante microbiano / Cuajo líquido",
+          "loteCuajo": "",
+          "esCuajoManual": false,
+          "duration": 1,
+          "saved": false
+        },
+        "insumos": {
+          "lecheFresca": 0,
+          "lecheAcida": 0,
+          "phFresca": 0,
+          "phAcida": 0,
+          "phMezcla": 0,
+          "saved": false,
+          "loteAcidoAcetico": "",
+          "acidoBase98Ml": 0,
+          "solucionPreparada5Litros": 0,
+          "confirmacionAcidoDiluido5": false,
+          "confirmacionPh535": false,
+          "phRangoConfirmado": false,
+          "litrosConfirmados": 0
+        },
+        "telemetria": {
+          "temperatura": 32.5,
+          "acidez": 6.4,
+          "trend": "Estable"
+        }
+      },
+      "calentarYCuajar": {
+        "tempConsigna": 40,
+        "horaAdicionCuajo": null,
+        "adicionCuajo": {
+          "registrado": false,
+          "horaRegistro": null,
+          "timestampCuajo": null,
+          "tiempoTranscurridoDesdeCultivo": null,
+          "cantidadGramos": 0,
+          "loteCuajo": "",
+          "esManual": false
+        },
+        "cuajado": {
+          "registrado": false,
+          "horaRegistro": null,
+          "tiempoTranscurridoDesdeCuajo": null,
+          "segundosCuajado": 0,
+          "consistencia": "Punto de gel óptimo / Corte limpio",
+          "esManual": false
+        },
+        "corte": {
+          "registrado": false,
+          "horaRegistro": null,
+          "tiempoTranscurridoDesdeCuajado": null,
+          "esManual": false
+        },
+        "temperatura40": {
+          "alcanzado": false,
+          "horaRegistro": null,
+          "temperaturaAlcanzada": 40,
+          "tiempoCalentamiento40": null,
+          "esManual": false
+        },
+        "telemetria": {
+          "temperatura": 36.5,
+          "rpm": 0
+        }
+      },
+      "desuerar": {
+        "temperaturaVerificada": 40,
+        "temperaturaEn40Confirmada": false,
+        "acidezSuero": 0.12,
+        "desuerado": {
+          "registrado": false,
+          "horaInicio": null,
+          "horaRegistro": null,
+          "tiempoDesuerado": null,
+          "segundosDesuerado": 0,
+          "esManual": false
+        },
+        "escurrido": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "timestampFin": null,
+          "tiempoTraslado": null,
+          "segundosTraslado": 0,
+          "tiempoEscurrido": null,
+          "segundosEscurrido": 0,
+          "phEscurrido": 0,
+          "phEscurridoManual": false,
+          "tiempoManual": false
+        },
+        "telemetria": {
+          "temperatura": 40,
+          "caudal": 3.5
+        }
+      },
+      "hilar": {
+        "tempBano": 62,
+        "acidezLA": 0.14,
+        "phActual": 5.2,
+        "pesoTotalQueso": 0,
+        "numeroMoldes": 0,
+        "sal": {
+          "registrado": false,
+          "horaRegistro": null,
+          "cantidadGramos": 0,
+          "loteSal": "",
+          "esManual": false
+        },
+        "pruebaHilado": {
+          "exitosa": false,
+          "horaRegistro": null,
+          "resultado": "Hebra continua, elástica y brillante",
+          "esManual": false
+        },
+        "hiladoEnPaila": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "duracion": null,
+          "esManual": false
+        },
+        "extruirYAirear": {
+          "completado": false,
+          "horaFin": null,
+          "duracion": null
+        },
+        "procesoFinalizado": {
+          "finalizado": false,
+          "horaFinalizacion": null,
+          "tiempoTotalProceso": null
+        }
+      },
+      "derivaciones7Cueros": {
+        "arequipe": {
+          "habilitado": false,
+          "loteArequipe": "",
+          "pesoInicialGramos": 0,
+          "pesoFinalGramos": 0,
+          "pesoUtilizadoGramos": 0,
+          "moldes60g": 0
+        },
+        "bocadillo": {
+          "habilitado": false,
+          "loteBocadillo": "",
+          "pesoInicialGramos": 0,
+          "pesoFinalGramos": 0,
+          "pesoUtilizadoGramos": 0,
+          "moldes60g": 0,
+          "unidadesBocadilloGastadas": 0
+        }
+      }
+    },
+    "prod-yogur": {
+      "id": "YOG · Nuevo lote",
+      "productName": "Yogur Entero",
+      "productId": "prod-yogur",
+      "lineId": "line-fermentacion",
+      "line": "Línea de Fermentación",
+      "standard": "NTC-805",
+      "operator": "",
+      "operatorRole": "Operador de Planta",
+      "responsableProceso": "",
+      "operariosIntervinientes": [],
+      "observaciones": "",
+      "status": "NOMINAL",
+      "processTimer": {
+        "isRunning": false,
+        "isCompleted": false,
+        "startTime": null,
+        "startTimestamp": null,
+        "elapsedSeconds": 0,
+        "formattedTime": "00:00:00"
+      },
+      "stageStatuses": {
+        "acidificar": "en_proceso",
+        "calentar-y-cuajar": "pendiente",
+        "desuerar": "pendiente",
+        "hilar": "pendiente",
+        "moldeo": "pendiente"
+      },
+      "pasteurizacion": {
+        "litrosLeche": 0,
+        "loteLeche": "",
+        "temperaturaRecepcion": 4.5,
+        "incluyeKumis": false,
+        "loteAzucarPastur": "",
+        "loteCultivoLacticoPastur": "",
+        "litrosKumisDestinados": 0,
+        "llevaAzucar": true,
+        "azucarElegido": false,
+        "azucar": {
+          "adicionado": false,
+          "horaAdicion": null,
+          "cantidadKg": 0,
+          "loteAzucar": "",
+          "esManual": false
+        },
+        "calentamiento": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "temperaturaConsigna": 88,
+          "temperaturaAlcanzada": 0,
+          "tiempoCalentamiento": null,
+          "duracionMantenimientoMinutos": 15,
+          "esManual": false,
+          "temperatura60Alcanzada": false,
+          "llego85a90": false,
+          "horaLlegada85a90": null
+        },
+        "sostenimiento": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "duracionMinutos": 15,
+          "duracionReal": null
+        },
+        "enfriamiento": {
+          "enfriamientoIniciado": false,
+          "enfriamientoCompletado": false,
+          "horaInicio": null,
+          "horaFinEnfriamiento": null,
+          "timestampInicioEnfriamiento": null,
+          "temperaturaFinal": 45,
+          "tiempoEnfriamiento": null,
+          "esManual": false,
+          "trasladoCantinasIniciado": false,
+          "horaTraslado": null
+        },
+        "trasiego": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "tiempoTrasiego": null
+        },
+        "divisionLeche": {
+          "litrosYogurConAzucar": 0,
+          "litrosKumis": 0,
+          "litrosYogurSinAzucar": 0,
+          "litrosYogurGriego": 0,
+          "kumisEnfriando35": false,
+          "kumisTimestampInicio35": null,
+          "kumisLlego35": false,
+          "kumisHora35": null,
+          "kumisTiempoEnfriamiento35": null,
+          "kumisTrasiegoIniciado": false,
+          "kumisTimestampInicioTrasiego": null,
+          "kumisTrasegado": false,
+          "kumisHoraTrasegado": null,
+          "kumisTiempoTrasiego": null
+        }
+      },
+      "inoculacion": {
+        "temperaturaVerificada45": 45,
+        "temperaturaConfirmada": false,
+        "loteCultivo": "",
+        "cepasProbioticas": "Lactobacillus bulgaricus, Streptococcus thermophilus, Bifidobacterium lactis",
+        "cantidadCultivoCucharadas": 0,
+        "cantidadCultivoGramos": 0,
+        "tiempoMezcladoMinutos": 5,
+        "tiempoMezcladoCalculado": null,
+        "horaInicioMezclado": null,
+        "mezcladoConfirmado": false,
+        "inoculacionConfirmada": false,
+        "horaInoculacion": null,
+        "esManualMezclado": false,
+        "esManualIncubacion": false,
+        "incubacion": {
+          "iniciada": false,
+          "completada": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "tiempoTranscurrido": null,
+          "duracionObjetivoHoras": 8,
+          "temperaturaCamara": 43,
+          "phFinalIncubacion": 4.55,
+          "consistenciaCoagulo": "Coágulo firme y uniforme sin sinéresis",
+          "esManual": false,
+          "productoEntroCuartoFrio": false,
+          "horaEntradaCuartoFrio": null
+        }
+      },
+      "maduracionFrio": {
+        "trasladoCantinas": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "tiempoTraslado": null,
+          "numeroCantinas": 3,
+          "esManual": false
+        },
+        "refrigeracion": {
+          "iniciada": false,
+          "completada": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "tiempoTranscurrido": null,
+          "duracionObjetivoHoras": 12,
+          "temperaturaCuartoFrio": 3.5,
+          "phFinalFrio": 4.45,
+          "viscosidadApreciada": "Cuerpo consistente y gel estructurado",
+          "esManual": false
+        }
+      },
+      "batidoYAdiciones": {
+        "batidora": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "velocidadRpm": 35,
+          "tiempoBatido": null,
+          "esManual": false
+        },
+        "adiciones": {
+          "tipoYogur": "con_azucar",
+          "variedadSinAzucar": {
+            "litrosBase": 0,
+            "notaInformativa": "Exento de azúcar, saborizantes y colorantes. Directo a envasado."
+          },
+          "variedadEstevia": {
+            "litrosBase": 0,
+            "gramosEstevia": 0,
+            "loteEstevia": ""
+          },
+          "variedadAzucar": {
+            "litrosBase": 0,
+            "kilosAzucar": 0,
+            "loteAzucar": "",
+            "llevaSaborizante": true,
+            "sabor": "Mora",
+            "saborizanteMl": 0,
+            "loteSaborizante": "",
+            "llevaColorante": false,
+            "coloranteMl": 0,
+            "loteColorante": ""
+          },
+          "variedadNatural": {
+            "litrosBase": 0,
+            "gramosEndulzante": 0,
+            "notaInformativa": "Exento de azúcar y estevia. Pasa directo de batido a envasado."
+          },
+          "sabor": "Mora",
+          "loteSaborizante": "",
+          "kilosSaborizante": 0,
+          "kilosAzucar": 0,
+          "adicionarAzucar": true,
+          "loteAzucar": "",
+          "habilitarModificacionManual": false,
+          "registrado": false,
+          "horaRegistro": null
+        },
+        "preparacionTolva": {
+          "completado": false,
+          "horaPreparacion": null,
+          "temperaturaMezcla": 7
+        }
+      },
+      "envasado": {
+        "loteProductoTerminado": "",
+        "fechaProduccion": "",
+        "fechaVencimiento": "",
+        "temperaturaEnvasado": 6.5,
+        "formatos": {
+          "botella120ml": 0,
+          "botella200ml": 0,
+          "botella1L": 0,
+          "botella2L": 0,
+          "bolsa4L": 0,
+          "sinAzucar_botella200ml": 0,
+          "sinAzucar_botella1L": 0,
+          "sinAzucar_botella2L": 0,
+          "sinAzucar_bolsa4L": 0,
+          "stevia_botella120ml": 0,
+          "stevia_botella200ml": 0,
+          "stevia_botella1L": 0,
+          "stevia_botella2L": 0,
+          "stevia_bolsa4L": 0
+        },
+        "formatosKumis": {
+          "tarro1L": 0,
+          "tarro2L": 0
+        },
+        "selladoVerificado": true,
+        "rotuladoCumpleNTC805": true,
+        "almacenamientoCuartoFrio": {
+          "ingresado": false,
+          "horaIngreso": null,
+          "temperaturaAlmacenamiento": 3,
+          "tiempoEstabilizacion": "24 horas (1 día)"
+        },
+        "procesoFinalizado": {
+          "finalizado": false,
+          "horaFinalizacion": null,
+          "tiempoTotalProceso": null
+        }
+      }
+    },
+    "prod-kumis": {
+      "id": "KUM · Nuevo lote",
+      "productName": "Kumis Tradicional Fermentado",
+      "productId": "prod-kumis",
+      "lineId": "line-fermentacion",
+      "line": "Línea de Fermentación",
+      "standard": "NTC-805",
+      "operator": "",
+      "operatorRole": "Operador de Planta",
+      "responsableProceso": "",
+      "operariosIntervinientes": [],
+      "observaciones": "",
+      "status": "NOMINAL",
+      "processTimer": {
+        "isRunning": false,
+        "isCompleted": false,
+        "startTime": null,
+        "startTimestamp": null,
+        "elapsedSeconds": 0,
+        "formattedTime": "00:00:00"
+      },
+      "stageStatuses": {
+        "acidificar": "en_proceso",
+        "calentar-y-cuajar": "pendiente",
+        "desuerar": "pendiente",
+        "hilar": "pendiente",
+        "moldeo": "pendiente"
+      },
+      "pasteurizacion": {
+        "litrosLeche": 0,
+        "loteLeche": "",
+        "loteCultivoLacticoPastur": "",
+        "acidezDornic": 16,
+        "phRecepcion": 6.65,
+        "temperaturaRecepcion": 4.5,
+        "llevaAzucar": true,
+        "azucarElegido": true,
+        "azucar": {
+          "adicionado": false,
+          "horaAdicion": null,
+          "cantidadKg": 0,
+          "loteAzucar": "",
+          "esManual": false
+        },
+        "calentamiento": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "temperaturaConsigna": 88,
+          "temperaturaAlcanzada": 0,
+          "tiempoCalentamiento": null,
+          "duracionMantenimientoMinutos": 15,
+          "esManual": false,
+          "temperatura60Alcanzada": false,
+          "llego85a90": false,
+          "horaLlegada85a90": null
+        },
+        "sostenimiento": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "duracionMinutos": 15,
+          "duracionReal": null
+        },
+        "enfriamiento": {
+          "enfriamientoIniciado": false,
+          "enfriamientoCompletado": false,
+          "horaInicio": null,
+          "horaFinEnfriamiento": null,
+          "timestampInicioEnfriamiento": null,
+          "temperaturaFinal": 45,
+          "tiempoEnfriamiento": null,
+          "esManual": false,
+          "trasladoCantinasIniciado": false,
+          "horaTraslado": null
+        },
+        "trasiego": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "tiempoTrasiego": null
+        },
+        "divisionLeche": {
+          "litrosYogurConAzucar": 0,
+          "litrosKumis": 0,
+          "litrosYogurSinAzucar": 0,
+          "litrosYogurGriego": 0,
+          "kumisEnfriando35": false,
+          "kumisTimestampInicio35": null,
+          "kumisLlego35": false,
+          "kumisHora35": null,
+          "kumisTiempoEnfriamiento35": null,
+          "kumisTrasiegoIniciado": false,
+          "kumisTimestampInicioTrasiego": null,
+          "kumisTrasegado": false,
+          "kumisHoraTrasegado": null,
+          "kumisTiempoTrasiego": null
+        }
+      },
+      "inoculacion": {
+        "temperaturaVerificada45": 35,
+        "temperaturaConfirmada": false,
+        "loteCultivo": "",
+        "cepasCultivo": "Lactococcus lactis subsp. lactis, subsp. cremoris, biovar diacetylactis",
+        "cantidadCultivoCucharadas": 0,
+        "cantidadCultivoGramos": 0,
+        "tiempoMezcladoMinutos": 5,
+        "tiempoMezcladoCalculado": null,
+        "horaInicioMezclado": null,
+        "mezcladoConfirmado": false,
+        "inoculacionConfirmada": false,
+        "horaInoculacion": null,
+        "esManualMezclado": false,
+        "esManualIncubacion": false,
+        "incubacion": {
+          "iniciada": false,
+          "completada": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "tiempoTranscurrido": null,
+          "duracionObjetivoHoras": 12,
+          "temperaturaIncubacion": 24,
+          "phFinalIncubacion": 4.55,
+          "consistenciaCoagulo": "Coágulo uniforme con aroma láctico fresco propio de kumis",
+          "esManual": false,
+          "productoEntroCuartoFrio": false,
+          "horaEntradaCuartoFrio": null
+        }
+      },
+      "maduracionFrio": {
+        "trasladoCantinas": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "tiempoTraslado": null,
+          "numeroCantinas": 3,
+          "esManual": false
+        },
+        "refrigeracion": {
+          "iniciada": false,
+          "completada": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "tiempoTranscurrido": null,
+          "duracionObjetivoHoras": 12,
+          "temperaturaCuartoFrio": 3,
+          "phFinalFrio": 4.45,
+          "viscosidadApreciada": "Viscosidad cremosa, cuerpo sedoso y acidez refrescante",
+          "esManual": false
+        }
+      },
+      "batidoYAdiciones": {
+        "batidora": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "velocidadRpm": 32,
+          "tiempoBatido": null,
+          "esManual": false
+        },
+        "adiciones": {
+          "variedadAzucar": {
+            "litrosBase": 0,
+            "kilosAzucar": 0,
+            "loteAzucar": ""
+          },
+          "habilitarModificacionManual": false,
+          "registrado": false,
+          "horaRegistro": null
+        },
+        "preparacionTolva": {
+          "completado": false,
+          "horaPreparacion": null,
+          "temperaturaMezcla": 6.5
+        }
+      },
+      "envasado": {
+        "loteProductoTerminado": "",
+        "fechaProduccion": "",
+        "fechaVencimiento": "",
+        "temperaturaEnvasado": 6.5,
+        "formatos": {
+          "botella120ml": 0,
+          "botella1L": 0,
+          "botella2L": 0,
+          "sinAzucar_botella200ml": 0,
+          "sinAzucar_botella1L": 0,
+          "sinAzucar_botella2L": 0,
+          "sinAzucar_bolsa4L": 0,
+          "stevia_botella120ml": 0,
+          "stevia_botella200ml": 0,
+          "stevia_botella1L": 0,
+          "stevia_botella2L": 0,
+          "stevia_bolsa4L": 0
+        },
+        "selladoVerificado": false,
+        "rotuladoCumpleNTC805": false,
+        "almacenamientoCuartoFrio": {
+          "ingresado": false,
+          "horaIngreso": null,
+          "temperaturaAlmacenamiento": 3,
+          "tiempoEstabilizacion": "24 horas (1 día)"
+        },
+        "procesoFinalizado": {
+          "finalizado": false,
+          "horaFinalizacion": null,
+          "tiempoTotalProceso": null
+        }
+      }
+    },
+    "prod-yogur-griego": {
+      "id": "YGR · Nuevo lote",
+      "productName": "Yogur Griego",
+      "productId": "prod-yogur-griego",
+      "lineId": "line-fermentacion",
+      "line": "Línea de Fermentación · Yogur Griego Concentrado",
+      "standard": "NTC-805 (Productos Lácteos Fermentados)",
+      "operator": "",
+      "operatorRole": "Operador de Planta",
+      "responsableProceso": "",
+      "operariosIntervinientes": [],
+      "status": "NOMINAL",
+      "stageStatuses": {
+        "acidificar": "completada",
+        "calentar-y-cuajar": "completada",
+        "desuerar": "en_proceso",
+        "hilar": "pendiente",
+        "moldeo": "pendiente"
+      },
+      "processTimer": {
+        "isRunning": false,
+        "isCompleted": false,
+        "startTime": null,
+        "startTimestamp": null,
+        "elapsedSeconds": 0,
+        "formattedTime": "00:00:00"
+      },
+      "pasteurizacion": {
+        "loteYogurSinAzucar": "",
+        "litrosLeche": 0,
+        "loteLeche": "",
+        "acidezDornic": 16,
+        "phRecepcion": 6.65,
+        "temperaturaRecepcion": 4.5,
+        "calentamiento": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "temperaturaConsigna": 88,
+          "temperaturaAlcanzada": 88,
+          "tiempoCalentamiento": null,
+          "llego85a90": false,
+          "horaLlegada85a90": null,
+          "esManual": false
+        },
+        "sostenimiento": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "duracionMinutos": 15,
+          "duracionReal": null
+        },
+        "enfriamiento": {
+          "enfriamientoIniciado": false,
+          "enfriamientoCompletado": false,
+          "horaInicio": null,
+          "horaFinEnfriamiento": null,
+          "timestampInicioEnfriamiento": null,
+          "temperaturaFinal": 45,
+          "tiempoEnfriamiento": null,
+          "esManual": false
+        },
+        "trasiego": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "tiempoTrasiego": null
+        }
+      },
+      "inoculacion": {
+        "temperaturaVerificada45": 45,
+        "temperaturaConfirmada": false,
+        "loteCultivo": "",
+        "cepasCultivo": "Streptococcus thermophilus, Lactobacillus delbrueckii subsp. bulgaricus",
+        "cantidadCultivoCucharadas": 0,
+        "cantidadCultivoGramos": 0,
+        "tiempoMezcladoMinutos": 5,
+        "mezcladoConfirmado": false,
+        "inoculacionConfirmada": false,
+        "horaInoculacion": null,
+        "incubacion": {
+          "iniciada": false,
+          "completada": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "tiempoTranscurrido": null,
+          "duracionObjetivoHoras": 8,
+          "temperaturaIncubacion": 43,
+          "phFinalIncubacion": 4.6,
+          "consistenciaCoagulo": "Coágulo firme y homogéneo listo para maduración y filtración",
+          "esManual": false
+        }
+      },
+      "maduracionYFiltrado": {
+        "cuartoFrio": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "tiempoTranscurrido": null,
+          "temperatura": 2,
+          "duracionMinimaDias": 1,
+          "duracionMaximaDias": 2,
+          "cumplio24h": false
+        },
+        "filtradoTelas": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "timestampInicio": null,
+          "tiempoTranscurrido": null,
+          "duracionObjetivoHoras": 48,
+          "temperaturaFiltrado": 4,
+          "masaFiltradaKg": 0,
+          "sueroEliminadoEstimadoLitros": 0,
+          "esManual": false
+        }
+      },
+      "batidoYAdiciones": {
+        "batido": {
+          "iniciado": false,
+          "completado": false,
+          "horaInicio": null,
+          "horaFin": null,
+          "velocidadRpm": 35,
+          "tiempoBatido": null,
+          "esManual": false
+        },
+        "formulacion": {
+          "variedadSinEstevia": {
+            "masaKg": 0,
+            "nota": "Yogur Griego puro concentrado, natural sin endulzante"
+          },
+          "variedadConEstevia": {
+            "masaKg": 0,
+            "gramosEstevia": 0,
+            "loteEstevia": ""
+          },
+          "registrado": false,
+          "horaRegistro": null
+        }
+      },
+      "envasado": {
+        "loteProductoTerminado": "",
+        "fechaProduccion": "",
+        "fechaVencimiento": "",
+        "temperaturaEnvasado": 5,
+        "formatosSinEstevia": {
+          "tarro1L": 0,
+          "tarro500ml": 0
+        },
+        "formatosConEstevia": {
+          "tarro1L": 0,
+          "tarro500ml": 0,
+          "vasito120ml": 0
+        },
+        "selladoHermeticoVerificado": false,
+        "rotuladoCumpleNTC805": false,
+        "almacenamientoCuartoFrio": {
+          "ingresado": false,
+          "horaIngreso": null,
+          "temperaturaAlmacenamiento": 4,
+          "tiempoEstabilizacion": "24 horas antes de despacho"
+        },
+        "procesoFinalizado": {
+          "finalizado": false,
+          "horaFinalizacion": null,
+          "tiempoTotalProceso": null
+        }
+      },
+      "observaciones": ""
+    }
+  }
+}

@@ -1,3 +1,4 @@
+import type { ActividadOperario } from './pastaHilada';
 /** Referencia al lote de Yogur del que nace un sub-lote (Kumis o Griego). */
 export interface OrigenYogur {
   yogurId: string; // id UI del lote de Yogur (ej. 'YOG-...')
@@ -379,6 +380,7 @@ export interface YogurBatchData {
   operatorRole: string;
   responsableProceso?: string;
   operariosIntervinientes?: string[];
+  actividadOperarios?: ActividadOperario[];
   status: 'NOMINAL' | 'EN AJUSTE' | 'COMPLETADO';
   pasteurizacion: PasteurizacionYogurState;
   inoculacion: InoculacionYogurState;

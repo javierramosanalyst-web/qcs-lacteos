@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
 import { MaduracionYFiltradoYogurGriegoState } from '../../../types/yogur_griego';
 import { ProcessTimerState } from '../../../types';
 import {
@@ -329,15 +330,7 @@ export const MaduracionYFiltradoStageGriego: React.FC<
             : { label: 'Por Iniciar', variant: 'neutral' }
         }
         headerRight={
-          <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-gray-700 bg-white px-3 py-1.5 rounded-xl border border-gray-300 shadow-2xs hover:border-amber-400 transition-all">
-            <input
-              type="checkbox"
-              checked={manualPaso1}
-              onChange={(e) => setManualPaso1(e.target.checked)}
-              className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
-            />
-            <span>Habilitar edición manual</span>
-          </label>
+          <ManualEditToggle manual={Boolean(manualPaso1)} onChange={(checked: boolean) => setManualPaso1(checked)} />
         }
       >
         {(state.cuartoFrio.iniciado || state.cuartoFrio.completado) && (
@@ -492,15 +485,7 @@ export const MaduracionYFiltradoStageGriego: React.FC<
             : { label: 'En espera del Paso 01', variant: 'neutral' }
         }
         headerRight={
-          <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-bold text-gray-700 bg-white px-3 py-1.5 rounded-xl border border-gray-300 shadow-2xs hover:border-amber-400 transition-all">
-            <input
-              type="checkbox"
-              checked={manualPaso2}
-              onChange={(e) => setManualPaso2(e.target.checked)}
-              className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
-            />
-            <span>Habilitar edición manual</span>
-          </label>
+          <ManualEditToggle manual={Boolean(manualPaso2)} onChange={(checked: boolean) => setManualPaso2(checked)} />
         }
       >
         {(state.filtradoTelas.iniciado || state.filtradoTelas.completado) && (
@@ -591,39 +576,6 @@ export const MaduracionYFiltradoStageGriego: React.FC<
                   </span>
                 </div>
               )}
-              {state.filtradoTelas.completado && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-                  <InputField
-                    label="Masa filtrada pesada (kg)"
-                    icon="scale"
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    placeholder="Peso real de la masa"
-                    value={state.filtradoTelas.masaFiltradaKg || ''}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                      const masa = e.target.value === '' ? 0 : Math.max(0, Number(e.target.value) || 0);
-                      onChange((prev) => ({
-                        ...prev,
-                        filtradoTelas: {
-                          ...prev.filtradoTelas,
-                          masaFiltradaKg: masa,
-                          sueroEliminadoEstimadoLitros: Number(Math.max(0, litrosLecheBase * 1.03 - masa).toFixed(1)),
-                          esManual: true,
-                        },
-                      }));
-                    }}
-                  />
-                  <InputField
-                    label="Suero eliminado estimado (L)"
-                    icon="water_drop"
-                    type="text"
-                    disabled
-                    readOnly
-                    value={`${state.filtradoTelas.sueroEliminadoEstimadoLitros || 0} L`}
-                  />
-                </div>
-              )}
             </div>
           </div>
         ) : (
@@ -683,7 +635,7 @@ export const MaduracionYFiltradoStageGriego: React.FC<
             <p>
               Una vez finalizado el drenado en telas, avanza a la etapa de{' '}
               <strong className="text-amber-900 font-semibold">
-                4. Batido (Opción con Stevia o Natural)
+                4. Batido y Envasado
               </strong>.
             </p>
           </div>

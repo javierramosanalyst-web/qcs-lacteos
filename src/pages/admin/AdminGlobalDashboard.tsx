@@ -6,6 +6,7 @@ import {
   fetchInactiveLines,
   fetchInactiveUsers,
   lineUiId,
+  OpenDraftRow,
   productUiIdFromCode,
   reactivateLineRequest,
   reactivateUserRequest,
@@ -35,6 +36,8 @@ interface AdminGlobalDashboardProps {
   onViewBatchDetail: (row: BatchHistoryRow) => void;
   onCorrectBatchDetail: (row: BatchHistoryRow) => void;
   onAnnulBatch: (row: BatchHistoryRow, justification: string) => Promise<string | null>;
+  openDrafts?: OpenDraftRow[];
+  onDiscardDraft?: (productId: string) => void;
 }
 
 const STATUS_LABEL: Record<ProductionLine['status'], string> = {
@@ -70,12 +73,13 @@ const isToday = (iso: string | null) => {
 
 const card = 'bg-white rounded-2xl border border-[#D6DEEA] shadow-xs';
 
-type AdminTab = 'produccion' | 'usuarios' | 'insumos' | 'anulados' | 'exportar';
+type AdminTab = 'produccion' | 'usuarios' | 'insumos' | 'borradores' | 'anulados' | 'exportar';
 
 const ADMIN_TABS: { key: AdminTab; label: string; icon: string }[] = [
   { key: 'produccion', label: 'Producción y Lotes', icon: 'factory' },
   { key: 'insumos', label: 'Insumos y Lotes', icon: 'inventory_2' },
   { key: 'usuarios', label: 'Usuarios', icon: 'group' },
+  { key: 'borradores', label: 'Borradores Abiertos', icon: 'history' },
   { key: 'anulados', label: 'Lotes Anulados', icon: 'block' },
   { key: 'exportar', label: 'Exportar Datos', icon: 'download' },
 ];
@@ -102,6 +106,8 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
   onViewBatchDetail,
   onCorrectBatchDetail,
   onAnnulBatch,
+  openDrafts = [],
+  onDiscardDraft,
 }) => {
   const [tab, setTab] = useState<AdminTab>('produccion');
   const [annulTarget, setAnnulTarget] = useState<BatchHistoryRow | null>(null);
@@ -444,6 +450,80 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
           </div>
         </div>
         </>
+      )}
+
+      {tab === 'borradores' && (
+        <div className={`${card} p-5 flex flex-col gap-3`}>
+          <div className="flex items-center justify-between border-b border-[#D6DEEA] pb-3">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-amber-600 text-[20px]">history</span>
+              <h3 className="text-sm font-bold text-gray-900">
+                Borradores abiertos ({openDrafts.length})
+              </h3>
+            </div>
+            <button onClick={onRefresh} className="text-xs text-[#1B4E9B] font-bold hover:underline cursor-pointer">
+              Actualizar
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-500">
+            Productos con un borrador guardado. Los que tienen lote oficial en proceso se continúan
+            desde la selección de líneas; los que nunca iniciaron lote se pueden descartar aquí.
+          </p>
+          {openDrafts.length === 0 ? (
+            <p className="text-xs text-gray-500 py-4 text-center">No hay borradores abiertos.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {openDrafts.map((d) => (
+                <div
+                  key={d.producto_ui_id}
+                  className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-3 ${
+                    d.vigente ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-200 bg-amber-50/60'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <span className="text-xs font-bold text-[#191c1e] block">
+                      {products.find((p) => p.id === d.producto_ui_id)?.name || d.producto_ui_id}
+                    </span>
+                    <span className="text-[10px] font-mono text-gray-600 block">
+                      {d.codigo_lote || 'Sin código de lote'} · etapa {d.etapa_actual} ·{' '}
+                      {d.operador ? `${d.operador} (${d.operador_codigo})` : 'sin operador'} ·{' '}
+                      {new Date(d.updated_at).toLocaleString('es-CO', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`text-[10px] font-black uppercase px-2 py-1 rounded-md border ${
+                        d.vigente
+                          ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                          : 'bg-amber-100 text-amber-900 border-amber-300'
+                      }`}
+                    >
+                      {d.vigente ? 'En proceso' : 'Abandonado'}
+                    </span>
+                    {d.descartable ? (
+                      <button
+                        onClick={() => onDiscardDraft?.(d.producto_ui_id)}
+                        className="px-3 py-2 rounded-xl bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 text-[11px] font-bold flex items-center gap-1 cursor-pointer active:scale-95 transition-all"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">delete</span>
+                        <span>Descartar</span>
+                      </button>
+                    ) : (
+                      <span className="text-[10px] font-bold text-gray-500">
+                        Lote iniciado: anular desde Lotes
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {tab === 'usuarios' && (

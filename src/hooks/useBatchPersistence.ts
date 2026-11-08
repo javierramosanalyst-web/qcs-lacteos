@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ParentMilkBatch, ProcessTimerState, StageId } from '../types';
+import { ParentMilkBatch, ProcessTimerState, StageId, UserProfile } from '../types';
+import { registrarActividadOperario } from '../utils/operariosActividad';
 import {
   ApiError,
   fetchWorkspace,
@@ -46,7 +47,13 @@ const stripOperator = (b: AnyBatch) => ({
 const signature = (b: AnyBatch, stage: StageId | undefined) =>
   JSON.stringify({ b: stripTimer(b), stage });
 
-const BACKUP_PREFIX = 'qcs_backup_';
+const contentSignature = (b: AnyBatch) =>
+  JSON.stringify({
+    ...stripTimer(b),
+    actividadOperarios: undefined,
+    operariosIntervinientes: undefined,
+  });
+
 const BACKUP_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
 interface LocalBackup {
@@ -56,35 +63,24 @@ interface LocalBackup {
   ts: number;
 }
 
+const backupStore = new Map<string, LocalBackup>();
+
 const readBackup = (productId: string): LocalBackup | null => {
-  try {
-    const raw = localStorage.getItem(BACKUP_PREFIX + productId);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as LocalBackup;
-    if (!parsed?.batch || Date.now() - parsed.ts > BACKUP_MAX_AGE_MS) {
-      localStorage.removeItem(BACKUP_PREFIX + productId);
-      return null;
-    }
-    return parsed;
-  } catch {
+  const parsed = backupStore.get(productId);
+  if (!parsed) return null;
+  if (!parsed.batch || Date.now() - parsed.ts > BACKUP_MAX_AGE_MS) {
+    backupStore.delete(productId);
     return null;
   }
+  return parsed;
 };
 
 const writeBackup = (productId: string, backup: LocalBackup) => {
-  try {
-    localStorage.setItem(BACKUP_PREFIX + productId, JSON.stringify(backup));
-  } catch {
-    return;
-  }
+  backupStore.set(productId, backup);
 };
 
 const clearBackup = (productId: string) => {
-  try {
-    localStorage.removeItem(BACKUP_PREFIX + productId);
-  } catch {
-    return;
-  }
+  backupStore.delete(productId);
 };
 
 const isStarted = (b: AnyBatch) =>
@@ -113,6 +109,7 @@ interface Params {
   setParentBatch: (value: ParentMilkBatch) => void;
   showToast: (message: string, type?: 'success' | 'info' | 'warning') => void;
   onDraftRemoved?: (productId: string) => void;
+  currentUser?: UserProfile | null;
 }
 
 export function useBatchPersistence({
@@ -124,6 +121,7 @@ export function useBatchPersistence({
   setParentBatch,
   showToast,
   onDraftRemoved,
+  currentUser,
 }: Params) {
   const [hydrated, setHydrated] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
@@ -137,6 +135,9 @@ export function useBatchPersistence({
 
   const versions = useRef<Record<string, number>>({});
   const lastSaved = useRef<Record<string, string>>({});
+  const lastContent = useRef<Record<string, string>>({});
+  const userRef = useRef<UserProfile | null | undefined>(currentUser);
+  userRef.current = currentUser;
   const inflight = useRef<Record<string, boolean>>({});
   const completed = useRef<Record<string, boolean>>({});
   const parentVersion = useRef(0);
@@ -160,6 +161,7 @@ export function useBatchPersistence({
       completed.current[productId] = false;
       const stage: StageId | undefined = estado.stage;
       lastSaved.current[productId] = signature(estado.batch, stage ?? stagesRef.current[productId]);
+      lastContent.current[productId] = contentSignature(estado.batch);
       p.setState(() => estado.batch);
       if (stage) setStagesByProduct((prev) => ({ ...prev, [productId]: stage }));
     },
@@ -226,6 +228,7 @@ export function useBatchPersistence({
             missingCount.current[pid] = 0;
             delete versions.current[pid];
             delete lastSaved.current[pid];
+            delete lastContent.current[pid];
             clearBackup(pid);
             const closed = (data.cerrados ?? []).find((c) => c.codigo_lote === (p.state as any)?.id);
             p.setState(() => p.createTemplate());
@@ -261,6 +264,7 @@ export function useBatchPersistence({
       setHydrated(false);
       versions.current = {};
       lastSaved.current = {};
+      lastContent.current = {};
       completed.current = {};
       parentVersion.current = 0;
       return;
@@ -311,8 +315,12 @@ export function useBatchPersistence({
   const saveProduct = useCallback(
     async (p: PersistedProduct) => {
       const pid = p.productId;
-      const b = p.state;
       const stage = stagesRef.current[pid];
+      const content = contentSignature(p.state);
+      const contentChanged = lastContent.current[pid] !== content;
+      const b: AnyBatch = contentChanged
+        ? registrarActividadOperario(p.state, userRef.current, pid, stage)
+        : p.state;
       const sig = signature(b, stage);
       const started = isStarted(b);
       const isDone = b.status === 'COMPLETADO' && started;
@@ -336,6 +344,16 @@ export function useBatchPersistence({
         });
         versions.current[pid] = res.version;
         lastSaved.current[pid] = sig;
+        lastContent.current[pid] = content;
+        if (b !== p.state) {
+          p.setState((prev: AnyBatch) => ({
+            ...prev,
+            actividadOperarios: b.actividadOperarios,
+            operariosIntervinientes: Array.from(
+              new Set([...(b.operariosIntervinientes ?? []), ...(prev.operariosIntervinientes ?? [])])
+            ),
+          }));
+        }
         if (readBackup(pid)?.sig === sig || res.completed) clearBackup(pid);
         errorNotified.current = false;
         setSyncStatus('saved');
@@ -351,7 +369,14 @@ export function useBatchPersistence({
         }
       } catch (e) {
         const err = e as ApiError;
-        if (err.status === 409 && err.body?.current) {
+        if (err.status === 409 && err.body?.error === 'BATCH_CLOSED') {
+          completed.current[pid] = true;
+          setSyncStatus('saved');
+          showToast(
+            `El lote ${err.body?.codigo_lote ?? ''} ya fue cerrado en otra sesión. No se guardaron más cambios.`,
+            'warning'
+          );
+        } else if (err.status === 409 && err.body?.current) {
           const cur = err.body.current;
           const estado = cur.estado?.batch ? cur.estado : { batch: cur.estado };
           if (cur.codigo_lote) estado.batch = { ...estado.batch, id: cur.codigo_lote };
@@ -473,6 +498,7 @@ export function useBatchPersistence({
     completed.current[productId] = false;
     delete versions.current[productId];
     delete lastSaved.current[productId];
+    delete lastContent.current[productId];
     p.setState(() => fresh);
     return true;
   }, []);

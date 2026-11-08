@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
 import {
   AcidificarState,
   LotesLeche,
@@ -856,15 +857,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
 
           {/* Casilla de verificación y botón de Guardar cambios */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#D6DEEA]">
-            <label className="flex items-center gap-2.5 cursor-pointer text-xs text-[#434655] font-extrabold select-none min-h-[40px]">
-              <input
-                type="checkbox"
-                checked={editModePaso1}
-                onChange={(e) => setEditModePaso1(e.target.checked)}
-                className="w-5 h-5 rounded accent-[#1B4E9B] cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+            <ManualEditToggle manual={Boolean(editModePaso1)} onChange={(checked: boolean) => setEditModePaso1(checked)} />
 
             {editModePaso1 && (
               <Button
@@ -987,15 +980,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
 
           {/* Casilla de verificación y botón de Guardar cambios */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#D6DEEA]">
-            <label className="flex items-center gap-2.5 text-xs font-extrabold text-[#434655] cursor-pointer select-none min-h-[40px]">
-              <input
-                type="checkbox"
-                checked={editModePaso2}
-                onChange={(e) => setEditModePaso2(e.target.checked)}
-                className="w-5 h-5 rounded accent-[#1B4E9B] cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+            <ManualEditToggle manual={Boolean(editModePaso2)} onChange={(checked: boolean) => setEditModePaso2(checked)} />
 
             {editModePaso2 && (
               <Button

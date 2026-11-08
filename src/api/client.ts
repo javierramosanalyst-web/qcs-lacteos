@@ -10,8 +10,18 @@ import {
 import { INITIAL_PRODUCTS } from '../data/initialData';
 import type { InsumoLoteRow, InsumoTipo, SaborYogurRow } from '../data/insumoLotes';
 
-const TOKEN_KEY = 'qcs_token';
+const SESSION_FLAG = 'qcs_sesion';
 const API_BASE = '/api';
+
+const LEGACY_LOCAL_KEYS = ['qcs_token', 'qcs_view', 'qcs_line', 'qcs_product', 'qcs_last_activity'];
+try {
+  LEGACY_LOCAL_KEYS.forEach((key) => localStorage.removeItem(key));
+  Object.keys(localStorage)
+    .filter((key) => key.startsWith('qcs_backup_'))
+    .forEach((key) => localStorage.removeItem(key));
+} catch {
+  void 0;
+}
 
 export interface ApiUser {
   id: string;
@@ -29,21 +39,19 @@ export class ApiError extends Error {
   }
 }
 
-export const getToken = (): string | null => localStorage.getItem(TOKEN_KEY);
+export const hasSession = (): boolean => sessionStorage.getItem(SESSION_FLAG) === '1';
 export const clearToken = (): void => {
-  localStorage.removeItem(TOKEN_KEY);
-  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(SESSION_FLAG);
 };
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = getToken();
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
       ...init,
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...init.headers,
       },
     });
@@ -51,7 +59,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     throw new ApiError(0, 'No se pudo conectar con el servidor.');
   }
   const body = await res.json().catch(() => ({}));
-  if (res.status === 401 && token && !path.startsWith('/auth/login')) {
+  if (res.status === 401 && hasSession() && !path.startsWith('/auth/login')) {
     window.dispatchEvent(new CustomEvent('qcs:session-expired'));
   }
   if (!res.ok) throw new ApiError(res.status, body.message ?? 'Error del servidor.', body);
@@ -84,12 +92,20 @@ export const toProfile = (u: ApiUser): UserProfile => ({
 });
 
 export async function loginRequest(code: string, password: string): Promise<UserProfile> {
-  const data = await apiFetch<{ token: string; user: ApiUser }>('/auth/login', {
+  const data = await apiFetch<{ user: ApiUser }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ codigo_empleado: code, password_o_pin: password }),
   });
-  localStorage.setItem(TOKEN_KEY, data.token);
+  sessionStorage.setItem(SESSION_FLAG, '1');
   return toProfile(data.user);
+}
+
+export async function logoutRequest(): Promise<void> {
+  try {
+    await apiFetch('/auth/logout', { method: 'POST' });
+  } catch {
+    return;
+  }
 }
 
 export async function meRequest(): Promise<UserProfile> {
@@ -258,6 +274,38 @@ export const saveDraftRequest = (productUiId: string, payload: DraftPayload) =>
     `/workspace/drafts/${encodeURIComponent(productUiId)}`,
     { method: 'PUT', body: JSON.stringify(payload) }
   );
+
+export interface DraftStatus {
+  estado: 'EN_PROCESO' | 'COMPLETADO' | 'ANULADO' | 'SIN_LOTE';
+  lote_id: string | null;
+  codigo_lote: string | null;
+  etapa_actual: string | null;
+  finalizado_por: string | null;
+  finalizado_por_codigo?: string | null;
+  finalizado_at: string | null;
+}
+
+export const fetchDraftStatus = (productUiId: string) =>
+  apiFetch<DraftStatus>(`/workspace/drafts/${encodeURIComponent(productUiId)}/estado`);
+
+export interface OpenDraftRow {
+  producto_ui_id: string;
+  etapa_actual: string;
+  updated_at: string;
+  linea_id: string | null;
+  codigo_lote: string | null;
+  operador: string | null;
+  operador_codigo: string | null;
+  vigente: boolean;
+  descartable: boolean;
+}
+
+export const fetchOpenDrafts = () => apiFetch<OpenDraftRow[]>('/workspace/drafts');
+
+export const discardDraftRequest = (productUiId: string) =>
+  apiFetch<{ message: string }>(`/workspace/drafts/${encodeURIComponent(productUiId)}`, {
+    method: 'DELETE',
+  });
 
 export interface BatchHistoryRow {
   id: string;

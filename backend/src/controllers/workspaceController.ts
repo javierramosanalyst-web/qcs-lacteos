@@ -347,6 +347,28 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
     let codigoLote: string | null = current?.codigo_lote ?? null;
 
     if ((started || completed) && !loteId) {
+      const codigoCliente =
+        estado && typeof estado === 'object' && estado.batch && typeof estado.batch.id === 'string'
+          ? estado.batch.id
+          : null;
+      if (codigoCliente) {
+        const cerrado = await client.query(
+          `SELECT codigo_lote, estado FROM lotes_produccion
+            WHERE codigo_lote = $1 AND estado IN ('COMPLETADO', 'ANULADO')
+            LIMIT 1;`,
+          [codigoCliente]
+        );
+        if (cerrado.rows.length > 0) {
+          await client.query('ROLLBACK');
+          res.status(409).json({
+            error: 'BATCH_CLOSED',
+            codigo_lote: cerrado.rows[0].codigo_lote,
+            estado: cerrado.rows[0].estado,
+            message: 'El lote ya fue cerrado en otra sesión y no admite más cambios.',
+          });
+          return;
+        }
+      }
       const created = await createProductionBatch(client, {
         lineId: line.id,
         productCode: String(productCode),
@@ -384,9 +406,10 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
            temp_almacenamiento_celsius = COALESCE(temp_almacenamiento_celsius, 4.0),
            observaciones_finales = COALESCE($2, observaciones_finales),
            duracion_total_segundos = COALESCE($3, EXTRACT(EPOCH FROM (NOW() - iniciado_at))::integer),
+           finalizado_por_id = $4,
            updated_at = NOW()
          WHERE id = $1 AND estado = 'EN_PROCESO';`,
-        [loteId, observaciones ? String(observaciones) : null, Number.isFinite(Number(elapsedSeconds)) && Number(elapsedSeconds) > 0 ? Math.round(Number(elapsedSeconds)) : null]
+        [loteId, observaciones ? String(observaciones) : null, Number.isFinite(Number(elapsedSeconds)) && Number(elapsedSeconds) > 0 ? Math.round(Number(elapsedSeconds)) : null, userId]
       );
       await client.query(`DELETE FROM borradores_lote WHERE producto_ui_id = $1;`, [productUiId]);
       await client.query('COMMIT');
@@ -415,6 +438,82 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al guardar el lote.' });
   } finally {
     client.release();
+  }
+}
+
+/** GET /api/workspace/drafts  Lista de lotes en proceso (un borrador abierto por producto) */
+export async function listOpenDrafts(_req: Request, res: Response): Promise<void> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT b.producto_ui_id, b.etapa_actual, b.updated_at, b.linea_id,
+              lp.codigo_lote,
+              COALESCE(u.nombre_completo, 'Operador de planta') AS operador,
+              u.codigo_empleado AS operador_codigo,
+              (COALESCE(lp.estado = 'EN_PROCESO', FALSE) AND b.updated_at > NOW() - INTERVAL '12 hours') AS vigente,
+              (b.lote_id IS NULL) AS descartable
+         FROM borradores_lote b
+         LEFT JOIN lotes_produccion lp ON lp.id = b.lote_id
+         LEFT JOIN usuarios u ON u.id = b.actualizado_por_id
+        ORDER BY b.updated_at DESC;`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('[workspace] Error al listar borradores abiertos:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al listar los lotes en proceso.' });
+  }
+}
+
+/** GET /api/workspace/drafts/:productUiId/estado  Estado del lote activo de un producto (para cierre en vivo) */
+export async function getDraftStatus(req: Request, res: Response): Promise<void> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT b.lote_id, b.etapa_actual, lp.codigo_lote
+         FROM borradores_lote b
+         LEFT JOIN lotes_produccion lp ON lp.id = b.lote_id
+        WHERE b.producto_ui_id = $1;`,
+      [req.params.productUiId]
+    );
+    if (rows.length > 0) {
+      res.json({
+        estado: 'EN_PROCESO',
+        lote_id: rows[0].lote_id,
+        codigo_lote: rows[0].codigo_lote,
+        etapa_actual: rows[0].etapa_actual,
+        finalizado_por: null,
+        finalizado_at: null,
+      });
+      return;
+    }
+    const cerrado = await pool.query(
+      `SELECT lp.codigo_lote, lp.estado, lp.finalizado_at, lp.anulado_at,
+              COALESCE(u.nombre_completo, 'Operador de planta') AS finalizado_por,
+              u.codigo_empleado
+         FROM lotes_produccion lp
+         LEFT JOIN usuarios u ON u.id = COALESCE(lp.finalizado_por_id, lp.responsable_id)
+        WHERE lp.producto_ui_id = $1
+          AND lp.estado IN ('COMPLETADO', 'ANULADO')
+          AND COALESCE(lp.finalizado_at, lp.anulado_at) > NOW() - INTERVAL '12 hours'
+        ORDER BY COALESCE(lp.finalizado_at, lp.anulado_at) DESC
+        LIMIT 1;`,
+      [req.params.productUiId]
+    );
+    if (cerrado.rows.length > 0) {
+      const row = cerrado.rows[0];
+      res.json({
+        estado: row.estado,
+        lote_id: null,
+        codigo_lote: row.codigo_lote,
+        etapa_actual: null,
+        finalizado_por: row.finalizado_por,
+        finalizado_por_codigo: row.codigo_empleado,
+        finalizado_at: row.finalizado_at ?? row.anulado_at,
+      });
+      return;
+    }
+    res.json({ estado: 'SIN_LOTE', lote_id: null, codigo_lote: null, etapa_actual: null, finalizado_por: null, finalizado_at: null });
+  } catch (error) {
+    console.error('[workspace] Error al consultar estado del lote:', error);
+    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al consultar el estado del lote.' });
   }
 }
 

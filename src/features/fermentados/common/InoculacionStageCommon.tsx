@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
 import {
   StageHeader,
   Card,
@@ -547,19 +548,10 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
         }
         headerAction={
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-[#4A5263] bg-[#F2F4F7] px-3 py-1.5 rounded-lg border border-[#D6DEEA] hover:bg-[#E6ECF5] transition-colors">
-              <input
-                type="checkbox"
-                checked={esManualMezclado}
-                onChange={(e) => {
-                  const checked = e.target.checked;
+            <ManualEditToggle manual={Boolean(esManualMezclado)} onChange={(checked: boolean) => {
                   setEsManualMezclado(checked);
                   onChange((p: any) => ({ ...p, esManualMezclado: checked }));
-                }}
-                className="rounded border-[#C5D0E0] text-[#191C1E] focus:ring-amber-500 w-4 h-4 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+                }} />
 
             <ConfirmButton
               confirmed={isInoculado}
@@ -702,23 +694,14 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
         }
         headerAction={
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-[#4A5263] bg-[#F2F4F7] px-3 py-1.5 rounded-lg border border-[#D6DEEA] hover:bg-[#E6ECF5] transition-colors">
-              <input
-                type="checkbox"
-                checked={esManualIncubacion}
-                onChange={(e) => {
-                  const checked = e.target.checked;
+            <ManualEditToggle manual={Boolean(esManualIncubacion)} onChange={(checked: boolean) => {
                   setEsManualIncubacion(checked);
                   onChange((p: any) => ({
                     ...p,
                     esManualIncubacion: checked,
                     incubacion: { ...p.incubacion, esManual: checked },
                   }));
-                }}
-                className="rounded border-[#C5D0E0] text-[#191C1E] focus:ring-amber-500 w-4 h-4 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+                }} />
           </div>
         }
       >
@@ -868,15 +851,7 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
         }
         headerAction={
           <div className="flex items-center gap-3">
-            <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-[#4A5263] bg-[#F2F4F7] px-3 py-1.5 rounded-lg border border-[#D6DEEA] hover:bg-[#E6ECF5] transition-colors">
-              <input
-                type="checkbox"
-                checked={esManualCuartoFrio}
-                onChange={(e) => setEsManualCuartoFrio(e.target.checked)}
-                className="rounded border-[#C5D0E0] text-[#191C1E] focus:ring-amber-500 w-4 h-4 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+            <ManualEditToggle manual={Boolean(esManualCuartoFrio)} onChange={(checked: boolean) => setEsManualCuartoFrio(checked)} />
 
             {/* BOTÓN MAESTRO: ¡Producto ingresado al cuarto frío! */}
             <Button

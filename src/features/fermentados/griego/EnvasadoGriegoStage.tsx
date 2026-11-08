@@ -25,14 +25,17 @@ interface EnvasadoGriegoStageProps {
 
 export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
   batch,
-  onChange,
+  onChange: onChangeSaved,
   onOpenReviewModal,
   showToast,
 }) => {
   const state = batch.envasado;
+  const onChange: typeof onChangeSaved = (updater) =>
+    onChangeSaved((prev) => ({
+      ...updater(prev),
+      conteoConfirmado: false,
+    }));
   const lecheInicialL = batch.pasteurizacion.litrosLeche ?? 0;
-  const masaFiltradaKg =
-    batch.maduracionYFiltrado?.filtradoTelas?.masaFiltradaKg || 0;
 
   // Categoría 1: Sin Azúcar (Natural) - 1000 g, 500 g, 120 g
   const sinEstevia1000g =
@@ -93,13 +96,9 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
     lecheInicialL > 0
       ? Number(((totalKgEnvasados / lecheInicialL) * 100).toFixed(1))
       : 0;
-  const rendimientoSobreMasaPct =
-    masaFiltradaKg > 0
-      ? Number(((totalKgEnvasados / masaFiltradaKg) * 100).toFixed(1))
-      : 0;
 
   const handleGuardarConteo = () => {
-    onChange((prev) => ({
+    onChangeSaved((prev) => ({
       ...prev,
       conteoConfirmado: true,
       esManualConteo: false,
@@ -117,7 +116,7 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
         stageNumber={5}
         totalStages={5}
         lineName="Línea de Fermentados · Yogur Griego"
-        title="5. Envasar y Guardar"
+        title="5. Guardar"
         subtitle="Conteo directo de envases en gramos para Griego Natural y Griego con Stevia (120 g, 500 g, 1000 g), balance de materia y rendimiento."
         standardBadge="NTC-805"
         metrics={[
@@ -132,12 +131,6 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
             label: 'Rendimiento s/ Leche',
             value: `${rendimientoLacteoPct} %`,
             tone: rendimientoLacteoPct > 0 ? 'emerald' : 'default',
-          },
-          {
-            icon: 'filter_alt',
-            label: 'Masa Filtrada',
-            value: `${masaFiltradaKg} kg`,
-            tone: 'purple',
           },
         ]}
       />
@@ -156,7 +149,7 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
           variant: totalUnidades > 0 ? 'success' : 'info',
         }}
       >
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <fieldset disabled={Boolean(state.conteoConfirmado)} className="grid grid-cols-1 lg:grid-cols-2 gap-5 border-0 p-0 m-0 min-w-0">
           {/* CATEGORÍA 1: SIN AZÚCAR (NATURAL) */}
           <div className="p-5 rounded-2xl bg-emerald-50/40 border-2 border-emerald-200 flex flex-col justify-between gap-4">
             <div>
@@ -402,7 +395,7 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
               </span>
             </div>
           </div>
-        </div>
+        </fieldset>
 
         {/* Balance de Rendimiento y Materia */}
         <div className="mt-4 p-4 rounded-2xl bg-[#F7F9FC] border border-[#D6DEEA] flex flex-col gap-3">
@@ -410,16 +403,11 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
             <span className="material-symbols-outlined text-[18px] text-purple-700">scale</span>
             Balance de Materia y Rendimiento sobre Lote Desviado
           </span>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
             <div className="p-3 bg-white rounded-xl border border-[#D6DEEA]">
               <span className="text-gray-500 block text-[10px] uppercase font-bold">Leche Base Desviada:</span>
               <span className="text-base font-black font-mono text-blue-950">{lecheInicialL} L</span>
               <span className="text-[10px] text-gray-400 block mt-0.5">Volumen sub-lote Griego</span>
-            </div>
-            <div className="p-3 bg-white rounded-xl border border-[#D6DEEA]">
-              <span className="text-gray-500 block text-[10px] uppercase font-bold">Masa Concentrada Escurrida:</span>
-              <span className="text-base font-black font-mono text-purple-950">{masaFiltradaKg} kg</span>
-              <span className="text-[10px] text-gray-400 block mt-0.5">Tras filtrado en telas</span>
             </div>
             <div className="p-3 bg-white rounded-xl border border-[#D6DEEA]">
               <span className="text-gray-500 block text-[10px] uppercase font-bold">Total Envasado:</span>
@@ -429,7 +417,7 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
             <div className="p-3 bg-white rounded-xl border border-[#D6DEEA]">
               <span className="text-gray-500 block text-[10px] uppercase font-bold">Rendimiento Operativo:</span>
               <span className="text-base font-black font-mono text-emerald-800">{rendimientoLacteoPct} %</span>
-              <span className="text-[10px] text-emerald-700 block mt-0.5">s/ Leche ({rendimientoSobreMasaPct}% s/ Masa)</span>
+              <span className="text-[10px] text-emerald-700 block mt-0.5">s/ Leche</span>
             </div>
           </div>
         </div>
@@ -441,15 +429,31 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
               ? '✓ Conteo registrado en sistema.'
               : 'Puedes registrar los envases y continuar directamente al cierre del lote.'}
           </div>
+          <div className="flex flex-col sm:flex-row items-stretch gap-2 w-full sm:w-auto">
           <Button
-            variant="primary"
+            variant={state.conteoConfirmado ? 'success' : 'primary'}
             size="md"
-            icon="save"
+            icon={state.conteoConfirmado ? 'check_circle' : 'save'}
             onClick={handleGuardarConteo}
-            className="font-bold shadow-md w-full sm:w-auto"
+            disabled={Boolean(state.conteoConfirmado)}
+            className="font-bold shadow-md w-full sm:w-auto disabled:opacity-100"
           >
-            Guardar Conteo de Envases
+            {state.conteoConfirmado ? 'Conteo Guardado' : 'Guardar Conteo de Envases'}
           </Button>
+          {state.conteoConfirmado && (
+            <Button
+              variant="outline"
+              size="md"
+              icon="edit"
+              onClick={() =>
+                onChangeSaved((prev) => ({ ...prev, conteoConfirmado: false }))
+              }
+              className="font-bold w-full sm:w-auto"
+            >
+              Editar
+            </Button>
+          )}
+          </div>
         </div>
       </Card>
 

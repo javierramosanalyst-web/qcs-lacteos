@@ -5,8 +5,10 @@ import {
   discardDraft,
   getBatchDetail,
   getBatchHistory,
+  getDraftStatus,
   getWorkspace,
   listAuditLogs,
+  listOpenDrafts,
   rectifyBatchField,
   saveDraft,
   saveWorkspace,
@@ -21,7 +23,9 @@ workspaceRouter.get('/audit', requireRole('administrador', 'superadmin'), listAu
 workspaceRouter.post('/rectify', requireRole('administrador', 'superadmin'), rectifyBatchField);
 workspaceRouter.get('/batches/:loteId', requireRole('administrador', 'superadmin'), getBatchDetail);
 workspaceRouter.post('/batches/:loteId/anular', requireRole('administrador', 'superadmin'), annulBatch);
+workspaceRouter.get('/drafts', listOpenDrafts);
 workspaceRouter.put('/drafts/:productUiId', saveDraft);
+workspaceRouter.get('/drafts/:productUiId/estado', getDraftStatus);
 workspaceRouter.delete('/drafts/:productUiId', discardDraft);
 workspaceRouter.get('/:lineCode', getWorkspace);
 workspaceRouter.put('/:lineCode', saveWorkspace);

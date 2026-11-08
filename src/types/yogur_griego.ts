@@ -1,4 +1,4 @@
-import { ProcessTimerState, StageId } from './pastaHilada';
+import { ActividadOperario, ProcessTimerState, StageId } from './pastaHilada';
 import type { OrigenYogur } from './yogur';
 
 export interface PasteurizacionYogurGriegoState {
@@ -214,6 +214,7 @@ export interface YogurGriegoBatchData {
   operatorRole: string;
   responsableProceso?: string;
   operariosIntervinientes?: string[];
+  actividadOperarios?: ActividadOperario[];
   stageStatuses: Record<StageId, 'pendiente' | 'en_proceso' | 'completada'>;
   status: 'NOMINAL' | 'EN AJUSTE' | 'COMPLETADO';
   processTimer: ProcessTimerState;

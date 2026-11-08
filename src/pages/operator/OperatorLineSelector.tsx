@@ -1,25 +1,46 @@
 import React from 'react';
-import { ProductionLine, UserProfile } from '../../types';
+import { ProductionLine, ProductDefinition, UserProfile } from '../../types';
+import { OpenDraftRow } from '../../api/client';
 
 interface OperatorLineSelectorProps {
   lines: ProductionLine[];
+  products?: ProductDefinition[];
   currentUser: UserProfile;
   activeBatchId?: string | null;
   activeBatchStatus?: string;
+  openDrafts?: OpenDraftRow[];
   onSelectLine: (lineId: string) => void;
+  onContinueProduct?: (productId: string) => void;
   onContinueCurrentBatch: () => void;
   onViewBatchSummary?: () => void;
 }
 
 export const OperatorLineSelector: React.FC<OperatorLineSelectorProps> = ({
   lines,
+  products = [],
   currentUser,
   activeBatchId,
   activeBatchStatus,
+  openDrafts = [],
   onSelectLine,
+  onContinueProduct,
   onContinueCurrentBatch,
   onViewBatchSummary,
 }) => {
+  const nombreProducto = (productId: string) =>
+    products.find((p) => p.id === productId)?.name || productId;
+
+  const formatearMomento = (iso: string) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '--';
+    return d.toLocaleString('es-CO', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   const getLineTypeIcon = (type: ProductionLine['lineType']) => {
     switch (type) {
       case 'pasta_hilada':
@@ -75,24 +96,14 @@ export const OperatorLineSelector: React.FC<OperatorLineSelectorProps> = ({
           </p>
         </div>
 
-        {activeBatchId && (
-          activeBatchStatus === 'COMPLETADO' ? (
-            <button
-              onClick={onViewBatchSummary || onContinueCurrentBatch}
-              className="px-5 py-3 rounded-2xl bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all cursor-pointer shrink-0 active:scale-95"
-            >
-              <span className="material-symbols-outlined text-[20px]">visibility</span>
-              <span>Ver Resumen ({activeBatchId} · Cerrado)</span>
-            </button>
-          ) : (
-            <button
-              onClick={onContinueCurrentBatch}
-              className="px-5 py-3 rounded-2xl bg-[#1B4E9B] hover:bg-[#143A73] text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all cursor-pointer shrink-0 active:scale-95"
-            >
-              <span className="material-symbols-outlined text-[20px]">play_circle</span>
-              <span>Continuar Lote Activo ({activeBatchId})</span>
-            </button>
-          )
+        {activeBatchId && activeBatchStatus === 'COMPLETADO' && (
+          <button
+            onClick={onViewBatchSummary || onContinueCurrentBatch}
+            className="px-5 py-3 rounded-2xl bg-slate-700 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all cursor-pointer shrink-0 active:scale-95"
+          >
+            <span className="material-symbols-outlined text-[20px]">visibility</span>
+            <span>Ver Resumen ({activeBatchId} · Cerrado)</span>
+          </button>
         )}
       </div>
 
@@ -101,6 +112,9 @@ export const OperatorLineSelector: React.FC<OperatorLineSelectorProps> = ({
         {lines.map((line) => {
           const isOperational = line.status === 'disponible' || line.status === 'en_produccion';
           const isCurrentBatch = line.activeBatchId === activeBatchId;
+          const draftsDeLinea = openDrafts.filter(
+            (d) => d.vigente && line.allowedProductIds.includes(d.producto_ui_id)
+          );
           const badge = getLineTypeBadge(line.lineType);
           const icon = getLineTypeIcon(line.lineType);
 
@@ -218,6 +232,40 @@ export const OperatorLineSelector: React.FC<OperatorLineSelectorProps> = ({
                     </div>
                   )}
                 </div>
+
+                {draftsDeLinea.length > 0 && (
+                  <div className="mt-3 flex flex-col gap-2">
+                    {draftsDeLinea.map((d) => (
+                      <div
+                        key={d.producto_ui_id}
+                        className="p-2.5 rounded-xl border border-[#1B4E9B]/30 bg-blue-50/70 flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0">
+                          <span className="text-[9px] font-black uppercase tracking-wider text-[#1B4E9B] block">
+                            Lote en proceso
+                          </span>
+                          <span className="text-[11px] font-bold text-[#191c1e] block truncate">
+                            {nombreProducto(d.producto_ui_id)}
+                          </span>
+                          <span className="text-[10px] font-mono text-gray-600 block truncate">
+                            {d.codigo_lote || 'Sin código'} · {d.etapa_actual}
+                            {d.operador ? ` · ${d.operador}` : ''}
+                          </span>
+                          <span className="text-[9px] text-gray-500 block truncate">
+                            Último guardado: {formatearMomento(d.updated_at)}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => onContinueProduct?.(d.producto_ui_id)}
+                          className="px-3 py-2 rounded-xl bg-[#1B4E9B] hover:bg-[#143A73] text-white text-[11px] font-bold flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 transition-all"
+                        >
+                          <span className="material-symbols-outlined text-[15px]">play_circle</span>
+                          <span>Continuar</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {isCurrentBatch && (
                   <div

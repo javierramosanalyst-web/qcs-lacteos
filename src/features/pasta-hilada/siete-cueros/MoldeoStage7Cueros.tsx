@@ -677,23 +677,13 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                   </div>
                 </fieldset>
                   <div className="flex justify-end pt-1">
-                    {bocadilloState.registroGuardado ? (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       <Button
-                        variant="outline"
+                        variant={bocadilloState.registroGuardado ? 'success' : 'warning'}
                         size="md"
-                        icon="edit"
-                        onClick={() => {
-                          updateBocadillo({ registroGuardado: false });
-                          if (showToast) showToast('Registro de Quesadilla con Bocadillo habilitado para modificar', 'info');
-                        }}
-                      >
-                        Modificar Registro
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="warning"
-                        size="md"
-                        icon="save"
+                        icon={bocadilloState.registroGuardado ? 'check_circle' : 'save'}
+                        disabled={Boolean(bocadilloState.registroGuardado)}
+                        className="disabled:opacity-100"
                         onClick={() => {
                           if (mQuesadillaBocadillo <= 0) {
                             if (showToast) showToast('Ingresa la cantidad de quesadillas de bocadillo.', 'warning');
@@ -708,9 +698,22 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                           if (showToast) showToast('✓ Registro de Quesadilla con Bocadillo guardado', 'success');
                         }}
                       >
-                        Guardar Registro
+                        {bocadilloState.registroGuardado ? 'Registro Guardado' : 'Guardar Registro'}
                       </Button>
-                    )}
+                      {bocadilloState.registroGuardado && (
+                        <Button
+                          variant="outline"
+                          size="md"
+                          icon="edit"
+                          onClick={() => {
+                          updateBocadillo({ registroGuardado: false });
+                          if (showToast) showToast('Registro de Quesadilla con Bocadillo habilitado para modificar', 'info');
+                        }}
+                        >
+                          Editar
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
@@ -864,23 +867,13 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                   </div>
                 </fieldset>
                   <div className="flex justify-end pt-1">
-                    {arequipeState.registroGuardado ? (
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       <Button
-                        variant="outline"
+                        variant={arequipeState.registroGuardado ? 'success' : 'warning'}
                         size="md"
-                        icon="edit"
-                        onClick={() => {
-                          updateArequipe({ registroGuardado: false });
-                          if (showToast) showToast('Registro de Quesadilla con Arequipe habilitado para modificar', 'info');
-                        }}
-                      >
-                        Modificar Registro
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="warning"
-                        size="md"
-                        icon="save"
+                        icon={arequipeState.registroGuardado ? 'check_circle' : 'save'}
+                        disabled={Boolean(arequipeState.registroGuardado)}
+                        className="disabled:opacity-100"
                         onClick={() => {
                           if (mQuesadillaArequipe <= 0) {
                             if (showToast) showToast('Ingresa la cantidad de quesadillas de arequipe.', 'warning');
@@ -895,9 +888,22 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                           if (showToast) showToast('✓ Registro de Quesadilla con Arequipe guardado', 'success');
                         }}
                       >
-                        Guardar Registro
+                        {arequipeState.registroGuardado ? 'Registro Guardado' : 'Guardar Registro'}
                       </Button>
-                    )}
+                      {arequipeState.registroGuardado && (
+                        <Button
+                          variant="outline"
+                          size="md"
+                          icon="edit"
+                          onClick={() => {
+                          updateArequipe({ registroGuardado: false });
+                          if (showToast) showToast('Registro de Quesadilla con Arequipe habilitado para modificar', 'info');
+                        }}
+                        >
+                          Editar
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </>
               )}

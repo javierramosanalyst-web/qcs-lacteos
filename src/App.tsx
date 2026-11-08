@@ -24,18 +24,23 @@ import {
   clearToken,
   deactivateLineRequest,
   deactivateUserRequest,
+  discardDraftRequest,
   fetchAuditLogs,
   fetchBatchDetail,
   fetchBatchHistory,
+  fetchDraftStatus,
+  fetchOpenDrafts,
   fetchInsumoLotes,
   fetchLines,
   fetchProducts,
   fetchUsers,
   fetchSaboresYogur,
-  getToken,
+  hasSession,
+  logoutRequest,
   meRequest,
   rectifyRequest,
 } from './api/client';
+import type { OpenDraftRow } from './api/client';
 import { useBatchManager } from './hooks/useBatchManager';
 import {
   AppView,
@@ -51,7 +56,7 @@ import { setInsumoLotes, setSaboresYogur, useInsumoLotesVersion } from './data/i
 
 const ACTIVITY_KEY = 'qcs_last_activity';
 const IDLE_LIMIT_MS = 15 * 60 * 1000;
-const SPLASH_MIN_MS = 6000;
+const SPLASH_MIN_MS = 4000;
 
 export default function App() {
   useInsumoLotesVersion();
@@ -60,9 +65,19 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [userRole, setUserRole] = useState<UserRole>('operador');
   const [currentView, setCurrentView] = useState<AppView>('operator_line_select');
+  const [openDrafts, setOpenDrafts] = useState<OpenDraftRow[]>([]);
 
   // 2. Catálogos de Planta y Auditoría
-  const [restoring, setRestoring] = useState<boolean>(() => Boolean(getToken()));
+  const [restoring, setRestoring] = useState<boolean>(() => hasSession());
+  const [finishing, setFinishing] = useState<boolean>(false);
+  const finishingTimer = useRef<number | null>(null);
+  const [loteCerrado, setLoteCerrado] = useState<{
+    estado: string;
+    codigo: string | null;
+    por: string | null;
+  } | null>(null);
+  const loteEnProcesoRef = useRef<Record<string, boolean>>({});
+  const loteCerradoMostradoRef = useRef<string | null>(null);
   const [lines, setLines] = useState<ProductionLine[]>(INITIAL_LINES);
   const [products, setProducts] = useState<ProductDefinition[]>(INITIAL_PRODUCTS);
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -91,7 +106,7 @@ export default function App() {
   }, []);
 
   // 4. Motor Central de Lotes (Lote Padre, Lotes Hijos y Cronómetros Independientes)
-  const batchManager = useBatchManager({ showToast, persistenceEnabled: isAuthenticated });
+  const batchManager = useBatchManager({ showToast, persistenceEnabled: isAuthenticated, currentUser });
   const {
     syncStatus,
     markRectified,
@@ -153,7 +168,7 @@ export default function App() {
       const [apiLines, apiProducts, apiUsers, apiInsumos] = await Promise.all([
         fetchLines(),
         fetchProducts(),
-        role === 'administrador' ? fetchUsers() : Promise.resolve([]),
+        fetchUsers().catch(() => []),
         fetchInsumoLotes().catch(() => []),
       ]);
       setInsumoLotes(apiInsumos);
@@ -177,12 +192,12 @@ export default function App() {
   }, [showToast]);
 
   useEffect(() => {
-    if (!getToken()) return;
+    if (!hasSession()) return;
     const splashStart = Date.now();
-    const lastAct = Number(localStorage.getItem(ACTIVITY_KEY) || 0);
+    const lastAct = Number(sessionStorage.getItem(ACTIVITY_KEY) || 0);
     if (lastAct && Date.now() - lastAct >= IDLE_LIMIT_MS) {
       clearToken();
-      localStorage.removeItem(ACTIVITY_KEY);
+      sessionStorage.removeItem(ACTIVITY_KEY);
       setRestoring(false);
       return;
     }
@@ -194,9 +209,9 @@ export default function App() {
         setUserRole(user.role);
         setIsAuthenticated(true);
         if (user.role === 'operador') assignOperatorToAllBatches(user);
-        const savedProduct = localStorage.getItem('qcs_product');
-        const savedLine = localStorage.getItem('qcs_line');
-        const savedView = localStorage.getItem('qcs_view') as AppView | null;
+        const savedProduct = sessionStorage.getItem('qcs_product');
+        const savedLine = sessionStorage.getItem('qcs_line');
+        const savedView = sessionStorage.getItem('qcs_view') as AppView | null;
         if (savedProduct) selectProductBatch(savedProduct, true);
         if (savedLine) setSelectedLineId(savedLine);
         const fallback: AppView = user.role === 'administrador' ? 'admin_dashboard' : 'operator_line_select';
@@ -270,16 +285,77 @@ export default function App() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    localStorage.setItem('qcs_view', currentView);
-    localStorage.setItem('qcs_line', selectedLineId);
-    localStorage.setItem('qcs_product', activeProductId);
+    sessionStorage.setItem('qcs_view', currentView);
+    sessionStorage.setItem('qcs_line', selectedLineId);
+    sessionStorage.setItem('qcs_product', activeProductId);
   }, [isAuthenticated, currentView, selectedLineId, activeProductId]);
+
+  useEffect(() => {
+    if (!isAuthenticated || currentView !== 'operator_line_select') return;
+    let cancelled = false;
+    const cargar = () => {
+      fetchOpenDrafts()
+        .then((rows) => {
+          if (!cancelled) setOpenDrafts(rows);
+        })
+        .catch(() => undefined);
+    };
+    cargar();
+    const id = window.setInterval(cargar, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [isAuthenticated, currentView]);
 
   useEffect(() => {
     if (!isAuthenticated || userRole !== 'administrador' || currentView !== 'admin_dashboard') return;
     const id = window.setInterval(() => void loadCatalogs('administrador', true), 30000);
     return () => window.clearInterval(id);
   }, [isAuthenticated, userRole, currentView, loadCatalogs]);
+
+  useEffect(() => {
+    if (!isAuthenticated || currentView !== 'batch_process') return;
+    let cancelado = false;
+    const revisar = async () => {
+      try {
+        const estado = await fetchDraftStatus(activeProductId);
+        if (cancelado) return;
+        if (estado.estado === 'EN_PROCESO') {
+          loteEnProcesoRef.current[activeProductId] = true;
+          return;
+        }
+        if (estado.estado !== 'COMPLETADO' && estado.estado !== 'ANULADO') return;
+        if (!loteEnProcesoRef.current[activeProductId]) return;
+        const clave = `${activeProductId}:${estado.codigo_lote ?? ''}`;
+        if (loteCerradoMostradoRef.current === clave) return;
+        loteCerradoMostradoRef.current = clave;
+        loteEnProcesoRef.current[activeProductId] = false;
+        setLoteCerrado({
+          estado: estado.estado,
+          codigo: estado.codigo_lote,
+          por: estado.finalizado_por,
+        });
+      } catch {
+        return;
+      }
+    };
+    void revisar();
+    const id = window.setInterval(() => void revisar(), 5000);
+    return () => {
+      cancelado = true;
+      window.clearInterval(id);
+    };
+  }, [isAuthenticated, currentView, activeProductId]);
+
+  useEffect(() => {
+    if (!loteCerrado) return;
+    const id = window.setTimeout(() => {
+      setLoteCerrado(null);
+      finishToLineSelect();
+    }, 9000);
+    return () => window.clearTimeout(id);
+  }, [loteCerrado]);
 
   // Scroll automático al cambiar de vista, etapa o sub-lote
   useEffect(() => {
@@ -312,12 +388,13 @@ export default function App() {
 
   const handleLogout = (reason?: string) => {
     clearToken();
-    localStorage.removeItem(ACTIVITY_KEY);
+    void logoutRequest();
+    sessionStorage.removeItem(ACTIVITY_KEY);
     setCurrentView('operator_line_select');
     setUserRole('operador');
-    localStorage.removeItem('qcs_view');
-    localStorage.removeItem('qcs_line');
-    localStorage.removeItem('qcs_product');
+    sessionStorage.removeItem('qcs_view');
+    sessionStorage.removeItem('qcs_line');
+    sessionStorage.removeItem('qcs_product');
     setIsAuthenticated(false);
     setCurrentUser(null);
     setUsers([]);
@@ -331,7 +408,7 @@ export default function App() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    const touch = () => localStorage.setItem(ACTIVITY_KEY, String(Date.now()));
+    const touch = () => sessionStorage.setItem(ACTIVITY_KEY, String(Date.now()));
     touch();
     const events = ['mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
     let last = 0;
@@ -343,7 +420,7 @@ export default function App() {
     };
     events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
     const timer = window.setInterval(() => {
-      const stored = Number(localStorage.getItem(ACTIVITY_KEY) || Date.now());
+      const stored = Number(sessionStorage.getItem(ACTIVITY_KEY) || Date.now());
       if (Date.now() - stored >= IDLE_LIMIT_MS) {
         handleLogoutRef.current('Sesión cerrada por 15 minutos de inactividad. Ingresa de nuevo.');
       }
@@ -368,6 +445,24 @@ export default function App() {
   const handleSelectProduct = (productId: string) => {
     selectProductBatch(productId);
     setCurrentView('batch_process');
+  };
+
+  const handleContinueProduct = (productId: string) => {
+    selectProductBatch(productId, true);
+    setCurrentView('batch_process');
+  };
+
+  const handleDiscardDraft = async (productId: string) => {
+    try {
+      await discardDraftRequest(productId);
+      setOpenDrafts((prev) => prev.filter((d) => d.producto_ui_id !== productId));
+      showToast('✓ Borrador descartado. El producto quedó libre para un nuevo lote.', 'success');
+    } catch (err) {
+      showToast(
+        `No se pudo descartar el borrador: ${err instanceof Error ? err.message : 'error desconocido'}`,
+        'warning'
+      );
+    }
   };
 
   const handleApplyCorrection = async (
@@ -512,13 +607,23 @@ export default function App() {
   const currentSelectedLine =
     lines.find((l) => l.id === selectedLineId) || lines[0];
 
-  if (restoring) {
+  const finishToLineSelect = () => {
+    setFinishing(true);
+    if (finishingTimer.current) window.clearTimeout(finishingTimer.current);
+    finishingTimer.current = window.setTimeout(() => {
+      setCurrentView('operator_line_select');
+      setFinishing(false);
+      finishingTimer.current = null;
+    }, SPLASH_MIN_MS);
+  };
+
+  if (restoring || finishing) {
     return (
       <div className="min-h-screen bg-[#F2F4F7] flex flex-col items-center justify-center gap-4 font-sans">
         <img src="/brand/logo-color.jpg" alt="Lácteos Colombia" className="w-28 h-28 rounded-3xl object-cover shadow-md" />
         <div className="flex items-center gap-2 text-sm font-bold text-[#1B4E9B]">
           <span className="material-symbols-outlined animate-spin text-[20px]">progress_activity</span>
-          <span>Recuperando tu sesión...</span>
+          <span>{finishing ? 'Guardando el lote y volviendo a las líneas de producción...' : 'Recuperando tu sesión...'}</span>
         </div>
       </div>
     );
@@ -596,16 +701,21 @@ export default function App() {
           onViewBatchDetail={handleViewBatchDetail}
           onCorrectBatchDetail={handleCorrectBatchDetail}
           onAnnulBatch={handleAnnulBatch}
+          openDrafts={openDrafts}
+          onDiscardDraft={handleDiscardDraft}
         />
       )}
 
       {currentView === 'operator_line_select' && (
         <OperatorLineSelector
           lines={lines}
+          products={products}
           currentUser={activeUser}
           activeBatchId={activeHeaderBatch.id}
           activeBatchStatus={activeHeaderBatch.status}
+          openDrafts={openDrafts}
           onSelectLine={handleSelectLine}
+          onContinueProduct={handleContinueProduct}
           onContinueCurrentBatch={() => setCurrentView('batch_process')}
           onViewBatchSummary={openActiveReviewModal}
         />
@@ -659,7 +769,7 @@ export default function App() {
             selectProductBatch('prod-kumis', true);
             setCurrentView('batch_process');
           } else {
-            setCurrentView('operator_line_select');
+            finishToLineSelect();
           }
         }}
         onChangeObservaciones={(obs) =>
@@ -681,7 +791,7 @@ export default function App() {
         onFinalizeBatch={() => {
           handleFinalizeKumisBatch(false);
           setKumisReviewModalOpen(false);
-          setCurrentView('operator_line_select');
+          finishToLineSelect();
         }}
         onChangeObservaciones={(obs) =>
           setBatchKumis((prev) => ({ ...prev, observaciones: obs }))
@@ -702,7 +812,7 @@ export default function App() {
         onFinalizeBatch={() => {
           handleFinalizeYogurGriegoBatch(false);
           setYogurGriegoReviewModalOpen(false);
-          setCurrentView('operator_line_select');
+          finishToLineSelect();
         }}
         onChangeObservaciones={(obs) =>
           setBatchYogurGriego((prev) => ({ ...prev, observaciones: obs }))
@@ -723,7 +833,7 @@ export default function App() {
         onFinalizeBatch={() => {
           handleFinalizeBatch(false);
           setReviewModalOpen(false);
-          setCurrentView('operator_line_select');
+          finishToLineSelect();
         }}
         onChangeObservaciones={(obs) =>
           setBatch((prev) => ({ ...prev, observaciones: obs }))
@@ -806,6 +916,56 @@ export default function App() {
         onClose={() => setAuditTrailModalOpen(false)}
         logs={auditLogs}
       />
+
+      {loteCerrado && (
+        <div className="fixed inset-0 z-[120] bg-[#0B1B33]/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-[#D6DEEA] overflow-hidden">
+            <div className="px-6 pt-8 pb-6 flex flex-col items-center text-center gap-4">
+              <img
+                src="/brand/logo-color.jpg"
+                alt="Lácteos Colombia"
+                className="w-24 h-24 rounded-3xl object-cover shadow-md"
+              />
+              <span
+                className={`material-symbols-outlined text-[52px] ${
+                  loteCerrado.estado === 'ANULADO' ? 'text-[#B42318]' : 'text-[#5FAF32]'
+                }`}
+              >
+                {loteCerrado.estado === 'ANULADO' ? 'cancel' : 'verified'}
+              </span>
+              <h2 className="text-xl font-black text-[#191C1E] leading-tight">
+                {loteCerrado.estado === 'ANULADO'
+                  ? 'Este lote fue anulado'
+                  : 'Este lote fue completado satisfactoriamente'}
+              </h2>
+              <p className="text-sm text-[#434655]">
+                {loteCerrado.estado === 'ANULADO' ? 'Anulado por' : 'Fue terminado por'}{' '}
+                <strong className="text-[#143A73]">{loteCerrado.por || 'Operador de planta'}</strong>
+              </p>
+              {loteCerrado.codigo && (
+                <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-[#F2F4F7] border border-[#D6DEEA] text-[#143A73]">
+                  {loteCerrado.codigo}
+                </span>
+              )}
+              <p className="text-xs text-[#6B7280]">
+                El proceso se cerró en otra sesión. Serás enviado a la selección de líneas de producción.
+              </p>
+            </div>
+            <div className="px-6 pb-6">
+              <button
+                onClick={() => {
+                  setLoteCerrado(null);
+                  finishToLineSelect();
+                }}
+                className="w-full h-12 bg-[#1B4E9B] hover:bg-[#143A73] text-white rounded-xl text-sm font-bold shadow-sm transition-all cursor-pointer active:scale-[0.99] flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[20px]">arrow_forward</span>
+                Ir a selección de líneas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </OperatorLayout>
   );
 }

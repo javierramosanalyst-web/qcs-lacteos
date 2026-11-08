@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
 import {
   CalentarYCuajarState,
   LotesLeche,
@@ -888,15 +889,7 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
         <div className="flex flex-col gap-4">
           {/* Checkbox de edición manual */}
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualPaso2}
-                onChange={(e) => setManualPaso2(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-amber-300 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso2)} onChange={(checked: boolean) => setManualPaso2(checked)} />
             <Badge variant={manualPaso2 ? 'warning' : 'neutral'} size="sm">
               {manualPaso2 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>
@@ -1034,15 +1027,7 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
         <div className="flex flex-col gap-4">
           {/* Checkbox de edición manual */}
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualPaso3}
-                onChange={(e) => setManualPaso3(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-amber-300 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso3)} onChange={(checked: boolean) => setManualPaso3(checked)} />
             <Badge variant={manualPaso3 ? 'warning' : 'neutral'} size="sm">
               {manualPaso3 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>
@@ -1215,15 +1200,7 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
         <div className="flex flex-col gap-4">
           {/* Checkbox de edición manual */}
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualPaso5}
-                onChange={(e) => setManualPaso5(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-amber-300 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso5)} onChange={(checked: boolean) => setManualPaso5(checked)} />
             <Badge variant={manualPaso5 ? 'warning' : 'neutral'} size="sm">
               {manualPaso5 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>
@@ -1386,15 +1363,7 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
         <div className="flex flex-col gap-4">
           {/* Checkbox de edición manual */}
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualPaso6}
-                onChange={(e) => setManualPaso6(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-amber-300 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso6)} onChange={(checked: boolean) => setManualPaso6(checked)} />
             <Badge variant={manualPaso6 ? 'warning' : 'neutral'} size="sm">
               {manualPaso6 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>
@@ -1532,15 +1501,7 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
         <div className="flex flex-col gap-4">
           {/* Checkbox de edición manual */}
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualPaso7}
-                onChange={(e) => setManualPaso7(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-amber-300 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso7)} onChange={(checked: boolean) => setManualPaso7(checked)} />
             <Badge variant={manualPaso7 ? 'warning' : 'neutral'} size="sm">
               {manualPaso7 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>
@@ -1722,15 +1683,7 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
         <div className="flex flex-col gap-4">
           {/* Checkbox de edición manual */}
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualPaso9}
-                onChange={(e) => setManualPaso9(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-amber-300 cursor-pointer"
-              />
-              <span>Habilitar edición manual</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso9)} onChange={(checked: boolean) => setManualPaso9(checked)} />
             <Badge variant={manualPaso9 ? 'warning' : 'neutral'} size="sm">
               {manualPaso9 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>

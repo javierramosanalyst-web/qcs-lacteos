@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
 import { CalentarYCuajarState, LotesLeche, ProcessTimerState } from '../../../types';
 import {
   formatHumanDuration,
@@ -555,15 +556,7 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
       >
         <div className="flex flex-col gap-4">
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualFase1}
-                onChange={(e) => setManualFase1(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-amber-300 cursor-pointer"
-              />
-              <span>Habilitar edición manual (Paso 1)</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualFase1)} onChange={(checked: boolean) => setManualFase1(checked)} />
             <Badge variant={manualFase1 ? 'warning' : 'neutral'} size="sm">
               {manualFase1 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>
@@ -737,15 +730,7 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
           )}
 
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualFase2}
-                onChange={(e) => setManualFase2(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-amber-300 cursor-pointer"
-              />
-              <span>Habilitar edición manual (Paso 2)</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualFase2)} onChange={(checked: boolean) => setManualFase2(checked)} />
             <Badge variant={manualFase2 ? 'warning' : 'neutral'} size="sm">
               {manualFase2 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>
@@ -901,15 +886,7 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
           )}
 
           <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-emerald-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualFase3}
-                onChange={(e) => setManualFase3(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-emerald-300 cursor-pointer"
-              />
-              <span>Habilitar edición manual (Paso 3)</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualFase3)} onChange={(checked: boolean) => setManualFase3(checked)} />
             <Badge variant={manualFase3 ? 'warning' : 'success'} size="sm">
               {manualFase3 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>

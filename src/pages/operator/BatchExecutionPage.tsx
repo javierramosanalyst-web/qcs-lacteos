@@ -299,10 +299,7 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
                   batidoYAdiciones: updater(prev.batidoYAdiciones),
                 }))
               }
-              baseFiltradaKg={
-                batchYogurGriego.maduracionYFiltrado.filtradoTelas
-                  .masaFiltradaKg
-              }
+              litrosLecheBase={batchYogurGriego.pasteurizacion.litrosLeche}
               processTimer={batchYogurGriego.processTimer}
               onNextStage={handleNextStage}
               onOpenReviewModal={() => setYogurGriegoReviewModalOpen(true)}
@@ -381,6 +378,12 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
                 setBatchKumis((prev) => ({
                   ...prev,
                   envasado: updater(prev.envasado),
+                }))
+              }
+              onChangeBatido={(updater) =>
+                setBatchKumis((prev) => ({
+                  ...prev,
+                  batidoYAdiciones: updater(prev.batidoYAdiciones),
                 }))
               }
               onFinalizeProcess={handleFinalizeKumisBatch}

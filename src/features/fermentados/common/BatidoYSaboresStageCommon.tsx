@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
 import {
   StageHeader,
   Card,
@@ -518,22 +519,13 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
           }
           headerAction={
             <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 cursor-pointer select-none text-xs font-semibold text-[#4A5263] bg-[#F2F4F7] px-3 py-1.5 rounded-lg border border-[#D6DEEA] hover:bg-[#E6ECF5] transition-colors">
-                <input
-                  type="checkbox"
-                  checked={manualPaso1Stevia}
-                  onChange={(e) => {
-                    const checked = e.target.checked;
+              <ManualEditToggle manual={Boolean(manualPaso1Stevia)} onChange={(checked: boolean) => {
                     setManualPaso1Stevia(checked);
                     onChange((p: any) => ({
                       ...p,
                       adiciones: { ...p.adiciones, esManualStevia: checked },
                     }));
-                  }}
-                  className="rounded border-[#C5D0E0] text-[#191C1E] focus:ring-amber-500 w-4 h-4 cursor-pointer"
-                />
-                <span>Habilitar edición manual</span>
-              </label>
+                  }} />
 
               {/* Botón de confirmación tipo "¡Ya agregué la stevia!" */}
               <Button

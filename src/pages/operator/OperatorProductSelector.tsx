@@ -23,9 +23,9 @@ const PRODUCT_STAGES: Record<string, string[]> = {
   'prod-doble-crema-industrial': QUESO_STAGES,
   'prod-queso-pera': ['Premaduración', 'Calentar y Cuajar', 'Desuerar (40 °C)', 'Hilar (Queso Pera)', 'Moldeo y Balance'],
   'prod-queso-7-cueros': ['Acidificar', 'Calentar y Cuajar', 'Desuerar (40 °C)', 'Hilar', 'Rendimiento y Moldeo'],
-  'prod-yogur': ['Pasteurización y Enfriamiento', 'Inoculación (Cultivo)', 'Maduración en Frío', 'Batido y Adiciones', 'Envasado y Rendimiento'],
+  'prod-yogur': ['Pasteurización y Enfriamiento', 'Inoculación (Cultivo)', 'Receta y Sabores', 'Batido y Envasado', 'Guardar'],
   'prod-kumis': ['Pasteurización', 'Inocular e Incubar', 'Envasar y Guardar'],
-  'prod-yogur-griego': ['Pasteurización', 'Inoculación', 'Maduración y Filtrado en Telas', 'Batido, Crema y Adiciones', 'Envasado y Almacenamiento'],
+  'prod-yogur-griego': ['Pasteurización', 'Inoculación', 'Cuarto Frío y Escurrido', 'Batido y Envasado', 'Guardar'],
 };
 
 const START_LABEL: Record<string, string> = {

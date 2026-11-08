@@ -223,8 +223,6 @@ function collectMedicionesFerm(b: Json): Medicion[] {
   add('desuerar', 'temperatura_cuarto_frio', m.iniciada || m.completada ? m.temperaturaCuartoFrio : null, m.esManual, m.horaInicio);
   const g = b.maduracionYFiltrado ?? {};
   add('desuerar', 'temperatura_cuarto_frio', g.cuartoFrio?.iniciado ? g.cuartoFrio?.temperatura : null, false, g.cuartoFrio?.horaInicio);
-  add('desuerar', 'masa_filtrada_kg', g.filtradoTelas?.masaFiltradaKg, g.filtradoTelas?.esManual, g.filtradoTelas?.horaFin);
-  add('desuerar', 'suero_eliminado_estimado_litros', g.filtradoTelas?.sueroEliminadoEstimadoLitros, g.filtradoTelas?.esManual, g.filtradoTelas?.horaFin);
   const bt = b.batidoYAdiciones ?? {};
   const bb = bt.batidora ?? bt.batido ?? {};
   add('hilar', 'velocidad_batido_rpm', bb.completado ? bb.velocidadRpm : null, bb.esManual, bb.horaFin);
@@ -559,16 +557,58 @@ export async function normalizeBatchTraceability(
   }
 
   const nombres: unknown[] = Array.isArray(b.operariosIntervinientes) ? b.operariosIntervinientes : [];
+  const resolverUsuario = async (codigo: string | null, nombre: string): Promise<string | null> => {
+    const found = await client.query(
+      `SELECT id FROM usuarios
+       WHERE activo = TRUE AND (($1::text IS NOT NULL AND codigo_empleado = $1) OR ($1::text IS NULL AND nombre_completo = $2))
+       LIMIT 1;`,
+      [codigo, nombre]
+    );
+    return found.rows[0]?.id ?? null;
+  };
+
+  const intervinientes: string[] = [];
   for (const raw of nombres) {
     const text = str(raw);
     if (!text) continue;
-    const code = text.match(/\(([A-Za-z0-9-]+)\)\s*$/)?.[1];
+    const code = text.match(/\(([A-Za-z0-9-]+)\)\s*$/)?.[1] ?? null;
+    const usuarioId = await resolverUsuario(code, text);
+    if (!usuarioId) continue;
+    intervinientes.push(usuarioId);
     await client.query(
       `INSERT INTO lote_operarios_intervinientes (lote_id, usuario_id, rol_en_proceso)
-       SELECT $1, u.id, 'Operario interviniente' FROM usuarios u
-       WHERE ($2::text IS NOT NULL AND u.codigo_empleado = $2) OR ($2::text IS NULL AND u.nombre_completo = $3)
-       ON CONFLICT (lote_id, usuario_id) DO NOTHING;`,
-      [loteId, code ?? null, text]
+       VALUES ($1, $2, 'Operario interviniente') ON CONFLICT (lote_id, usuario_id) DO NOTHING;`,
+      [loteId, usuarioId]
+    );
+  }
+  if (intervinientes.length > 0) {
+    await client.query(
+      `DELETE FROM lote_operarios_intervinientes
+       WHERE lote_id = $1 AND rol_en_proceso = 'Operario interviniente' AND NOT (usuario_id = ANY($2::uuid[]));`,
+      [loteId, intervinientes]
+    );
+  }
+
+  const actividad: unknown[] = Array.isArray(b.actividadOperarios) ? b.actividadOperarios : [];
+  for (const raw of actividad) {
+    const a = (raw ?? {}) as Json;
+    const codigo = str(a.codigo);
+    const etapa = str(a.etapa);
+    if (!codigo || !etapa) continue;
+    const usuarioId = await resolverUsuario(codigo, '');
+    if (!usuarioId) continue;
+    const primera = new Date(str(a.primeraAccion));
+    const ultima = new Date(str(a.ultimaAccion));
+    const validaPrimera = !Number.isNaN(primera.getTime());
+    const validaUltima = !Number.isNaN(ultima.getTime());
+    await client.query(
+      `INSERT INTO lote_etapa_operarios (lote_id, etapa_codigo, fase_nombre, usuario_id, primera_accion_at, ultima_accion_at)
+       VALUES ($1, $2, $3, $4, COALESCE($5::timestamptz, NOW()), COALESCE($6::timestamptz, $5::timestamptz, NOW()))
+       ON CONFLICT (lote_id, etapa_codigo, usuario_id) DO UPDATE SET
+         fase_nombre = EXCLUDED.fase_nombre,
+         primera_accion_at = LEAST(lote_etapa_operarios.primera_accion_at, EXCLUDED.primera_accion_at),
+         ultima_accion_at = GREATEST(lote_etapa_operarios.ultima_accion_at, EXCLUDED.ultima_accion_at);`,
+      [loteId, etapa.slice(0, 40), (str(a.fase) || etapa).slice(0, 120), usuarioId, validaPrimera ? primera : null, validaUltima ? ultima : null]
     );
   }
 

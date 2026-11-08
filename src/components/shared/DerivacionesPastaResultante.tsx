@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { ManualEditToggle } from '../ui/ManualEditToggle';
 import { DerivacionPastaResultante, DerivacionesBatchState } from '../../types';
 import { InputField, Button, Badge } from '../ui';
 
@@ -588,45 +589,39 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
 
           {/* Botón de acción principal inferior derecho: Guardar Registro Mexicano */}
           <div className="flex justify-end pt-2 pb-1">
-            {mexicano.registroGuardado ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <Button
-                variant="outline"
+                variant={mexicano.registroGuardado ? 'success' : 'warning'}
                 size="md"
-                icon="edit"
-                onClick={() => {
-                  updateMexicano({ registroGuardado: false });
-                  if (showToast) showToast('Registro de Queso Mexicano habilitado para modificar', 'info');
-                }}
-              >
-                Modificar Registro Mexicano
-              </Button>
-            ) : (
-              <Button
-                variant="warning"
-                size="md"
-                icon="save"
+                icon={mexicano.registroGuardado ? 'check_circle' : 'save'}
+                disabled={Boolean(mexicano.registroGuardado)}
+                className="disabled:opacity-100"
                 onClick={() => {
                   updateMexicano({ registroGuardado: true });
                   if (showToast) showToast('✓ Registro de Queso Mexicano guardado', 'success');
                 }}
               >
-                Guardar Registro Mexicano
+                {mexicano.registroGuardado ? 'Registro Guardado' : 'Guardar Registro Mexicano'}
               </Button>
-            )}
+              {mexicano.registroGuardado && (
+                <Button
+                  variant="outline"
+                  size="md"
+                  icon="edit"
+                  onClick={() => {
+                  updateMexicano({ registroGuardado: false });
+                  if (showToast) showToast('Registro de Queso Mexicano habilitado para modificar', 'info');
+                }}
+                >
+                  Editar
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Restricción: Checkbox para habilitar edición manual avanzada al final */}
           <div className="pt-3 border-t border-amber-200 flex items-center justify-between">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer bg-amber-50/60 hover:bg-amber-100/60 px-3.5 py-2 rounded-xl border border-amber-300 transition-colors">
-              <input
-                type="checkbox"
-                checked={mexicano.edicionManualAvanzada}
-                disabled={Boolean(mexicano.registroGuardado)}
-                onChange={(e) => updateMexicano({ edicionManualAvanzada: e.target.checked })}
-                className="w-4 h-4 rounded text-amber-600 focus:ring-0 cursor-pointer"
-              />
-              <span>Habilitar edición manual avanzada de códigos de lote y pesos</span>
-            </label>
+            <ManualEditToggle manual={Boolean(mexicano.edicionManualAvanzada)} onChange={(checked: boolean) => updateMexicano({ edicionManualAvanzada: checked })} />
             <span className="text-[11px] text-gray-500 italic hidden sm:inline">
               Queso Mexicano derivado
             </span>
@@ -1021,45 +1016,39 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
 
           {/* Botón de acción principal inferior derecho: Guardar Registro Finas Hierbas */}
           <div className="flex justify-end pt-2 pb-1">
-            {finasHierbas.registroGuardado ? (
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <Button
-                variant="outline"
+                variant={finasHierbas.registroGuardado ? 'success' : 'primary'}
                 size="md"
-                icon="edit"
-                onClick={() => {
-                  updateFinasHierbas({ registroGuardado: false });
-                  if (showToast) showToast('Registro de Queso Finas Hierbas habilitado para modificar', 'info');
-                }}
-              >
-                Modificar Registro Finas Hierbas
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                size="md"
-                icon="save"
+                icon={finasHierbas.registroGuardado ? 'check_circle' : 'save'}
+                disabled={Boolean(finasHierbas.registroGuardado)}
+                className="disabled:opacity-100"
                 onClick={() => {
                   updateFinasHierbas({ registroGuardado: true });
                   if (showToast) showToast('✓ Registro de Queso Finas Hierbas guardado', 'success');
                 }}
               >
-                Guardar Registro Finas Hierbas
+                {finasHierbas.registroGuardado ? 'Registro Guardado' : 'Guardar Registro Finas Hierbas'}
               </Button>
-            )}
+              {finasHierbas.registroGuardado && (
+                <Button
+                  variant="outline"
+                  size="md"
+                  icon="edit"
+                  onClick={() => {
+                    updateFinasHierbas({ registroGuardado: false });
+                    if (showToast) showToast('Registro de Queso Finas Hierbas habilitado para modificar', 'info');
+                  }}
+                >
+                  Editar
+                </Button>
+              )}
+            </div>
           </div>
 
           {/* Restricción: Checkbox para habilitar edición manual avanzada al final */}
           <div className="pt-3 border-t border-emerald-200 flex items-center justify-between">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-emerald-950 cursor-pointer bg-emerald-50/60 hover:bg-emerald-100/60 px-3.5 py-2 rounded-xl border border-emerald-300 transition-colors">
-              <input
-                type="checkbox"
-                checked={finasHierbas.edicionManualAvanzada}
-                disabled={Boolean(finasHierbas.registroGuardado)}
-                onChange={(e) => updateFinasHierbas({ edicionManualAvanzada: e.target.checked })}
-                className="w-4 h-4 rounded text-emerald-600 focus:ring-0 cursor-pointer"
-              />
-              <span>Habilitar edición manual avanzada de códigos de lote y pesos</span>
-            </label>
+            <ManualEditToggle manual={Boolean(finasHierbas.edicionManualAvanzada)} onChange={(checked: boolean) => updateFinasHierbas({ edicionManualAvanzada: checked })} />
             <span className="text-[11px] text-gray-500 italic hidden sm:inline">
               Queso Finas Hierbas derivado
             </span>

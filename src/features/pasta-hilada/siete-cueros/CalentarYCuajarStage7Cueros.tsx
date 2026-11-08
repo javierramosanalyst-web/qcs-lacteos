@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
 import {
   CalentarYCuajarState,
   LotesLeche,
@@ -785,15 +786,7 @@ export const CalentarYCuajarStage7Cueros: React.FC<
       >
         <div className="flex flex-col gap-4">
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualPaso1}
-                onChange={(e) => setManualPaso1(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-amber-300 cursor-pointer"
-              />
-              <span>Habilitar edición manual (Paso 1: Agregar Cuajo)</span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso1)} onChange={(checked: boolean) => setManualPaso1(checked)} />
             <Badge variant={manualPaso1 ? 'warning' : 'neutral'} size="sm">
               {manualPaso1 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>
@@ -1030,17 +1023,7 @@ export const CalentarYCuajarStage7Cueros: React.FC<
           />
 
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualPaso2}
-                onChange={(e) => setManualPaso2(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-amber-300 cursor-pointer"
-              />
-              <span>
-                Habilitar edición manual (Paso 2: Confirmación de Cuajado)
-              </span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso2)} onChange={(checked: boolean) => setManualPaso2(checked)} />
             <Badge variant={manualPaso2 ? 'warning' : 'neutral'} size="sm">
               {manualPaso2 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>
@@ -1222,17 +1205,7 @@ export const CalentarYCuajarStage7Cueros: React.FC<
           )}
 
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-amber-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualPaso3}
-                onChange={(e) => setManualPaso3(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-amber-300 cursor-pointer"
-              />
-              <span>
-                Habilitar edición manual (Paso 3: Corte de la cuajada)
-              </span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso3)} onChange={(checked: boolean) => setManualPaso3(checked)} />
             <Badge variant={manualPaso3 ? 'warning' : 'neutral'} size="sm">
               {manualPaso3 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>
@@ -1393,17 +1366,7 @@ export const CalentarYCuajarStage7Cueros: React.FC<
           )}
 
           <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <label className="flex items-center gap-2.5 text-xs font-bold text-emerald-950 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={manualPaso4}
-                onChange={(e) => setManualPaso4(e.target.checked)}
-                className="w-5 h-5 rounded text-[#1B4E9B] border-emerald-300 cursor-pointer"
-              />
-              <span>
-                Habilitar edición manual (Paso 4: Calentamiento a 40 °C)
-              </span>
-            </label>
+            <ManualEditToggle manual={Boolean(manualPaso4)} onChange={(checked: boolean) => setManualPaso4(checked)} />
             <Badge variant={manualPaso4 ? 'warning' : 'success'} size="sm">
               {manualPaso4 ? 'Modo Manual Activo' : 'Automático'}
             </Badge>

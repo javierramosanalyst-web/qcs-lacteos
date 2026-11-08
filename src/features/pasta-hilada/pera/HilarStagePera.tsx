@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
 import { HilarState, ProcessTimerState } from '../../../types';
 import {
   formatHumanDuration,
@@ -510,23 +511,14 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#D6DEEA] mt-4">
-          <label className="flex items-center gap-2.5 text-xs font-extrabold text-[#434655] cursor-pointer select-none min-h-[40px]">
-            <input
-              type="checkbox"
-              checked={editModePrueba}
-              onChange={(e) => {
-                const checked = e.target.checked;
+          <ManualEditToggle manual={Boolean(editModePrueba)} onChange={(checked: boolean) => {
                 if (checked) {
                   setDraftHoraPrueba(
                     toTimeInputStep1(state.pruebaHilado.horaRegistro)
                   );
                 }
                 setEditModePrueba(checked);
-              }}
-              className="w-5 h-5 rounded accent-[#1B4E9B] cursor-pointer"
-            />
-            <span>Habilitar edición manual</span>
-          </label>
+              }} />
 
           {editModePrueba && (
             <Button
@@ -704,15 +696,7 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
 
         {/* Checkbox inferior de edición manual */}
         <div className="mt-4 pt-3 border-t border-[#D6DEEA]/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <label className="flex items-center gap-2.5 text-xs font-bold text-gray-800 cursor-pointer select-none min-h-[40px]">
-            <input
-              type="checkbox"
-              checked={manualSalmuera}
-              onChange={(e) => setManualSalmuera(e.target.checked)}
-              className="w-5 h-5 rounded text-[#1B4E9B] border-gray-300 cursor-pointer"
-            />
-            <span>Habilitar edición manual</span>
-          </label>
+          <ManualEditToggle manual={Boolean(manualSalmuera)} onChange={(checked: boolean) => setManualSalmuera(checked)} />
 
           {manualSalmuera && (
             <Button
@@ -883,15 +867,7 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
         </div>
 
         <div className="mt-4 pt-3 border-t border-[#D6DEEA]/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <label className="flex items-center gap-2.5 text-xs font-bold text-gray-800 cursor-pointer select-none min-h-[40px]">
-            <input
-              type="checkbox"
-              checked={manualSalmueraFria}
-              onChange={(e) => setManualSalmueraFria(e.target.checked)}
-              className="w-5 h-5 rounded text-cyan-700 border-gray-300 cursor-pointer"
-            />
-            <span>Habilitar edición manual</span>
-          </label>
+          <ManualEditToggle manual={Boolean(manualSalmueraFria)} onChange={(checked: boolean) => setManualSalmueraFria(checked)} />
 
           {manualSalmueraFria && (
             <Button
@@ -1069,12 +1045,7 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[#D6DEEA] mt-4">
-          <label className="flex items-center gap-2.5 text-xs font-extrabold text-[#434655] cursor-pointer select-none min-h-[40px]">
-            <input
-              type="checkbox"
-              checked={editModeHilado}
-              onChange={(e) => {
-                const checked = e.target.checked;
+          <ManualEditToggle manual={Boolean(editModeHilado)} onChange={(checked: boolean) => {
                 if (checked) {
                   setDraftHoraInicioHilado(
                     toTimeInputStep1(state.hiladoEnPaila?.horaInicio)
@@ -1087,11 +1058,7 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
                   );
                 }
                 setEditModeHilado(checked);
-              }}
-              className="w-5 h-5 rounded accent-[#1B4E9B] cursor-pointer"
-            />
-            <span>Habilitar edición manual</span>
-          </label>
+              }} />
 
           {editModeHilado && (
             <Button
