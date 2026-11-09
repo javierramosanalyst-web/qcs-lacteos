@@ -202,9 +202,11 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
   // Paso 4: Temporizador de 40 minutos de reposo del cultivo
   const premaduracionCountdown = useStageCountdown({
     startTime: timestampCultivo,
+    endTimestamp: timestampCuajo,
     targetMinutes: 40,
     isRunning: cultivoAdicionado && !cuajoAdicionado,
     isCompleted: cuajoAdicionado,
+    completedDurationText: duracionReposoCultivoOficial,
   });
   const temporizador40MinCumplido =
     cultivoAdicionado && premaduracionCountdown.remainingSeconds === 0;
@@ -325,6 +327,11 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
   // HANDLERS PASO 2: CONFIRMAR QUE LA LECHE LLEGÓ A 40 °C
   // =========================================================================
   const handleRecordReach40 = () => {
+    if (horaInicioCalentamiento === 'En espera' && !tsInicioCalentamiento) {
+      showToast('Debes iniciar el calentamiento en la etapa anterior antes de registrar 40 °C.', 'warning');
+      return;
+    }
+
     const timeStr = getCurrentTimeString();
     const nowTs = Date.now();
     const duracionStr =
@@ -367,6 +374,11 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
   };
 
   const handleSaveManualReach40 = () => {
+    if (horaInicioCalentamiento === 'En espera' && !tsInicioCalentamiento) {
+      showToast('Debes iniciar el calentamiento en la etapa anterior antes de registrar 40 °C.', 'warning');
+      return;
+    }
+
     const formattedHora = formatTimeFromStep1(draftHora40);
     const duracionStr =
       horaInicioCalentamiento !== 'En espera'
@@ -412,6 +424,11 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
   // HANDLERS PASO 3: ADICIÓN DEL CULTIVO LÁCTICO
   // =========================================================================
   const handleRecordCultivo = () => {
+    if (!llegoA40) {
+      showToast('Confirma primero que la leche llegó a 40 °C antes de agregar el cultivo.', 'warning');
+      return;
+    }
+
     const timeStr = getCurrentTimeString();
     const nowTs = Date.now();
     const cdasFinales =
@@ -440,6 +457,11 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
   };
 
   const handleSaveManualCultivo = () => {
+    if (!llegoA40) {
+      showToast('Confirma primero que la leche llegó a 40 °C antes de agregar el cultivo.', 'warning');
+      return;
+    }
+
     const formattedHora = formatTimeFromStep1(draftHoraCultivo);
     const cdasFinales =
       Number(draftCucharadas) > 0
@@ -474,6 +496,11 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
   // HANDLERS PASO 5: ADICIÓN DEL CUAJO
   // =========================================================================
   const handleRecordCuajo = () => {
+    if (!cultivoAdicionado) {
+      showToast('Debes registrar primero la adición del cultivo láctico antes de agregar el cuajo.', 'warning');
+      return;
+    }
+
     const timeStr = getCurrentTimeString();
     const nowTs = Date.now();
     const cantidadFinal =
@@ -512,6 +539,11 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
   };
 
   const handleSaveManualCuajo = () => {
+    if (!cultivoAdicionado) {
+      showToast('Debes registrar primero la adición del cultivo láctico antes de agregar el cuajo.', 'warning');
+      return;
+    }
+
     const formattedHora = formatTimeFromStep1(draftHoraCuajo);
     const cantidadFinal =
       Number(draftGramosCuajo) > 0 ? Number(draftGramosCuajo) : cuajoCalculado;
@@ -556,6 +588,11 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
   // HANDLERS PASO 6: CONFIRMACIÓN DE CUAJADO
   // =========================================================================
   const handleRecordCuajado = () => {
+    if (!cuajoAdicionado) {
+      showToast('Debes adicionar primero el cuajo antes de confirmar el cuajado.', 'warning');
+      return;
+    }
+
     const timeStr = getCurrentTimeString();
     const nowTs = Date.now();
     const duracionStr =
@@ -585,6 +622,11 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
   };
 
   const handleSaveManualCuajado = () => {
+    if (!cuajoAdicionado) {
+      showToast('Debes adicionar primero el cuajo antes de confirmar el cuajado.', 'warning');
+      return;
+    }
+
     const formattedHora = formatTimeFromStep1(draftHoraCuajado);
     const duracionStr =
       horaCuajoOficial && horaCuajoOficial !== 'En espera'
@@ -621,6 +663,11 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
   // HANDLERS PASO 7: CORTE Y AGITADO SUAVE
   // =========================================================================
   const handleRecordCorte = () => {
+    if (!cuajadoConfirmado) {
+      showToast('Debes confirmar primero el cuajado antes de registrar el corte.', 'warning');
+      return;
+    }
+
     const timeStr = getCurrentTimeString();
     const nowTs = Date.now();
     const duracionStr =
@@ -651,6 +698,11 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
   };
 
   const handleSaveManualCorte = () => {
+    if (!cuajadoConfirmado) {
+      showToast('Debes confirmar primero el cuajado antes de registrar el corte.', 'warning');
+      return;
+    }
+
     const formattedHora = formatTimeFromStep1(draftHoraCorte);
     const duracionStr =
       horaCuajadoOficial && horaCuajadoOficial !== 'En espera'
@@ -688,6 +740,11 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
   // HANDLERS PASO 9: CONFIRMACIÓN DE pH 5.8
   // =========================================================================
   const handleRecordPh58 = () => {
+    if (!corteTerminado) {
+      showToast('Debes registrar primero el corte antes de finalizar el reposo a pH 5.80.', 'warning');
+      return;
+    }
+
     const timeStr = getCurrentTimeString();
     const nowTs = Date.now();
     const duracionStr =
@@ -724,6 +781,11 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
   };
 
   const handleSaveManualPh58 = () => {
+    if (!corteTerminado) {
+      showToast('Debes registrar primero el corte antes de finalizar el reposo a pH 5.80.', 'warning');
+      return;
+    }
+
     const formattedHora = formatTimeFromStep1(draftHoraPh58);
     const valPh = Number(draftPhFinal) || 5.8;
     const duracionStr =

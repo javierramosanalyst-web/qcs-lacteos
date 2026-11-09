@@ -132,7 +132,7 @@ INSERT INTO tipos_insumo (codigo, nombre, unidad_base, gestionable_admin) VALUES
   ('estevia', 'Estevia', 'g', TRUE),
   ('acido_acetico', 'Ácido acético', 'ml', TRUE),
   ('agua', 'Agua', 'ml', FALSE),
-  ('especia', 'Especia', 'g', FALSE),
+  ('especia', 'Especia', 'g', TRUE),
   ('arequipe', 'Arequipe', 'g', FALSE),
   ('bocadillo', 'Bocadillo', 'g', FALSE);
 

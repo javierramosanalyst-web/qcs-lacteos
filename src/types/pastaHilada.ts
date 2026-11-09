@@ -408,12 +408,14 @@ export interface EspeciaPesaje {
   pesoInicialGramos: number;
   pesoFinalGramos: number;
   pesoUtilizadoGramos: number;
+  lote?: string;
 }
 
 export interface DerivacionPastaResultante {
   habilitado: boolean;
   codigoLote: string;
   loteBaseOrigen: string;
+  loteEspecia?: string; // Lote de la especia utilizada (Finas Hierbas o general)
   pesoInicialGramos: number; // Insumo total o suma de especias
   pesoFinalGramos: number;
   pesoUtilizadoGramos: number;

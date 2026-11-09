@@ -324,9 +324,9 @@ function collectInsumos(b: Json): Insumo[] {
     const ins = b.acidificar?.insumos ?? {};
     const cy = b.calentarYCuajar ?? {};
     const h = b.hilar ?? {};
-    add('acidificar', 'leche_fresca', 'Leche fresca', l.loteLecheFresca || l.loteLeche1, 'L', ins.lecheFresca ?? l.litrosConfirmados, false, null);
-    add('calentar-y-cuajar', 'cultivo_lactico', 'Cultivo láctico', cy.cultivoLacticoPera?.loteCultivo || ins.loteCultivoLacteo || l.loteCultivoLacteo, 'cdas', cy.cultivoLacticoPera?.cucharadas ?? ins.cultivoLacteoUnidades, cy.cultivoLacticoPera?.esManual === true, cy.cultivoLacticoPera?.timestamp);
-    add('calentar-y-cuajar', 'cuajo', 'Cuajo (Pera)', cy.adicionCuajo?.loteCuajo || b.loteCuajoPera || l.loteCuajoPera, 'g', cy.adicionCuajo?.cantidadGramos, cy.adicionCuajo?.esManual === true, cy.adicionCuajo?.timestampCuajo);
+    add('acidificar', 'leche_fresca', 'Leche fresca', l.loteLecheFresca || l.loteLeche1 || b.loteLeche, 'L', ins.lecheFresca ?? l.litrosConfirmados ?? b.litrosLeche, false, null);
+    add('calentar-y-cuajar', 'cultivo_lactico', 'Cultivo láctico', cy.cultivoLacticoPera?.loteCultivo || ins.loteCultivoLacteo || l.loteCultivoLacteo || b.loteCultivo, 'cdas', cy.cultivoLacticoPera?.cucharadas ?? ins.cultivoLacteoUnidades, cy.cultivoLacticoPera?.esManual === true, cy.cultivoLacticoPera?.timestamp);
+    add('calentar-y-cuajar', 'cuajo', 'Cuajo (Pera)', cy.adicionCuajo?.loteCuajo || b.loteCuajoPera || l.loteCuajoPera || b.loteCuajo, 'g', cy.adicionCuajo?.cantidadGramos, cy.adicionCuajo?.esManual === true, cy.adicionCuajo?.timestampCuajo);
     if (h.salmuera?.lista || h.sal?.registrado) {
       add('hilar', 'sal', 'Sal (salmuera caliente)', h.salmuera?.loteSal || h.sal?.loteSal || b.loteSal, 'g', h.salmuera?.cantidadSalGramos ?? h.sal?.cantidadGramos, h.sal?.esManual === true, null);
     }
@@ -410,21 +410,36 @@ function collectDerivaciones(b: Json, loteBase: string): Derivacion[] {
     const codigo = str(d.codigoLote) || `${loteBase}-${sufijo}`;
     const detalle: Derivacion['insumos'] = [];
     for (const [k, e] of Object.entries(especias ?? {})) {
-      const ew = pesoUsado(num((e as Json)?.pesoInicialGramos), num((e as Json)?.pesoFinalGramos), (e as Json)?.pesoUtilizadoGramos);
-      if (ew.usado > 0) detalle.push({ tipo: tipoInsumo, nombre: especiasNombres[k] ?? k, codigo: 'SIN-LOTE', ...ew });
+      const ej = e as Json;
+      const ew = pesoUsado(num(ej?.pesoInicialGramos), num(ej?.pesoFinalGramos), ej?.pesoUtilizadoGramos);
+      const loteEsp = str(ej?.lote) || str(d?.loteEspecia) || 'SIN-LOTE';
+      if (ew.usado > 0 || loteEsp !== 'SIN-LOTE') {
+        detalle.push({ tipo: tipoInsumo, nombre: especiasNombres[k] ?? k, codigo: loteEsp, ...ew });
+      }
     }
     const pres: { formato: string; unidades: number }[] = [];
     for (const g of [100, 200, 350]) {
       const n = num(d[`moldes${g}g`]);
       if (n && n > 0) pres.push({ formato: `moldes${g}g`, unidades: Math.round(n) });
     }
+    if (pres.length === 0 && num(d.unidades)) {
+      pres.push({ formato: 'moldes350g', unidades: Math.round(num(d.unidades)!) });
+    }
+    let totalPesoKg = 0;
+    for (const p of pres) {
+      const match = p.formato.match(/moldes(\d+)g/);
+      const g = match ? Number(match[1]) : 350;
+      totalPesoKg += (p.unidades * g) / 1000;
+    }
+    const finalPesoKg = totalPesoKg > 0 ? Math.round(totalPesoKg * 100) / 100 : null;
+    const loteDeriv = str(d.loteEspecia) || 'SIN-LOTE';
     out.push({
       tipo,
       codigo,
       origen: str(d.loteBaseOrigen) || loteBase,
-      pesoKg: null,
+      pesoKg: finalPesoKg,
       manual: d.edicionManualAvanzada === true,
-      insumos: detalle.length > 0 ? detalle : w.usado > 0 ? [{ tipo: tipoInsumo, nombre: nombreInsumo, codigo: 'SIN-LOTE', ...w }] : [],
+      insumos: detalle.length > 0 ? detalle : (w.usado > 0 || loteDeriv !== 'SIN-LOTE') ? [{ tipo: tipoInsumo, nombre: nombreInsumo, codigo: loteDeriv, ...w }] : [],
       presentaciones: pres,
     });
   };
@@ -435,11 +450,12 @@ function collectDerivaciones(b: Json, loteBase: string): Derivacion[] {
     const w = pesoUsado(num(d.pesoInicialGramos), num(d.pesoFinalGramos), d.pesoUtilizadoGramos);
     const codigo = str(d[loteKey]) || 'SIN-LOTE';
     const n = num(d.moldes60g);
+    const pesoDerivado = n && n > 0 ? Math.round(((n * 60) / 1000) * 100) / 100 : null;
     out.push({
       tipo,
       codigo,
       origen: loteBase,
-      pesoKg: null,
+      pesoKg: pesoDerivado,
       manual: false,
       insumos: w.usado > 0 || codigo !== 'SIN-LOTE' ? [{ tipo: tipoInsumo, nombre, codigo, ...w }] : [],
       presentaciones: n && n > 0 ? [{ formato, unidades: Math.round(n) }] : [],
@@ -547,9 +563,11 @@ export async function normalizeBatchTraceability(
 
   const moldes: Json = b.moldesDesglose ?? {};
   const moldesValidos7C = ['moldes7Cueros350g', 'moldesTrenza350g'];
+  const moldesValidosPera = ['moldesPeraGrande350g', 'moldesPeraPequeno60g'];
   for (const [key, value] of Object.entries(moldes)) {
     if (!/^moldes.+/.test(key)) continue;
     if (is7C(b) && !moldesValidos7C.includes(key)) continue;
+    if (isPera(b) && !moldesValidosPera.includes(key)) continue;
     const n = num(value);
     if (n && n > 0) await insertPresentacion(key, Math.round(n), null, moldes.esPesoManual === true);
   }
