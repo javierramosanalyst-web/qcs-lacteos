@@ -62,7 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         {currentView !== 'batch_process' && (
-          <img src="/brand/logo-texto.jpg" alt="Lácteos Colombia" className="h-10 rounded-lg object-contain hidden sm:block" />
+          <img src="/brand/logo-texto.jpg" alt="Lácteos Colombia" className="h-8 sm:h-10 rounded-lg object-contain shrink-0" />
         )}
 
         {currentView === 'batch_process' ? (
@@ -73,7 +73,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-xs font-semibold text-[#143A73] hidden sm:inline truncate">{batch.productName}</span>
           </div>
         ) : (
-          <span className="text-xs font-bold text-[#143A73] hidden md:inline">
+          <span className="text-[10px] sm:text-xs font-bold text-[#143A73] truncate min-w-0">
             {currentView === 'admin_dashboard'
               ? 'Panel de Supervisor'
               : currentView === 'operator_line_select'
