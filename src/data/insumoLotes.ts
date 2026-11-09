@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-export type InsumoTipo = 'leche_fresca' | 'cultivo' | 'cuajo' | 'sal' | 'azucar' | 'saborizante' | 'colorante' | 'estevia' | 'acido_acetico' | 'especia';
+export type InsumoTipo = 'leche_fresca' | 'cultivo' | 'cuajo' | 'sal' | 'azucar' | 'saborizante' | 'colorante' | 'estevia' | 'acido_acetico' | 'especia' | 'arequipe' | 'bocadillo';
 
 export interface InsumoLoteRow {
   id: string;
@@ -25,6 +25,8 @@ export const LOTES_COLORANTE_CATALOG: string[] = [];
 export const LOTES_ESTEVIA_CATALOG: string[] = [];
 export const LOTES_ACIDO_ACETICO_CATALOG: string[] = [];
 export const LOTES_ESPECIA_CATALOG: string[] = [];
+export const LOTES_AREQUIPE_CATALOG: string[] = [];
+export const LOTES_BOCADILLO_CATALOG: string[] = [];
 export const SABORES_YOGUR_CATALOG: string[] = [];
 
 export interface SaborYogurRow {
@@ -44,6 +46,8 @@ const BY_TIPO: Record<InsumoTipo, string[]> = {
   estevia: LOTES_ESTEVIA_CATALOG,
   acido_acetico: LOTES_ACIDO_ACETICO_CATALOG,
   especia: LOTES_ESPECIA_CATALOG,
+  arequipe: LOTES_AREQUIPE_CATALOG,
+  bocadillo: LOTES_BOCADILLO_CATALOG,
 };
 
 let version = 0;

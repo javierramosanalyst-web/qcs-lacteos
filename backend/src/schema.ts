@@ -58,8 +58,8 @@ INSERT INTO tipos_insumo (codigo, nombre, unidad_base, gestionable_admin) VALUES
   ('acido_acetico', 'Ácido acético', 'ml', TRUE),
   ('agua', 'Agua', 'ml', FALSE),
   ('especia', 'Especia', 'g', TRUE),
-  ('arequipe', 'Arequipe', 'g', FALSE),
-  ('bocadillo', 'Bocadillo', 'g', FALSE)
+  ('arequipe', 'Arequipe', 'g', TRUE),
+  ('bocadillo', 'Bocadillo', 'g', TRUE)
 ON CONFLICT (codigo) DO NOTHING;
 
 -- La Stevia se registra por lotes en Insumos (bases creadas antes la tenían como no gestionable).
@@ -71,8 +71,17 @@ UPDATE tipos_insumo SET gestionable_admin = TRUE WHERE codigo = 'acido_acetico' 
 -- Las especias se registran por lotes para Queso Mexicano y Finas Hierbas.
 UPDATE tipos_insumo SET gestionable_admin = TRUE WHERE codigo = 'especia' AND gestionable_admin = FALSE;
 
+-- Arequipe y Bocadillo se registran por lotes para Quesadillas (7 Cueros).
+UPDATE tipos_insumo SET gestionable_admin = TRUE WHERE codigo IN ('arequipe', 'bocadillo') AND gestionable_admin = FALSE;
+
 INSERT INTO insumos_catalogo (codigo, nombre, tipo_insumo, unidad_base)
 VALUES ('INS-ACIDO-ACETICO', 'Ácido acético', 'acido_acetico', 'ml')
+ON CONFLICT (codigo) DO NOTHING;
+
+INSERT INTO insumos_catalogo (codigo, nombre, tipo_insumo, unidad_base)
+VALUES
+  ('INS-AREQUIPE', 'Arequipe', 'arequipe', 'g'),
+  ('INS-BOCADILLO', 'Bocadillo', 'bocadillo', 'g')
 ON CONFLICT (codigo) DO NOTHING;
 
 INSERT INTO tipos_insumo (codigo, nombre, unidad_base)

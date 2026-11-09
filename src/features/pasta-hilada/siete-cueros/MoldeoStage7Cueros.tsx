@@ -9,85 +9,14 @@ import {
   Button,
   Card,
   InputField,
+  SelectField,
   StageHeader,
 } from '../../../components/ui';
-
-const DIGITO_LETRA = 'JABCDEFGHI';
-const MES_LETRA = 'ABCDEFGHIJKL';
-
-const aLetras = (n: number) =>
-  String(n)
-    .split('')
-    .map((d) => DIGITO_LETRA[Number(d)])
-    .join('');
-
-const hoyIso = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-
-const sugerirLoteMaquilado = (fechaIso?: string): string => {
-  const [y, m, d] = (fechaIso || hoyIso()).split('-').map(Number);
-  if (!y || !m || !d) return '';
-  const codigo = `${aLetras(d)}${MES_LETRA[m - 1]}${aLetras(y % 100)}`;
-  return `${codigo}-${new Date().getDate()}`;
-};
-
-interface LoteMaquiladoFieldProps {
-  label: string;
-  lote: string;
-  fechaProveedor?: string;
-  manual?: boolean;
-  onChange: (partial: { lote?: string; fechaProveedor?: string; manual?: boolean }) => void;
-}
-
-const LoteMaquiladoField: React.FC<LoteMaquiladoFieldProps> = ({
-  label,
-  lote,
-  fechaProveedor,
-  manual,
-  onChange,
-}) => (
-  <div className="flex flex-col gap-2.5 p-3 rounded-xl bg-white border border-[#D6DEEA]">
-    <InputField
-      label="Fecha del lote del proveedor"
-      type="date"
-      value={fechaProveedor || hoyIso()}
-      disabled={Boolean(manual)}
-      onChange={(e) => {
-        const f = e.target.value;
-        onChange({ fechaProveedor: f, lote: sugerirLoteMaquilado(f) });
-      }}
-    />
-    <InputField
-      label={label}
-      type="text"
-      placeholder="Ej: ABHBD-22"
-      value={lote || (manual ? '' : sugerirLoteMaquilado(fechaProveedor))}
-      readOnly={!manual}
-      helperText={
-        manual
-          ? 'Escribe el lote tal como aparece en el empaque'
-          : 'Sugerido: fecha del proveedor codificada + día de recepción'
-      }
-      onChange={(e) => onChange({ lote: e.target.value.toUpperCase() })}
-    />
-    <label className="flex items-center gap-2 text-xs font-bold text-gray-700 cursor-pointer select-none">
-      <input
-        type="checkbox"
-        checked={Boolean(manual)}
-        onChange={(e) =>
-          onChange({
-            manual: e.target.checked,
-            lote: e.target.checked ? lote : sugerirLoteMaquilado(fechaProveedor),
-          })
-        }
-        className="w-4 h-4 rounded cursor-pointer"
-      />
-      Escribir el lote manualmente
-    </label>
-  </div>
-);
+import {
+  LOTES_AREQUIPE_CATALOG,
+  LOTES_BOCADILLO_CATALOG,
+  useInsumoLotesVersion,
+} from '../../../data/insumoLotes';
 
 export interface MoldeoStage7CuerosProps {
   batch: BatchData;
@@ -214,6 +143,18 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
     Boolean(batch.moldesDesglose?.confirmado)
   );
 
+  useInsumoLotesVersion();
+
+  const optionsArequipe =
+    arequipeState.loteArequipe && !LOTES_AREQUIPE_CATALOG.includes(arequipeState.loteArequipe)
+      ? [arequipeState.loteArequipe, ...LOTES_AREQUIPE_CATALOG]
+      : LOTES_AREQUIPE_CATALOG;
+
+  const optionsBocadillo =
+    bocadilloState.loteBocadillo && !LOTES_BOCADILLO_CATALOG.includes(bocadilloState.loteBocadillo)
+      ? [bocadilloState.loteBocadillo, ...LOTES_BOCADILLO_CATALOG]
+      : LOTES_BOCADILLO_CATALOG;
+
   const syncWithBatch = (
     next7Cueros: number,
     nextTrenza: number,
@@ -239,11 +180,11 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
       confirmedOverride !== undefined ? confirmedOverride : moldesConfirmados;
 
     const nextDesglose: MoldesDesglose = {
-      moldes100g: uArq,
-      moldes200g: uBoc,
-      moldes400g: u7,
+      moldes100g: 0,
+      moldes200g: 0,
+      moldes400g: 0,
       moldes800g: 0,
-      moldes1600g: uTr,
+      moldes1600g: 0,
       moldes7Cueros350g: u7,
       moldesTrenza350g: uTr,
       moldesQuesadillaBocadillo60g: uBoc,
@@ -276,6 +217,14 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
   };
 
   const handleConfirmarMoldes = () => {
+    if (isArequipeHabilitado && mQuesadillaArequipe > 0 && !arequipeState.loteArequipe) {
+      if (showToast) showToast('Selecciona el lote de arequipe desde el menú desplegable.', 'warning');
+      return;
+    }
+    if (isBocadilloHabilitado && mQuesadillaBocadillo > 0 && !bocadilloState.loteBocadillo) {
+      if (showToast) showToast('Selecciona el lote de bocadillo desde el menú desplegable.', 'warning');
+      return;
+    }
     setMoldesConfirmados(true);
     syncWithBatch(m7Cueros, mTrenza, deriv, true);
     if (showToast) {
@@ -600,13 +549,6 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                     onChange={(e) =>
                       updateBocadillo({
                         habilitado: e.target.checked,
-                        ...(e.target.checked && !bocadilloState.loteBocadillo
-                          ? {
-                              loteBocadillo: sugerirLoteMaquilado(
-                                bocadilloState.fechaLoteProveedor
-                              ),
-                            }
-                          : {}),
                       })
                     }
                     className="w-5 h-5 rounded accent-amber-600 cursor-pointer"
@@ -648,17 +590,16 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                     }}
                   />
 
-                  <LoteMaquiladoField
-                    label="Lote de Bocadillo Veleño"
-                    lote={bocadilloState.loteBocadillo || ''}
-                    fechaProveedor={bocadilloState.fechaLoteProveedor}
-                    manual={bocadilloState.loteManual}
-                    onChange={(p) =>
-                      updateBocadillo({
-                        ...(p.lote !== undefined ? { loteBocadillo: p.lote } : {}),
-                        ...(p.fechaProveedor !== undefined ? { fechaLoteProveedor: p.fechaProveedor } : {}),
-                        ...(p.manual !== undefined ? { loteManual: p.manual } : {}),
-                      })
+                  <SelectField
+                    label="Lote de Bocadillo (Proveedor)"
+                    icon="bakery_dining"
+                    value={bocadilloState.loteBocadillo || ''}
+                    options={optionsBocadillo.map((l) => ({
+                      value: l,
+                      label: `Lote ${l}`,
+                    }))}
+                    onChange={(e) =>
+                      updateBocadillo({ loteBocadillo: e.target.value })
                     }
                   />
 
@@ -689,9 +630,9 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                             if (showToast) showToast('Ingresa la cantidad de quesadillas de bocadillo.', 'warning');
                             return;
                           }
-                          const loteBoc = (bocadilloState.loteBocadillo || '').trim() || (bocadilloState.loteManual ? '' : sugerirLoteMaquilado(bocadilloState.fechaLoteProveedor));
+                          const loteBoc = (bocadilloState.loteBocadillo || '').trim();
                           if (!loteBoc) {
-                            if (showToast) showToast('Falta el lote de bocadillo.', 'warning');
+                            if (showToast) showToast('Selecciona el lote de bocadillo desde el menú desplegable.', 'warning');
                             return;
                           }
                           updateBocadillo({ registroGuardado: true, loteBocadillo: loteBoc });
@@ -764,13 +705,6 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                     onChange={(e) =>
                       updateArequipe({
                         habilitado: e.target.checked,
-                        ...(e.target.checked && !arequipeState.loteArequipe
-                          ? {
-                              loteArequipe: sugerirLoteMaquilado(
-                                arequipeState.fechaLoteProveedor
-                              ),
-                            }
-                          : {}),
                       })
                     }
                     className="w-5 h-5 rounded accent-amber-600 cursor-pointer"
@@ -812,17 +746,16 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                     }}
                   />
 
-                  <LoteMaquiladoField
-                    label="Lote de Arequipe Tradicional"
-                    lote={arequipeState.loteArequipe || ''}
-                    fechaProveedor={arequipeState.fechaLoteProveedor}
-                    manual={arequipeState.loteManual}
-                    onChange={(p) =>
-                      updateArequipe({
-                        ...(p.lote !== undefined ? { loteArequipe: p.lote } : {}),
-                        ...(p.fechaProveedor !== undefined ? { fechaLoteProveedor: p.fechaProveedor } : {}),
-                        ...(p.manual !== undefined ? { loteManual: p.manual } : {}),
-                      })
+                  <SelectField
+                    label="Lote de Arequipe (Proveedor)"
+                    icon="cake"
+                    value={arequipeState.loteArequipe || ''}
+                    options={optionsArequipe.map((l) => ({
+                      value: l,
+                      label: `Lote ${l}`,
+                    }))}
+                    onChange={(e) =>
+                      updateArequipe({ loteArequipe: e.target.value })
                     }
                   />
 
@@ -879,9 +812,9 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
                             if (showToast) showToast('Ingresa la cantidad de quesadillas de arequipe.', 'warning');
                             return;
                           }
-                          const loteArq = (arequipeState.loteArequipe || '').trim() || (arequipeState.loteManual ? '' : sugerirLoteMaquilado(arequipeState.fechaLoteProveedor));
+                          const loteArq = (arequipeState.loteArequipe || '').trim();
                           if (!loteArq) {
-                            if (showToast) showToast('Falta el lote de arequipe.', 'warning');
+                            if (showToast) showToast('Selecciona el lote de arequipe desde el menú desplegable.', 'warning');
                             return;
                           }
                           updateArequipe({ registroGuardado: true, loteArequipe: loteArq });

@@ -133,8 +133,8 @@ INSERT INTO tipos_insumo (codigo, nombre, unidad_base, gestionable_admin) VALUES
   ('acido_acetico', 'Ácido acético', 'ml', TRUE),
   ('agua', 'Agua', 'ml', FALSE),
   ('especia', 'Especia', 'g', TRUE),
-  ('arequipe', 'Arequipe', 'g', FALSE),
-  ('bocadillo', 'Bocadillo', 'g', FALSE);
+  ('arequipe', 'Arequipe', 'g', TRUE),
+  ('bocadillo', 'Bocadillo', 'g', TRUE);
 
 CREATE TABLE insumos_catalogo (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
