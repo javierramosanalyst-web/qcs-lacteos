@@ -61,6 +61,7 @@ interface LocalBackup {
   stage?: StageId;
   sig: string;
   ts: number;
+  userId?: string;
 }
 
 const BACKUP_DB = 'qcs_respaldo';
@@ -133,6 +134,11 @@ const writeBackup = (productId: string, backup: LocalBackup) => {
 const clearBackup = (productId: string) => {
   backupStore.delete(productId);
   void escribirRespaldoDisco(productId, null);
+};
+
+const esDelUsuario = (backup: LocalBackup, userId: string | undefined): boolean => {
+  if (!backup.userId || !userId) return true;
+  return backup.userId === userId;
 };
 
 const isStarted = (b: AnyBatch) =>
@@ -222,6 +228,7 @@ export function useBatchPersistence({
 
   const aplicarRespaldo = useCallback(
     (productId: string, p: PersistedProduct, backup: LocalBackup) => {
+      if (!esDelUsuario(backup, userRef.current?.id)) return;
       const current = versions.current[productId] !== undefined ? lastSaved.current[productId] : undefined;
       if (current === backup.sig) {
         clearBackup(productId);
@@ -253,12 +260,34 @@ export function useBatchPersistence({
           void escribirRespaldoDisco(productId, null);
           return;
         }
+        if (!esDelUsuario(desdeDisco, userRef.current?.id)) return;
         backupStore.set(productId, desdeDisco);
         aplicarRespaldo(productId, p, desdeDisco);
       });
     },
     [aplicarRespaldo]
   );
+
+  const restoreAllBackups = useCallback(async () => {
+    for (const p of productsRef.current) {
+      const pid = p.productId;
+      if (versions.current[pid] !== undefined) continue;
+      const enMemoria = readBackup(pid);
+      if (enMemoria) {
+        aplicarRespaldo(pid, p, enMemoria);
+        continue;
+      }
+      const desdeDisco = await leerRespaldoDisco(pid);
+      if (!desdeDisco || !desdeDisco.batch) continue;
+      if (Date.now() - desdeDisco.ts > BACKUP_MAX_AGE_MS) {
+        void escribirRespaldoDisco(pid, null);
+        continue;
+      }
+      if (!esDelUsuario(desdeDisco, userRef.current?.id)) continue;
+      backupStore.set(pid, desdeDisco);
+      aplicarRespaldo(pid, p, desdeDisco);
+    }
+  }, [aplicarRespaldo]);
 
   const loadFromServer = useCallback(
     async (initial: boolean) => {
@@ -352,11 +381,14 @@ export function useBatchPersistence({
       .catch(() => {
         if (!cancelled) {
           setSyncStatus('offline');
-          showToast('No se pudieron cargar los lotes guardados. Reintentando…', 'warning');
+          showToast('No se pudieron cargar los lotes guardados. Reintentando...', 'warning');
+          void restoreAllBackups().then(() => {
+            if (!cancelled) setHydrated(true);
+          });
           const retry = (attempt: number) => {
             retryLoad = window.setTimeout(() => {
               if (cancelled) return;
-              loadFromServer(true)
+              loadFromServer(false)
                 .then(() => {
                   if (!cancelled) {
                     setHydrated(true);
@@ -373,7 +405,7 @@ export function useBatchPersistence({
       cancelled = true;
       if (retryLoad !== undefined) window.clearTimeout(retryLoad);
     };
-  }, [enabled, loadFromServer, showToast]);
+  }, [enabled, loadFromServer, restoreAllBackups, showToast]);
 
   useEffect(() => {
     if (!enabled || !hydrated) return;
@@ -530,7 +562,7 @@ export function useBatchPersistence({
       const stage = stagesRef.current[pid];
       const sig = signature(p.state, stage);
       if (lastSaved.current[pid] === sig) continue;
-      writeBackup(pid, { batch: p.state, stage, sig, ts: Date.now() });
+      writeBackup(pid, { batch: p.state, stage, sig, ts: Date.now(), userId: userRef.current?.id });
     }
   }, [sigs, enabled, hydrated]);
 
@@ -543,7 +575,8 @@ export function useBatchPersistence({
         if (completed.current[pid] || !isStarted(p.state) || p.state.status === 'COMPLETADO') continue;
         const stage = stagesRef.current[pid];
         const sig = signature(p.state, stage);
-        if (lastSaved.current[pid] !== sig) writeBackup(pid, { batch: p.state, stage, sig, ts: Date.now() });
+        if (lastSaved.current[pid] !== sig)
+          writeBackup(pid, { batch: p.state, stage, sig, ts: Date.now(), userId: userRef.current?.id });
       }
     };
     window.addEventListener('online', goOnline);

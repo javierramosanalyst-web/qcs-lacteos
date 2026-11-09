@@ -11,15 +11,15 @@ import { INITIAL_PRODUCTS } from '../data/initialData';
 import type { InsumoLoteRow, InsumoTipo, SaborYogurRow } from '../data/insumoLotes';
 
 const SESSION_FLAG = 'qcs_sesion';
+const SESSION_HINT_KEY = 'qcs_sesion_hint';
 const API_BASE = '/api';
 
-const LEGACY_LOCAL_KEYS = ['qcs_token', 'qcs_view', 'qcs_line', 'qcs_product', 'qcs_last_activity'];
+const LEGACY_LOCAL_KEYS = ['qcs_token'];
 try {
   LEGACY_LOCAL_KEYS.forEach((key) => localStorage.removeItem(key));
   Object.keys(localStorage)
     .filter((key) => key.startsWith('qcs_backup_'))
     .forEach((key) => localStorage.removeItem(key));
-  if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('qcs_respaldo');
 } catch {
   void 0;
 }
@@ -40,9 +40,48 @@ export class ApiError extends Error {
   }
 }
 
-export const hasSession = (): boolean => sessionStorage.getItem(SESSION_FLAG) === '1';
+export const hasSession = (): boolean => {
+  try {
+    return localStorage.getItem(SESSION_FLAG) === '1' || sessionStorage.getItem(SESSION_FLAG) === '1';
+  } catch {
+    return sessionStorage.getItem(SESSION_FLAG) === '1';
+  }
+};
 export const clearToken = (): void => {
   sessionStorage.removeItem(SESSION_FLAG);
+  try {
+    localStorage.removeItem(SESSION_FLAG);
+  } catch {
+    void 0;
+  }
+};
+
+export const saveSessionHint = (u: ApiUser): void => {
+  try {
+    localStorage.setItem(SESSION_HINT_KEY, JSON.stringify({ ...u, ts: Date.now() }));
+  } catch {
+    void 0;
+  }
+};
+
+export const readSessionHint = (): ApiUser | null => {
+  try {
+    const raw = localStorage.getItem(SESSION_HINT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ApiUser & { ts?: number };
+    if (!parsed?.id || !parsed?.codigo_empleado) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+
+export const clearSessionHint = (): void => {
+  try {
+    localStorage.removeItem(SESSION_HINT_KEY);
+  } catch {
+    void 0;
+  }
 };
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -98,6 +137,12 @@ export async function loginRequest(code: string, password: string): Promise<User
     body: JSON.stringify({ codigo_empleado: code, password_o_pin: password }),
   });
   sessionStorage.setItem(SESSION_FLAG, '1');
+  try {
+    localStorage.setItem(SESSION_FLAG, '1');
+  } catch {
+    void 0;
+  }
+  saveSessionHint(data.user);
   return toProfile(data.user);
 }
 
@@ -105,12 +150,16 @@ export async function logoutRequest(): Promise<void> {
   try {
     await apiFetch('/auth/logout', { method: 'POST' });
   } catch {
-    return;
+    void 0;
+  } finally {
+    clearToken();
+    clearSessionHint();
   }
 }
 
 export async function meRequest(): Promise<UserProfile> {
   const data = await apiFetch<{ user: ApiUser }>('/auth/me');
+  saveSessionHint(data.user);
   return toProfile(data.user);
 }
 

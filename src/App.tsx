@@ -22,6 +22,7 @@ import {
   BatchDetail,
   BatchHistoryRow,
   clearToken,
+  clearSessionHint,
   deactivateLineRequest,
   deactivateUserRequest,
   discardDraftRequest,
@@ -38,7 +39,9 @@ import {
   hasSession,
   logoutRequest,
   meRequest,
+  readSessionHint,
   rectifyRequest,
+  toProfile,
 } from './api/client';
 import type { OpenDraftRow } from './api/client';
 import { useBatchManager } from './hooks/useBatchManager';
@@ -194,38 +197,83 @@ export default function App() {
   useEffect(() => {
     if (!hasSession()) return;
     const splashStart = Date.now();
-    const lastAct = Number(sessionStorage.getItem(ACTIVITY_KEY) || 0);
+    const lastAct = Number(
+      localStorage.getItem(ACTIVITY_KEY) || sessionStorage.getItem(ACTIVITY_KEY) || 0
+    );
     if (lastAct && Date.now() - lastAct >= IDLE_LIMIT_MS) {
       clearToken();
+      clearSessionHint();
+      localStorage.removeItem(ACTIVITY_KEY);
       sessionStorage.removeItem(ACTIVITY_KEY);
       setRestoring(false);
       return;
     }
     let cancelled = false;
+    let retryTimer: number | undefined;
+
+    const entrar = (user: UserProfile, silent = false) => {
+      setCurrentUser(user);
+      setUserRole(user.role);
+      setIsAuthenticated(true);
+      if (user.role === 'operador') assignOperatorToAllBatches(user);
+      const savedProduct = sessionStorage.getItem('qcs_product');
+      const savedLine = sessionStorage.getItem('qcs_line');
+      const savedView = sessionStorage.getItem('qcs_view') as AppView | null;
+      if (savedProduct) selectProductBatch(savedProduct, true);
+      if (savedLine) setSelectedLineId(savedLine);
+      const fallback: AppView = user.role === 'administrador' ? 'admin_dashboard' : 'operator_line_select';
+      const view =
+        savedView && (savedView !== 'admin_dashboard' || user.role === 'administrador')
+          ? savedView
+          : fallback;
+      setCurrentView(view);
+      void loadCatalogs(user.role, silent);
+    };
+
+    const reintentar = (attempt: number) => {
+      retryTimer = window.setTimeout(() => {
+        if (cancelled) return;
+        meRequest()
+          .then((user) => {
+            if (cancelled) return;
+            entrar(user);
+            showToast('Conexión restablecida con el servidor. Tus cambios se están sincronizando.', 'success');
+          })
+          .catch((err) => {
+            if (cancelled) return;
+            if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+              clearToken();
+              clearSessionHint();
+              setIsAuthenticated(false);
+              setCurrentUser(null);
+              showToast('Tu sesión venció. Ingresa de nuevo.', 'warning');
+              return;
+            }
+            reintentar(Math.min(attempt + 1, 12));
+          });
+      }, Math.min(5000 * attempt, 30000));
+    };
+
     meRequest()
       .then((user) => {
         if (cancelled) return;
-        setCurrentUser(user);
-        setUserRole(user.role);
-        setIsAuthenticated(true);
-        if (user.role === 'operador') assignOperatorToAllBatches(user);
-        const savedProduct = sessionStorage.getItem('qcs_product');
-        const savedLine = sessionStorage.getItem('qcs_line');
-        const savedView = sessionStorage.getItem('qcs_view') as AppView | null;
-        if (savedProduct) selectProductBatch(savedProduct, true);
-        if (savedLine) setSelectedLineId(savedLine);
-        const fallback: AppView = user.role === 'administrador' ? 'admin_dashboard' : 'operator_line_select';
-        const view =
-          savedView && (savedView !== 'admin_dashboard' || user.role === 'administrador')
-            ? savedView
-            : fallback;
-        setCurrentView(view);
-        void loadCatalogs(user.role);
+        entrar(user);
       })
       .catch((err) => {
         if (cancelled) return;
         if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
           clearToken();
+          clearSessionHint();
+          return;
+        }
+        const hint = readSessionHint();
+        if (hint) {
+          entrar(toProfile(hint), true);
+          showToast(
+            'Sin conexión con el servidor. Sigues en tu sesión y tu avance se guarda en este equipo hasta reconectar.',
+            'warning'
+          );
+          reintentar(1);
         } else {
           showToast('No hay conexión con el servidor. Vuelve a intentar en unos segundos.', 'warning');
         }
@@ -238,6 +286,7 @@ export default function App() {
       });
     return () => {
       cancelled = true;
+      if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
   }, []);
 
@@ -401,8 +450,10 @@ export default function App() {
 
   const handleLogout = (reason?: string) => {
     clearToken();
+    clearSessionHint();
     void logoutRequest();
     sessionStorage.removeItem(ACTIVITY_KEY);
+    localStorage.removeItem(ACTIVITY_KEY);
     setCurrentView('operator_line_select');
     setUserRole('operador');
     sessionStorage.removeItem('qcs_view');
@@ -421,7 +472,15 @@ export default function App() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    const touch = () => sessionStorage.setItem(ACTIVITY_KEY, String(Date.now()));
+    const touch = () => {
+      const now = String(Date.now());
+      sessionStorage.setItem(ACTIVITY_KEY, now);
+      try {
+        localStorage.setItem(ACTIVITY_KEY, now);
+      } catch {
+        void 0;
+      }
+    };
     touch();
     const events = ['mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
     let last = 0;
@@ -433,7 +492,9 @@ export default function App() {
     };
     events.forEach((e) => window.addEventListener(e, onActivity, { passive: true }));
     const timer = window.setInterval(() => {
-      const stored = Number(sessionStorage.getItem(ACTIVITY_KEY) || Date.now());
+      const stored = Number(
+        localStorage.getItem(ACTIVITY_KEY) || sessionStorage.getItem(ACTIVITY_KEY) || Date.now()
+      );
       if (Date.now() - stored >= IDLE_LIMIT_MS) {
         handleLogoutRef.current('Sesión cerrada por 15 minutos de inactividad. Ingresa de nuevo.');
       }
