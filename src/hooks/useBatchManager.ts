@@ -1850,5 +1850,6 @@ export function useBatchManager({ showToast, persistenceEnabled = false, current
     hydrated: persistence.hydrated,
     markRectified: persistence.markRectified,
     refreshFromServer: persistence.refreshFromServer,
+    flushPersistence: persistence.flush,
   };
 }

@@ -12,7 +12,32 @@ import type { InsumoLoteRow, InsumoTipo, SaborYogurRow } from '../data/insumoLot
 
 const SESSION_FLAG = 'qcs_sesion';
 const SESSION_HINT_KEY = 'qcs_sesion_hint';
+const TAB_SID_KEY = 'qcs_sid_tab';
 const API_BASE = '/api';
+
+const readTabSid = (): string | null => {
+  try {
+    return sessionStorage.getItem(TAB_SID_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const saveTabSid = (sid: string): void => {
+  try {
+    sessionStorage.setItem(TAB_SID_KEY, sid);
+  } catch {
+    void 0;
+  }
+};
+
+const clearTabSid = (): void => {
+  try {
+    sessionStorage.removeItem(TAB_SID_KEY);
+  } catch {
+    void 0;
+  }
+};
 
 const LEGACY_LOCAL_KEYS = ['qcs_token'];
 try {
@@ -49,6 +74,7 @@ export const hasSession = (): boolean => {
 };
 export const clearToken = (): void => {
   sessionStorage.removeItem(SESSION_FLAG);
+  clearTabSid();
   try {
     localStorage.removeItem(SESSION_FLAG);
   } catch {
@@ -85,6 +111,7 @@ export const clearSessionHint = (): void => {
 };
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const tabSid = readTabSid();
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
@@ -92,6 +119,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        ...(tabSid ? { 'X-Session-Id': tabSid } : {}),
         ...init.headers,
       },
     });
@@ -132,10 +160,11 @@ export const toProfile = (u: ApiUser): UserProfile => ({
 });
 
 export async function loginRequest(code: string, password: string): Promise<UserProfile> {
-  const data = await apiFetch<{ user: ApiUser }>('/auth/login', {
+  const data = await apiFetch<{ user: ApiUser; session_id?: string }>('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ codigo_empleado: code, password_o_pin: password }),
   });
+  if (data.session_id) saveTabSid(data.session_id);
   sessionStorage.setItem(SESSION_FLAG, '1');
   try {
     localStorage.setItem(SESSION_FLAG, '1');

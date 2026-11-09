@@ -60,6 +60,7 @@ import { setInsumoLotes, setSaboresYogur, useInsumoLotesVersion } from './data/i
 const ACTIVITY_KEY = 'qcs_last_activity';
 const IDLE_LIMIT_MS = 15 * 60 * 1000;
 const SPLASH_MIN_MS = 4000;
+const FINISH_MIN_MS = 1200;
 
 export default function App() {
   useInsumoLotesVersion();
@@ -145,6 +146,7 @@ export default function App() {
     setYogurGriegoReviewModalOpen,
     openActiveReviewModal,
     assignOperatorToAllBatches,
+    flushPersistence,
   } = batchManager;
 
   // 5. Modales de Navegación y Administración
@@ -389,6 +391,14 @@ export default function App() {
         const abierto = loteEnProcesoRef.current[activeProductId];
         if (!abierto) return;
         if (!estado.codigo_lote || estado.codigo_lote !== abierto) return;
+        if (
+          currentUser?.code &&
+          estado.finalizado_por_codigo &&
+          estado.finalizado_por_codigo === currentUser.code
+        ) {
+          delete loteEnProcesoRef.current[activeProductId];
+          return;
+        }
         const clave = `${activeProductId}:${estado.codigo_lote}`;
         if (loteCerradoMostradoRef.current === clave) return;
         loteCerradoMostradoRef.current = clave;
@@ -408,7 +418,7 @@ export default function App() {
       cancelado = true;
       window.clearInterval(id);
     };
-  }, [isAuthenticated, currentView, activeProductId]);
+  }, [isAuthenticated, currentView, activeProductId, currentUser?.code]);
 
   useEffect(() => {
     if (!loteCerrado) return;
@@ -682,13 +692,15 @@ export default function App() {
     lines.find((l) => l.id === selectedLineId) || lines[0];
 
   const finishToLineSelect = () => {
+    flushPersistence();
+    delete loteEnProcesoRef.current[activeProductId];
     setFinishing(true);
     if (finishingTimer.current) window.clearTimeout(finishingTimer.current);
     finishingTimer.current = window.setTimeout(() => {
       setCurrentView('operator_line_select');
       setFinishing(false);
       finishingTimer.current = null;
-    }, SPLASH_MIN_MS);
+    }, FINISH_MIN_MS);
   };
 
   if (restoring || finishing) {

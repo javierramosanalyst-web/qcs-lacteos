@@ -626,5 +626,5 @@ export function useBatchPersistence({
     }
   }, [loadFromServer]);
 
-  return { hydrated, syncStatus, resetIfCompleted, markRectified, resetParentSaved, refreshFromServer };
+  return { hydrated, syncStatus, resetIfCompleted, markRectified, resetParentSaved, refreshFromServer, flush };
 }

@@ -88,6 +88,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     ]);
 
     res.status(200).json({
+      session_id: sessionId,
       user: {
         id: user.id,
         codigo_empleado: user.codigo_empleado,

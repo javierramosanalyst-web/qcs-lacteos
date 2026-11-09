@@ -154,6 +154,15 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
 
     const sid = typeof payload.sid === 'string' ? payload.sid : null;
     if (sid) {
+      const headerSid = req.headers['x-session-id'];
+      const tabSid = Array.isArray(headerSid) ? headerSid[0] : headerSid;
+      if (tabSid && tabSid !== sid) {
+        res.status(401).json({
+          error: 'SESSION_REPLACED',
+          message: 'Se inició sesión con otro usuario en este dispositivo. Vuelve a ingresar.',
+        });
+        return;
+      }
       const cookieSid = readCookie(req, SESSION_ID_COOKIE);
       if (cookieSid && cookieSid !== sid) {
         res.status(401).json({
