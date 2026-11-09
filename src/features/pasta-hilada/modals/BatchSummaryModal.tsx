@@ -29,6 +29,10 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
   const responsable = batch.responsableProceso || batch.operator || '';
 
   const is7Cueros = batch.productId === 'prod-queso-7-cueros';
+  const isPera = batch.productId === 'prod-queso-pera' || batch.productName?.toLowerCase().includes('pera');
+  const nombreProducto = (batch.productName || '').toLowerCase();
+  const isIndustrial = !is7Cueros && !isPera && (nombreProducto.includes('industrial') || batch.productId === 'prod-doble-crema-industrial');
+
   const ph7C = Number(batch.acidificar.insumos.phMezcla) || 0;
   const phRango7C =
     ph7C > 0 && ph7C < 5.3
@@ -42,12 +46,11 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
        batch.lotesLeche.litrosConfirmados ||
        batch.lotesLeche.litrosLote1 ||
        0)
+    : isIndustrial
+    ? (batch.acidificar.insumos.lecheFresca || batch.lotesLeche.litrosLote2 || 0)
     : (batch.acidificar.insumos.lecheFresca || 0) + (batch.acidificar.insumos.lecheAcida || 0);
 
   if (!isOpen) return null;
-
-  // Moldes breakdown helpers (350g/60g for Queso Pera, 7 Cueros, 100g-1600g for Doble Crema)
-  const isPera = batch.productId === 'prod-queso-pera' || batch.productName?.toLowerCase().includes('pera');
 
   // Variables específicas de 7 Cueros
   const m7Cueros = batch.moldesDesglose?.moldes7Cueros350g ?? 0;
@@ -208,8 +211,6 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
     batch.lotesLeche.cultivoLacteoUnidades ??
     (litrosLecheFrescaPera > 0 ? Number((litrosLecheFrescaPera / 40).toFixed(2)) : 0);
 
-  const nombreProducto = (batch.productName || '').toLowerCase();
-  const isIndustrial = !is7Cueros && !isPera && nombreProducto.includes('industrial');
   const hora = (v: unknown) => (v === undefined || v === null || v === '' ? '--:--' : String(v));
   const dato = (v: unknown) => (v === undefined || v === null || v === '' ? '--' : String(v));
   const kg = (unidades: number, gramos: number) => `${unidades} u · ${((unidades * gramos) / 1000).toFixed(2)} kg`;
@@ -246,6 +247,14 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
         { label: 'Leche utilizada', value: `${totalLecheUsada} L` },
         ...(isPera || is7Cueros
           ? []
+          : isIndustrial
+          ? [
+              { label: 'Leche en tina', value: `${totalLecheUsada} L` },
+              {
+                label: 'Ácido acético',
+                value: `${batch.acidificar.insumos.cultivoLacteoGramos || batch.lotesLeche.cultivoLacteoGramos || 0} ml (${batch.lotesLeche.loteCultivoLacteo || batch.acidificar.insumos.loteCultivoLacteo || 'Sin registrar'})`,
+              },
+            ]
           : [{ label: 'Leche fresca / ácida', value: `${batch.acidificar.insumos.lecheFresca || 0} L / ${batch.acidificar.insumos.lecheAcida || 0} L` }]),
         { label: 'pH medido', value: dato(batch.acidificar.insumos.phMezcla) },
         ...(is7Cueros ? [{ label: 'Rango pH', value: phRango7C }] : []),
@@ -378,6 +387,8 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
               sub:
                 isPera || is7Cueros
                   ? `${batch.acidificar.insumos.lecheFresca || totalLecheUsada} L fresca`
+                  : isIndustrial
+                  ? `${totalLecheUsada} L fresca en tina`
                   : `${batch.acidificar.insumos.lecheFresca || 0} L fresca · ${batch.acidificar.insumos.lecheAcida || 0} L ácida`,
             }}
             producido={{
@@ -588,7 +599,7 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
                       {batch.lotesLeche.loteLecheBase || batch.lotesLeche.loteLeche1 || 'Sin registrar'}
                     </span>
                     <span className="text-[10px] text-gray-500">
-                      {batch.acidificar.insumos.lecheAcida} L volumen
+                      {batch.acidificar.insumos.lecheAcida || 0} L volumen
                     </span>
                   </div>
                 )}
@@ -600,7 +611,7 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
                     {batch.lotesLeche.loteLecheFresca || batch.lotesLeche.loteLeche2 || 'Sin registrar'}
                   </span>
                   <span className="text-[10px] text-gray-500">
-                    {batch.acidificar.insumos.lecheFresca} L volumen
+                    {batch.acidificar.insumos.lecheFresca || 0} L volumen
                   </span>
                 </div>
                 <div className="bg-white p-2 rounded-lg border border-blue-200 flex flex-col justify-between">
@@ -610,7 +621,7 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
                   <span className="font-bold text-blue-900 font-mono text-xs mt-0.5">
                     {batch.loteCuajo || 'Sin registrar'}
                   </span>
-                  <span className="text-[10px] text-blue-700 font-semibold">1.4 g / 100 L</span>
+                  <span className="text-[10px] text-blue-700 font-semibold">1.2 g / 100 L</span>
                 </div>
                 <div className="bg-white p-2 rounded-lg border border-amber-200 flex flex-col justify-between">
                   <span className="text-[10px] text-[#434655] font-bold uppercase">

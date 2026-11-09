@@ -105,12 +105,29 @@ const LOTES = [
     operarios: ['OP-105'],
     overrides: {
       status: 'EN_PROCESO',
-      lotesLeche: { loteLeche1: 'LCH-DEMO-002', litrosLote1: 900, loteLecheBase: 'LCH-DEMO-002' },
+      lotesLeche: {
+        loteLecheFresca: 'LCH-DEMO-002',
+        loteLeche2: 'LCH-DEMO-002',
+        litrosLote2: 900,
+        loteCultivoLacteo: 'AA-DEMO-001',
+        cultivoLacteoGramos: 135,
+      },
       loteCuajo: 'CUA-DEMO-002',
       loteSal: 'SAL-DEMO-002',
       stageStatuses: etapasCompletas(ETAPAS['prod-doble-crema-industrial'], 2),
       processTimer: { isRunning: true, isCompleted: false, startTime: hora(7), startTimestamp: null, elapsedSeconds: 5400, formattedTime: '01:30:00' },
-      acidificar: { insumos: { lecheFresca: 900, lecheAcida: 0, phMezcla: 6.5 } },
+      acidificar: {
+        inicioCalentamiento: { iniciado: true, horaInicio: hora(7), timestampInicio: null },
+        phase1: { alcanzo35: true, horaAlcanzo35: hora(7, 20), tiempoCalentamiento: '20 min', segundosCalentamiento: 1200, temperaturaAlcanzada: 35.0, saved: true },
+        phase2: { cuajoAdicionado: true, horaAdicionCuajo: hora(7, 25), cantidadCuajoGramos: 10.8, loteCuajo: 'CUA-DEMO-002', saved: true },
+        insumos: {
+          lecheFresca: 900,
+          lecheAcida: 0,
+          phMezcla: 5.7,
+          cultivoLacteoGramos: 135,
+          loteCultivoLacteo: 'AA-DEMO-001',
+        },
+      },
     },
   },
   {
