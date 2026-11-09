@@ -40,7 +40,9 @@ FROM (VALUES
     ('colorante',    'COL-DEMO-001', 'Proveedor Colorantes',365, 2000),
     ('colorante',    'COL-DEMO-002', 'Proveedor Colorantes',365, 2000),
     ('estevia',      'EST-DEMO-001', 'Proveedor Stevia',    365, 3000),
-    ('estevia',      'EST-DEMO-002', 'Proveedor Stevia',    365, 3000)
+    ('estevia',      'EST-DEMO-002', 'Proveedor Stevia',    365, 3000),
+    ('acido_acetico','AA-DEMO-001',  'Químicos Industriales del Valle', 365, 5000),
+    ('acido_acetico','AA-DEMO-002',  'Distribuidora Química Andina',    365, 5000)
 ) AS v(tipo, codigo_lote, proveedor, dias_venc, cantidad)
 JOIN insumos_catalogo c ON c.tipo_insumo = v.tipo
 ON CONFLICT (insumo_id, codigo_lote) DO NOTHING;

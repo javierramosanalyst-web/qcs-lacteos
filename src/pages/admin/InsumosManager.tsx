@@ -26,6 +26,7 @@ const TIPOS: { key: InsumoTipo; label: string; icon: string; unidad: string; hin
   { key: 'saborizante', label: 'Saborizante (yogur)', icon: 'water_drop', unidad: 'ml', hint: 'Ej. SAB-2026-10A', descLabel: 'Sabor / referencia' },
   { key: 'colorante', label: 'Colorante (yogur)', icon: 'palette', unidad: 'ml', hint: 'Ej. COL-2026-10A', descLabel: 'Color / referencia' },
   { key: 'estevia', label: 'Stevia (yogur y griego)', icon: 'eco', unidad: 'g', hint: 'Ej. EST-2026-10A', descLabel: 'Pureza / referencia' },
+  { key: 'acido_acetico', label: 'Ácido acético (pasta hilada)', icon: 'colorize', unidad: 'ml', hint: 'Ej. AA-2026-01A', descLabel: 'Proveedor / concentración' },
 ];
 
 interface FormState {

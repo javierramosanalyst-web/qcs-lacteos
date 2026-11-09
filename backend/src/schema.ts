@@ -55,7 +55,7 @@ INSERT INTO tipos_insumo (codigo, nombre, unidad_base, gestionable_admin) VALUES
   ('leche_acida', 'Leche ácida', 'L', FALSE),
   ('cultivo_lactico', 'Cultivo láctico (proceso)', 'g', FALSE),
   ('estevia', 'Estevia', 'g', TRUE),
-  ('acido_acetico', 'Ácido acético', 'ml', FALSE),
+  ('acido_acetico', 'Ácido acético', 'ml', TRUE),
   ('agua', 'Agua', 'ml', FALSE),
   ('especia', 'Especia', 'g', FALSE),
   ('arequipe', 'Arequipe', 'g', FALSE),
@@ -64,6 +64,13 @@ ON CONFLICT (codigo) DO NOTHING;
 
 -- La Stevia se registra por lotes en Insumos (bases creadas antes la tenían como no gestionable).
 UPDATE tipos_insumo SET gestionable_admin = TRUE WHERE codigo = 'estevia' AND gestionable_admin = FALSE;
+
+-- El Ácido Acético se registra por lotes para Queso Doble Crema Industrial y 7 Cueros.
+UPDATE tipos_insumo SET gestionable_admin = TRUE WHERE codigo = 'acido_acetico' AND gestionable_admin = FALSE;
+
+INSERT INTO insumos_catalogo (codigo, nombre, tipo_insumo, unidad_base)
+VALUES ('INS-ACIDO-ACETICO', 'Ácido acético', 'acido_acetico', 'ml')
+ON CONFLICT (codigo) DO NOTHING;
 
 INSERT INTO tipos_insumo (codigo, nombre, unidad_base)
 SELECT DISTINCT tipo_insumo, tipo_insumo, 'unidades' FROM insumos_catalogo

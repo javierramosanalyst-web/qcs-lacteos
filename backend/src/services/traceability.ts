@@ -34,6 +34,7 @@ const horaTs = (v: unknown): number | null => {
 const anyTs = (v: unknown): number | null => (typeof v === 'string' ? horaTs(v) : num(v));
 
 const is7C = (b: Json): boolean => b.productId === 'prod-queso-7-cueros';
+const isIndustrial = (b: Json): boolean => b.productId === 'prod-doble-crema-industrial';
 
 const parseDuracion = (v: unknown): number | null => {
   if (typeof v !== 'string') return null;
@@ -348,6 +349,19 @@ function collectInsumos(b: Json): Insumo[] {
     add('calentar-y-cuajar', 'cuajo', 'Cuajo', cc.loteCuajo || p27.loteCuajo || b.loteCuajo, 'g', cc.cantidadGramos || p27.cantidadCuajoGramos, cc.esManual === true, cc.timestampCuajo);
     if (sal7.registrado) {
       add('hilar', 'sal', 'Sal', sal7.loteSal || b.loteSal, 'g', sal7.cantidadGramos, sal7.esManual === true, null);
+    }
+    return out;
+  }
+  if (isIndustrial(b)) {
+    const insInd = b.acidificar?.insumos ?? {};
+    const p2Ind = b.acidificar?.phase2 ?? {};
+    const ts35 = b.acidificar?.phase1?.timestampAlcanzo35;
+    add('acidificar', 'leche_fresca', 'Leche fresca', l.loteLecheFresca || l.loteLeche2, 'L', insInd.lecheFresca ?? l.litrosLote2, false, ts35);
+    add('acidificar', 'acido_acetico', 'Ácido acético', insInd.loteCultivoLacteo || l.loteCultivoLacteo, 'ml', insInd.cultivoLacteoGramos ?? l.cultivoLacteoGramos, false, ts35);
+    add('acidificar', 'cuajo', 'Cuajo', p2Ind.loteCuajo || b.loteCuajo, 'g', p2Ind.cantidadCuajoGramos, p2Ind.esCuajoManual === true, p2Ind.timestampAdicionCuajo);
+    const salInd = b.hilar?.sal ?? {};
+    if (salInd.registrado) {
+      add('hilar', 'sal', 'Sal', salInd.loteSal || b.loteSal, 'g', salInd.cantidadGramos, salInd.esManual === true, null);
     }
     return out;
   }

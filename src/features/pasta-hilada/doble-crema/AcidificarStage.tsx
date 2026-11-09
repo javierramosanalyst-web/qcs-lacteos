@@ -26,7 +26,12 @@ import {
   Badge,
   PopoverTimePicker,
 } from '../../../components/ui';
-import { LOTES_SAL_CATALOG, LOTES_CUAJO_PERA_DEFAULT as LOTES_CUAJO_CATALOG } from '../../../data/insumoLotes';
+import {
+  LOTES_SAL_CATALOG,
+  LOTES_CUAJO_PERA_DEFAULT as LOTES_CUAJO_CATALOG,
+  LOTES_ACIDO_ACETICO_CATALOG,
+  useInsumoLotesVersion,
+} from '../../../data/insumoLotes';
 
 export interface AcidificarStageProps {
   state: AcidificarState;
@@ -62,6 +67,9 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
   onNextStage,
   showToast,
 }) => {
+  // Suscripción reactiva para sincronizar al instante lotes cargados de la BD
+  useInsumoLotesVersion();
+
   const isIndustrial = variant === 'industrial';
 
   const cultivoLacteoGramos =
@@ -78,13 +86,45 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
   // Fórmula de cuajo: 1.2 g de cuajo por cada 100 L de mezcla
   const cuajoSugeridoGramos = Number(((totalLeche * 1.2) / 100).toFixed(2));
 
-  // Lotes normalizados para listas desplegables (<select>)
-  const selectedLoteSal = LOTES_SAL_CATALOG.includes(loteSal) ? loteSal : '';
+  // Lotes normalizados con preservación estricta de valores cargados de BD
+  const selectedLoteSal = loteSal || '';
+  const optionsSal =
+    selectedLoteSal && !LOTES_SAL_CATALOG.includes(selectedLoteSal)
+      ? [selectedLoteSal, ...LOTES_SAL_CATALOG]
+      : LOTES_SAL_CATALOG;
 
-  const initialLoteCuajo = state.phase2?.loteCuajo || loteCuajo;
-  const [loteCuajoSelect, setLoteCuajoSelect] = useState<string>(
-    LOTES_CUAJO_CATALOG.includes(initialLoteCuajo) ? initialLoteCuajo : ''
-  );
+  const initialLoteCuajo = state.phase2?.loteCuajo || loteCuajo || '';
+  const [loteCuajoSelect, setLoteCuajoSelect] = useState<string>(initialLoteCuajo);
+
+  useEffect(() => {
+    const current = state.phase2?.loteCuajo || loteCuajo || '';
+    if (current && current !== loteCuajoSelect) {
+      setLoteCuajoSelect(current);
+    }
+  }, [state.phase2?.loteCuajo, loteCuajo]);
+
+  const optionsCuajo =
+    loteCuajoSelect && !LOTES_CUAJO_CATALOG.includes(loteCuajoSelect)
+      ? [loteCuajoSelect, ...LOTES_CUAJO_CATALOG]
+      : LOTES_CUAJO_CATALOG;
+
+  // Lotes de leche y ácido acético con preservación de valores de BD
+  const loteLecheAcidaSel = lotesLeche.loteLecheBase || lotesLeche.loteLeche1 || '';
+  const optionsLecheAcida =
+    loteLecheAcidaSel && !LOTES_LECHE_PROVEEDOR_DEFAULT.includes(loteLecheAcidaSel)
+      ? [loteLecheAcidaSel, ...LOTES_LECHE_PROVEEDOR_DEFAULT]
+      : LOTES_LECHE_PROVEEDOR_DEFAULT;
+
+  const loteLecheFrescaSel = lotesLeche.loteLecheFresca || lotesLeche.loteLeche2 || '';
+  const optionsLecheFresca =
+    loteLecheFrescaSel && !LOTES_LECHE_PROVEEDOR_DEFAULT.includes(loteLecheFrescaSel)
+      ? [loteLecheFrescaSel, ...LOTES_LECHE_PROVEEDOR_DEFAULT]
+      : LOTES_LECHE_PROVEEDOR_DEFAULT;
+
+  const optionsAcidoAcetico =
+    loteCultivoLacteo && !LOTES_ACIDO_ACETICO_CATALOG.includes(loteCultivoLacteo)
+      ? [loteCultivoLacteo, ...LOTES_ACIDO_ACETICO_CATALOG]
+      : LOTES_ACIDO_ACETICO_CATALOG;
 
   // Cantidad de cuajo editable (sin 0 predefinido)
   const [cantidadCuajoInput, setCantidadCuajoInput] = useState<number>(
@@ -159,10 +199,6 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
     }
   }, [editModePaso2, state.phase2?.horaAdicionCuajo]);
 
-  // Handlers
-  const loteLecheAcidaSel = lotesLeche.loteLecheBase || lotesLeche.loteLeche1 || '';
-  const loteLecheFrescaSel = lotesLeche.loteLecheFresca || lotesLeche.loteLeche2 || '';
-
   // Cronómetro de calentamiento hasta 35 °C
   const isCalentandoRunning = Boolean(
     state.inicioCalentamiento?.iniciado && !state.phase1.alcanzo35
@@ -183,9 +219,13 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
   const handleStartHeating = (): boolean => {
     const faltantes: string[] = [];
     if (isIndustrial) {
-      if (!loteCultivoLacteo) faltantes.push('lote del ácido acético');
+      if (!loteLecheFrescaSel) faltantes.push('lote de leche en tina');
       if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
         faltantes.push('litros de leche en tina');
+      }
+      if (!loteCultivoLacteo) faltantes.push('lote del ácido acético');
+      if (!cultivoLacteoGramos || cultivoLacteoGramos <= 0) {
+        faltantes.push('cantidad agregada de ácido acético (ml)');
       }
     } else {
       if (!loteLecheAcidaSel) faltantes.push('lote de leche ácida');
@@ -198,7 +238,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
       }
     }
     if (!state.insumos.phMezcla || state.insumos.phMezcla <= 0) {
-      faltantes.push(isIndustrial ? 'pH medido en tina' : 'pH medido de la mezcla (Objetivo 5.7)');
+      faltantes.push(isIndustrial ? 'pH medido en tina (Objetivo 5.7)' : 'pH medido de la mezcla (Objetivo 5.7)');
     }
     if (!selectedLoteSal) faltantes.push('lote de sal');
     if (faltantes.length > 0) {
@@ -322,9 +362,15 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
         showToast('Ingresa primero los litros de leche ácida y leche fresca de la mezcla.', 'warning');
         return;
       }
-    } else if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
-      showToast('Ingresa primero los litros de leche en tina.', 'warning');
-      return;
+    } else {
+      if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
+        showToast('Ingresa primero los litros de leche en tina.', 'warning');
+        return;
+      }
+      if (!cultivoLacteoGramos || cultivoLacteoGramos <= 0) {
+        showToast('Ingresa primero la cantidad de ácido acético agregada a la tina.', 'warning');
+        return;
+      }
     }
 
     const finalCantidad =
@@ -380,9 +426,15 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
         showToast('Ingresa primero los litros de leche ácida y leche fresca de la mezcla.', 'warning');
         return;
       }
-    } else if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
-      showToast('Ingresa primero los litros de leche en tina.', 'warning');
-      return;
+    } else {
+      if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
+        showToast('Ingresa primero los litros de leche en tina.', 'warning');
+        return;
+      }
+      if (!cultivoLacteoGramos || cultivoLacteoGramos <= 0) {
+        showToast('Ingresa primero la cantidad de ácido acético agregada a la tina.', 'warning');
+        return;
+      }
     }
 
     const formattedHora = formatTimeFromStep1(draftHoraCuajo);
@@ -524,7 +576,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                 label="Lote del Ácido Acético"
                 icon="qr_code_2"
                 value={loteCultivoLacteo}
-                options={LOTES_CULTIVO_LACTEO_DEFAULT.map((lote) => ({
+                options={optionsAcidoAcetico.map((lote) => ({
                   value: lote,
                   label: `Lote ${lote}`,
                 }))}
@@ -587,7 +639,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                   lotesLeche.loteLeche1 ||
                   ''
                 }
-                options={LOTES_LECHE_PROVEEDOR_DEFAULT.map((lote) => ({
+                options={optionsLecheAcida.map((lote) => ({
                   value: lote,
                   label: `Lote ${lote}`,
                 }))}
@@ -642,12 +694,8 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
             <SelectField
               label="Lote del Proveedor"
               icon="local_shipping"
-              value={
-                lotesLeche.loteLecheFresca ||
-                lotesLeche.loteLeche2 ||
-                ''
-              }
-              options={LOTES_LECHE_PROVEEDOR_DEFAULT.map((lote) => ({
+              value={loteLecheFrescaSel}
+              options={optionsLecheFresca.map((lote) => ({
                 value: lote,
                 label: `Lote ${lote}`,
               }))}
@@ -793,7 +841,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
             label="Lote de Sal"
             icon="inventory_2"
             value={selectedLoteSal}
-            options={LOTES_SAL_CATALOG}
+            options={optionsSal}
             onChange={(e) => {
               const val = e.target.value;
               if (onUpdateLoteSal) onUpdateLoteSal(val);
@@ -1026,7 +1074,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                 label="Lote"
                 icon="inventory_2"
                 value={loteCuajoSelect}
-                options={LOTES_CUAJO_CATALOG}
+                options={optionsCuajo}
                 hint="Selecciona el lote de cuajo activo"
                 onChange={(e) => {
                   const val = e.target.value;
@@ -1104,9 +1152,15 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                 showToast('Debes registrar los litros de leche ácida y leche fresca antes de continuar.', 'warning');
                 return;
               }
-            } else if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
-              showToast('Debes registrar los litros de leche en tina antes de continuar.', 'warning');
-              return;
+            } else {
+              if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
+                showToast('Debes registrar los litros de leche en tina antes de continuar.', 'warning');
+                return;
+              }
+              if (!cultivoLacteoGramos || cultivoLacteoGramos <= 0) {
+                showToast('Debes registrar la cantidad de ácido acético agregada antes de continuar.', 'warning');
+                return;
+              }
             }
             if (!state.phase2?.cuajoAdicionado) {
               showToast('Debes registrar la adición del cuajo antes de pasar a la etapa de cuajado.', 'warning');
