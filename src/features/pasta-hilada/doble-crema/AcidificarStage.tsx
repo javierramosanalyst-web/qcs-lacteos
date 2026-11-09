@@ -131,6 +131,18 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
     state.phase2?.cuajoAdicionado ? state.phase2?.cantidadCuajoGramos || 0 : 0
   );
 
+  useEffect(() => {
+    if (state.phase2?.cuajoAdicionado && state.phase2?.cantidadCuajoGramos) {
+      setCantidadCuajoInput(state.phase2.cantidadCuajoGramos);
+    }
+  }, [state.phase2?.cuajoAdicionado, state.phase2?.cantidadCuajoGramos]);
+
+  // =========================================================================
+  // MODO DE EDICIÓN SEGURA · PREPARACIÓN DE TINA (Bloqueo tras iniciar calentamiento)
+  // =========================================================================
+  const isHeatingStarted = Boolean(state.inicioCalentamiento?.iniciado);
+  const [editModeInsumos, setEditModeInsumos] = useState<boolean>(false);
+
   // =========================================================================
   // MODO DE EDICIÓN SEGURA · PASO 1 (Bloqueo de variables críticas)
   // =========================================================================
@@ -257,6 +269,41 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
     }));
     onStartProcessTimer();
     return true;
+  };
+
+  const handleSaveInsumos = () => {
+    const faltantes: string[] = [];
+    if (isIndustrial) {
+      if (!loteLecheFrescaSel) faltantes.push('lote de leche en tina');
+      if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
+        faltantes.push('litros de leche en tina');
+      }
+      if (!loteCultivoLacteo) faltantes.push('lote del ácido acético');
+      if (!cultivoLacteoGramos || cultivoLacteoGramos <= 0) {
+        faltantes.push('cantidad agregada de ácido acético (ml)');
+      }
+    } else {
+      if (!loteLecheAcidaSel) faltantes.push('lote de leche ácida');
+      if (!state.insumos.lecheAcida || state.insumos.lecheAcida <= 0) {
+        faltantes.push('litros de leche ácida');
+      }
+      if (!loteLecheFrescaSel) faltantes.push('lote de leche fresca');
+      if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
+        faltantes.push('litros de leche fresca');
+      }
+    }
+    if (!state.insumos.phMezcla || state.insumos.phMezcla <= 0) {
+      faltantes.push(isIndustrial ? 'pH medido en tina' : 'pH medido de la mezcla');
+    }
+    if (!selectedLoteSal) faltantes.push('lote de sal');
+
+    if (faltantes.length > 0) {
+      showToast(`Debes completar los datos requeridos: ${faltantes.join(', ')}.`, 'warning');
+      return;
+    }
+
+    setEditModeInsumos(false);
+    showToast('✓ Cambios en la preparación de la tina guardados correctamente.', 'success');
   };
 
   const handleReach35 = () => {
@@ -555,7 +602,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
         subtitle="Registra los litros de leche, selecciona los lotes y verifica el pH antes de iniciar el calentamiento."
         icon="inventory_2"
         badge={`Total en Tina: ${totalLeche} L`}
-        variant="default"
+        variant={isHeatingStarted && !editModeInsumos ? 'success' : 'default'}
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {isIndustrial ? (
@@ -580,6 +627,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                   value: lote,
                   label: `Lote ${lote}`,
                 }))}
+                disabled={isHeatingStarted && !editModeInsumos}
                 onChange={(e) => {
                   const val = e.target.value;
                   onChange((p) => ({
@@ -603,6 +651,8 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                 min="0"
                 unit="ml"
                 placeholder="Ej: 15"
+                disabled={isHeatingStarted && !editModeInsumos}
+                readOnly={isHeatingStarted && !editModeInsumos}
                 value={cultivoLacteoGramos > 0 ? cultivoLacteoGramos : ''}
                 onChange={(e) => {
                   const val = Number(e.target.value);
@@ -643,6 +693,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                   value: lote,
                   label: `Lote ${lote}`,
                 }))}
+                disabled={isHeatingStarted && !editModeInsumos}
                 onChange={(e) => {
                   const val = e.target.value;
                   onUpdateLotesLeche((p) => ({
@@ -662,6 +713,8 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                 min="0"
                 unit="Litros"
                 placeholder="Ej: 50"
+                disabled={isHeatingStarted && !editModeInsumos}
+                readOnly={isHeatingStarted && !editModeInsumos}
                 value={state.insumos.lecheAcida > 0 ? state.insumos.lecheAcida : ''}
                 onChange={(e) => {
                   const val = Number(e.target.value);
@@ -699,6 +752,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                 value: lote,
                 label: `Lote ${lote}`,
               }))}
+              disabled={isHeatingStarted && !editModeInsumos}
               onChange={(e) => {
                 const val = e.target.value;
                 onUpdateLotesLeche((p) => ({
@@ -718,6 +772,8 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
               min="0"
               unit="Litros"
               placeholder="Ej: 150"
+              disabled={isHeatingStarted && !editModeInsumos}
+              readOnly={isHeatingStarted && !editModeInsumos}
               value={state.insumos.lecheFresca > 0 ? state.insumos.lecheFresca : ''}
               onChange={(e) => {
                 const val = Number(e.target.value);
@@ -810,6 +866,8 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                     ? '⚠ Alerta: pH por debajo de 5.6 (mezcla muy ácida). Ajusta con leche fresca.'
                     : '⚠ Alerta: pH por encima de 5.8 (falta acidez). Ajusta antes de continuar.'
                 }
+                disabled={isHeatingStarted && !editModeInsumos}
+                readOnly={isHeatingStarted && !editModeInsumos}
                 value={hasPhValue ? phMezclaActual : ''}
                 onChange={(e) => {
                   const val = Number(e.target.value);
@@ -842,6 +900,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
             icon="inventory_2"
             value={selectedLoteSal}
             options={optionsSal}
+            disabled={isHeatingStarted && !editModeInsumos}
             onChange={(e) => {
               const val = e.target.value;
               if (onUpdateLoteSal) onUpdateLoteSal(val);
@@ -849,6 +908,27 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
             }}
           />
         </div>
+
+        {/* Casilla de verificación y botón de Guardar cambios */}
+        {isHeatingStarted && (
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 mt-4 border-t border-[#D6DEEA]">
+            <ManualEditToggle
+              manual={Boolean(editModeInsumos)}
+              onChange={(checked: boolean) => setEditModeInsumos(checked)}
+            />
+
+            {editModeInsumos && (
+              <Button
+                variant="primary"
+                size="md"
+                icon="save"
+                onClick={handleSaveInsumos}
+              >
+                Guardar cambios
+              </Button>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* PANEL DE ARRANQUE DE CALENTAMIENTO Y CRONÓMETRO */}
@@ -1064,6 +1144,8 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                 }
                 hint={`Editable · Sugerido para ${totalLeche} L: ${cuajoSugeridoGramos} g`}
                 value={cantidadCuajoInput > 0 ? cantidadCuajoInput : ''}
+                disabled={Boolean(state.phase2?.cuajoAdicionado) && !editModePaso2}
+                readOnly={Boolean(state.phase2?.cuajoAdicionado) && !editModePaso2}
                 onChange={(e) => setCantidadCuajoInput(Number(e.target.value))}
               />
             </div>
@@ -1075,6 +1157,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                 icon="inventory_2"
                 value={loteCuajoSelect}
                 options={optionsCuajo}
+                disabled={Boolean(state.phase2?.cuajoAdicionado) && !editModePaso2}
                 hint="Selecciona el lote de cuajo activo"
                 onChange={(e) => {
                   const val = e.target.value;
