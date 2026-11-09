@@ -145,6 +145,23 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
   // CRONÓMETROS EN VIVO Y CONCURRENTES (PASO 2 Y PASO 3)
   // Tan pronto como la leche cuaja (Paso 1 confirmado), inician al mismo tiempo.
   // =========================================================================
+  // Cronómetro del reposo de la cuajada (desde adición de cuajo hasta que cuaja)
+  const isReposoRunning = Boolean(
+    !state.cuajado.registrado && cultivoTs && horaCultivo !== 'En espera'
+  );
+  const isReposoCompleted = Boolean(state.cuajado.registrado);
+
+  const timerReposo = useStageCountdown({
+    startTimestamp: cultivoTs,
+    startTime: horaCultivo !== 'En espera' ? horaCultivo : undefined,
+    endTime: state.cuajado.horaRegistro,
+    isRunning: isReposoRunning,
+    isCompleted: isReposoCompleted,
+    completedDurationText: state.cuajado.tiempoTranscurridoDesdeCuajo,
+    targetMinutes: 25,
+    maxSeconds: 45 * 60,
+  });
+
   const isPaso2Running = Boolean(
     state.cuajado.registrado && !state.corte.registrado && tsCuajadoEfectivo
   );
@@ -340,6 +357,11 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
   // HANDLERS PASO 2: TIEMPO DE CORTE DE CUAJADO
   // =========================================================================
   const handleRecordCorte = () => {
+    if (!state.cuajado.registrado) {
+      showToast('Debes confirmar que la leche ya cuajó antes de cortar.', 'warning');
+      return;
+    }
+
     const nowTs = Date.now();
     const timeStr = getCurrentTimeString();
     // Punto de partida común: hora de cuajado
@@ -377,6 +399,11 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
   };
 
   const handleSaveManualCorte = () => {
+    if (!state.cuajado.registrado) {
+      showToast('Debes registrar el cuajado antes de guardar los datos de corte.', 'warning');
+      return;
+    }
+
     const timeStr = formatTimeFromStep1(horaManualCorte);
 
     let duracionStr = state.corte.tiempoTranscurridoDesdeCuajado || '0 s';
@@ -406,6 +433,15 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
   // HANDLERS PASO 3: 40 °C ALCANZADOS PARA DESUERADO
   // =========================================================================
   const handleRecordReach40 = () => {
+    if (!state.cuajado.registrado) {
+      showToast('Debes registrar primero el momento en que la leche cuajó.', 'warning');
+      return;
+    }
+    if (!state.corte.registrado) {
+      showToast('Debes terminar y confirmar el corte de la cuajada antes de registrar los 40 °C.', 'warning');
+      return;
+    }
+
     const nowTs = Date.now();
     const timeStr = getCurrentTimeString();
     // Punto de partida común con el corte: hora de cuajado
@@ -448,6 +484,11 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
   };
 
   const handleSaveManual40 = () => {
+    if (!state.cuajado.registrado || !state.corte.registrado) {
+      showToast('Debes registrar el cuajado y el corte antes de registrar los 40 °C.', 'warning');
+      return;
+    }
+
     const timeStr = formatTimeFromStep1(horaManual40);
     const tempFinal = Number(tempManual40) || 40.0;
 
@@ -527,11 +568,25 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
       {/* BANNER: TIEMPO TRANSCURRIDO DESDE LA ADICIÓN DEL CUAJO */}
       <TimerBanner
         title="Tiempo en Reposo desde que agregaste el Cuajo"
-        subtitle={`El cuajo se agregó en la etapa anterior a las ${horaCultivo}. Revisa que la cuajada esté firme antes de cortarla.`}
-        formattedTime={processTimer.formattedTime || '00:00:00'}
-        isRunning={processTimer.isRunning}
-        isCompleted={Boolean(state.temperatura40.alcanzado)}
-        statusLabel="Cronómetro General del Lote"
+        subtitle={
+          state.cuajado.registrado
+            ? `Cuajó a las ${state.cuajado.horaRegistro} (tardó ${state.cuajado.tiempoTranscurridoDesdeCuajo || timerReposo.humanElapsed} en reposo).`
+            : horaCultivo !== 'En espera'
+            ? `El cuajo se agregó en la etapa anterior a las ${horaCultivo}. Esperando que la leche cuaje firme antes del corte.`
+            : 'Esperando registro de adición de cuajo...'
+        }
+        formattedTime={
+          state.cuajado.registrado
+            ? state.cuajado.tiempoTranscurridoDesdeCuajo || timerReposo.humanElapsed
+            : timerReposo.formattedElapsed
+        }
+        isRunning={isReposoRunning}
+        isCompleted={isReposoCompleted}
+        statusLabel={
+          state.cuajado.registrado
+            ? `Cuajado completado (${state.cuajado.tiempoTranscurridoDesdeCuajo || timerReposo.humanElapsed})`
+            : 'Leche en reposo (cuajando)'
+        }
         variant="info"
       />
 
@@ -845,7 +900,7 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
             confirmedLabel="✓ Ya llegó a 40 °C (Listo para Desuerar)"
             icon="thermostat"
             isConfirmed={state.temperatura40.alcanzado}
-            disabled={!state.cuajado.registrado}
+            disabled={!state.cuajado.registrado || !state.corte.registrado}
             onConfirm={handleRecordReach40}
           />
         }
@@ -1028,7 +1083,22 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
             variant="primary"
             size="lg"
             iconRight="arrow_forward"
-            onClick={onNextStage}
+            disabled={!state.temperatura40.alcanzado || !state.corte.registrado}
+            onClick={() => {
+              if (!state.cuajado.registrado) {
+                showToast('Debes registrar el cuajado antes de pasar a la siguiente etapa.', 'warning');
+                return;
+              }
+              if (!state.corte.registrado) {
+                showToast('Debes confirmar el corte de la cuajada antes de continuar.', 'warning');
+                return;
+              }
+              if (!state.temperatura40.alcanzado) {
+                showToast('La mezcla debe alcanzar los 40 °C antes de pasar al desuerado.', 'warning');
+                return;
+              }
+              onNextStage();
+            }}
           >
             Pasar a Etapa 3: Desuerar
           </Button>

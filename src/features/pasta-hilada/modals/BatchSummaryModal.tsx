@@ -588,7 +588,7 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
                       {batch.lotesLeche.loteLecheBase || batch.lotesLeche.loteLeche1 || 'Sin registrar'}
                     </span>
                     <span className="text-[10px] text-gray-500">
-                      {batch.acidificar.insumos.lecheAcida} L volumen
+                      {batch.acidificar.insumos.lecheAcida || 0} L volumen
                     </span>
                   </div>
                 )}
@@ -600,7 +600,7 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
                     {batch.lotesLeche.loteLecheFresca || batch.lotesLeche.loteLeche2 || 'Sin registrar'}
                   </span>
                   <span className="text-[10px] text-gray-500">
-                    {batch.acidificar.insumos.lecheFresca} L volumen
+                    {batch.acidificar.insumos.lecheFresca || 0} L volumen
                   </span>
                 </div>
                 <div className="bg-white p-2 rounded-lg border border-blue-200 flex flex-col justify-between">
@@ -610,7 +610,7 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
                   <span className="font-bold text-blue-900 font-mono text-xs mt-0.5">
                     {batch.loteCuajo || 'Sin registrar'}
                   </span>
-                  <span className="text-[10px] text-blue-700 font-semibold">1.4 g / 100 L</span>
+                  <span className="text-[10px] text-blue-700 font-semibold">1.2 g / 100 L</span>
                 </div>
                 <div className="bg-white p-2 rounded-lg border border-amber-200 flex flex-col justify-between">
                   <span className="text-[10px] text-[#434655] font-bold uppercase">

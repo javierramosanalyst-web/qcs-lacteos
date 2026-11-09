@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
+import { useStageCountdown } from '../../../hooks';
 import {
   AcidificarState,
   LotesLeche,
@@ -162,32 +163,72 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
   const loteLecheAcidaSel = lotesLeche.loteLecheBase || lotesLeche.loteLeche1 || '';
   const loteLecheFrescaSel = lotesLeche.loteLecheFresca || lotesLeche.loteLeche2 || '';
 
-  const handleStartHeating = () => {
+  // Cronómetro de calentamiento hasta 35 °C
+  const isCalentandoRunning = Boolean(
+    state.inicioCalentamiento?.iniciado && !state.phase1.alcanzo35
+  );
+  const isCalentandoCompleted = Boolean(state.phase1.alcanzo35);
+
+  const timerCalentamiento = useStageCountdown({
+    startTimestamp: state.inicioCalentamiento?.timestampInicio,
+    startTime: state.inicioCalentamiento?.horaInicio,
+    endTime: state.phase1.horaAlcanzo35,
+    isRunning: isCalentandoRunning,
+    isCompleted: isCalentandoCompleted,
+    completedDurationText: state.phase1.tiempoCalentamiento,
+    targetMinutes: 20,
+    maxSeconds: 40 * 60,
+  });
+
+  const handleStartHeating = (): boolean => {
     const faltantes: string[] = [];
     if (isIndustrial) {
       if (!loteCultivoLacteo) faltantes.push('lote del ácido acético');
-    } else if (!loteLecheAcidaSel) {
-      faltantes.push('lote de leche ácida');
+      if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
+        faltantes.push('litros de leche en tina');
+      }
+    } else {
+      if (!loteLecheAcidaSel) faltantes.push('lote de leche ácida');
+      if (!state.insumos.lecheAcida || state.insumos.lecheAcida <= 0) {
+        faltantes.push('litros de leche ácida');
+      }
+      if (!loteLecheFrescaSel) faltantes.push('lote de leche fresca');
+      if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
+        faltantes.push('litros de leche fresca');
+      }
     }
-    if (!loteLecheFrescaSel) faltantes.push(isIndustrial ? 'lote de leche en tina' : 'lote de leche fresca');
+    if (!state.insumos.phMezcla || state.insumos.phMezcla <= 0) {
+      faltantes.push(isIndustrial ? 'pH medido en tina' : 'pH medido de la mezcla (Objetivo 5.7)');
+    }
     if (!selectedLoteSal) faltantes.push('lote de sal');
     if (faltantes.length > 0) {
-      showToast(`Selecciona primero: ${faltantes.join(', ')}.`, 'warning');
-      return;
+      showToast(`Ingresa o selecciona primero: ${faltantes.join(', ')}.`, 'warning');
+      return false;
     }
+    const now = Date.now();
+    const timeStr = getCurrentTimeString();
+    onChange((prev) => ({
+      ...prev,
+      inicioCalentamiento: {
+        iniciado: true,
+        horaInicio: timeStr,
+        timestampInicio: now,
+      },
+    }));
     onStartProcessTimer();
+    return true;
   };
 
   const handleReach35 = () => {
+    if (!state.inicioCalentamiento?.iniciado) {
+      showToast('Debes presionar "Empezar a Calentar la Mezcla" antes de confirmar que llegó a 35 °C.', 'warning');
+      return;
+    }
+
     const nowTs = Date.now();
     const nowTimeStr = getCurrentTimeString();
 
-    let startTs = state.inicioCalentamiento?.timestampInicio;
-    if (!startTs) {
-      onStartProcessTimer();
-      startTs = nowTs;
-    }
-
+    const startTs = state.inicioCalentamiento.timestampInicio || nowTs;
     const elapsedSec = Math.max(1, Math.floor((nowTs - startTs) / 1000));
     const humanDuration = formatHumanDuration(elapsedSec);
 
@@ -214,6 +255,10 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
   };
 
   const handleSaveManualPaso1 = () => {
+    if (!state.inicioCalentamiento?.iniciado) {
+      showToast('Debes iniciar el calentamiento antes de guardar cambios manuales en el Paso 1.', 'warning');
+      return;
+    }
     const formattedHora = formatTimeFromStep1(draftHoraPaso1);
     const finalTemp = draftTempPaso1 > 0 ? draftTempPaso1 : 35.0;
 
@@ -253,6 +298,11 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
   };
 
   const handleRecordAdicionCuajo = () => {
+    if (!state.phase1.alcanzo35) {
+      showToast('La mezcla debe alcanzar los 35 °C antes de agregar el cuajo.', 'warning');
+      return;
+    }
+
     const nowTs = Date.now();
     const nowTimeStr = getCurrentTimeString();
 
@@ -266,6 +316,16 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
     const startTs = state.inicioCalentamiento?.timestampInicio || ts35;
     const totalElapsedSec = Math.max(1, Math.floor((nowTs - startTs) / 1000));
     const humanTotalDuration = formatHumanDuration(totalElapsedSec);
+
+    if (!isIndustrial) {
+      if (!state.insumos.lecheAcida || state.insumos.lecheAcida <= 0 || !state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
+        showToast('Ingresa primero los litros de leche ácida y leche fresca de la mezcla.', 'warning');
+        return;
+      }
+    } else if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
+      showToast('Ingresa primero los litros de leche en tina.', 'warning');
+      return;
+    }
 
     const finalCantidad =
       Number(cantidadCuajoInput) > 0
@@ -310,6 +370,21 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
   };
 
   const handleSaveManualPaso2 = () => {
+    if (!state.phase1.alcanzo35) {
+      showToast('La mezcla debe alcanzar los 35 °C antes de agregar el cuajo.', 'warning');
+      return;
+    }
+
+    if (!isIndustrial) {
+      if (!state.insumos.lecheAcida || state.insumos.lecheAcida <= 0 || !state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
+        showToast('Ingresa primero los litros de leche ácida y leche fresca de la mezcla.', 'warning');
+        return;
+      }
+    } else if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
+      showToast('Ingresa primero los litros de leche en tina.', 'warning');
+      return;
+    }
+
     const formattedHora = formatTimeFromStep1(draftHoraCuajo);
     const finalCantidad =
       Number(cantidadCuajoInput) > 0
@@ -732,16 +807,26 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
       <TimerBanner
         title="Calentamiento de la Mezcla en Tina"
         subtitle={
-          state.inicioCalentamiento?.iniciado
-            ? `Calentamiento iniciado a las ${state.inicioCalentamiento.horaInicio}`
+          state.phase1.alcanzo35
+            ? `Calentamiento finalizado a las ${state.phase1.horaAlcanzo35} (tardó ${state.phase1.tiempoCalentamiento || timerCalentamiento.humanElapsed}).`
+            : state.inicioCalentamiento?.iniciado
+            ? `Calentamiento iniciado a las ${state.inicioCalentamiento.horaInicio}. Calentando hacia 35.0 °C.`
             : 'Presiona el botón al abrir el vapor o prender el fuego de la tina para iniciar el reloj del lote.'
         }
-        formattedTime={processTimer.formattedTime || '00:00:00'}
-        isRunning={Boolean(state.inicioCalentamiento?.iniciado)}
-        isCompleted={Boolean(state.phase1.alcanzo35)}
+        formattedTime={
+          state.phase1.alcanzo35
+            ? state.phase1.tiempoCalentamiento || timerCalentamiento.humanElapsed
+            : state.inicioCalentamiento?.iniciado
+            ? timerCalentamiento.formattedElapsed
+            : '00:00:00'
+        }
+        isRunning={isCalentandoRunning}
+        isCompleted={isCalentandoCompleted}
         statusLabel={
-          state.inicioCalentamiento?.iniciado
-            ? 'Calentando en curso'
+          state.phase1.alcanzo35
+            ? `Calentamiento completado (${state.phase1.tiempoCalentamiento || timerCalentamiento.humanElapsed})`
+            : state.inicioCalentamiento?.iniciado
+            ? 'Calentando en curso hacia 35 °C'
             : 'Listo para empezar'
         }
         variant="info"
@@ -776,6 +861,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
             confirmedLabel={`✓ Alcanzó 35 °C (${state.phase1.horaAlcanzo35 || ''})`}
             icon="thermostat"
             isConfirmed={state.phase1.alcanzo35}
+            disabled={!state.inicioCalentamiento?.iniciado}
             onConfirm={handleReach35}
           />
         }
@@ -890,6 +976,7 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
             confirmedLabel={`✓ Cuajo agregado (${state.phase2?.horaAdicionCuajo || ''})`}
             icon="add_circle"
             isConfirmed={Boolean(state.phase2?.cuajoAdicionado)}
+            disabled={!state.phase1.alcanzo35}
             onConfirm={handleRecordAdicionCuajo}
           />
         }
@@ -1002,7 +1089,31 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
           variant="primary"
           size="xl"
           iconRight="arrow_forward"
-          onClick={onNextStage}
+          disabled={!state.phase2?.cuajoAdicionado}
+          onClick={() => {
+            if (!state.inicioCalentamiento?.iniciado) {
+              showToast('Debes iniciar el calentamiento antes de pasar a la siguiente etapa.', 'warning');
+              return;
+            }
+            if (!state.phase1.alcanzo35) {
+              showToast('Debes confirmar que la mezcla alcanzó 35 °C antes de continuar.', 'warning');
+              return;
+            }
+            if (!isIndustrial) {
+              if (!state.insumos.lecheAcida || state.insumos.lecheAcida <= 0 || !state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
+                showToast('Debes registrar los litros de leche ácida y leche fresca antes de continuar.', 'warning');
+                return;
+              }
+            } else if (!state.insumos.lecheFresca || state.insumos.lecheFresca <= 0) {
+              showToast('Debes registrar los litros de leche en tina antes de continuar.', 'warning');
+              return;
+            }
+            if (!state.phase2?.cuajoAdicionado) {
+              showToast('Debes registrar la adición del cuajo antes de pasar a la etapa de cuajado.', 'warning');
+              return;
+            }
+            onNextStage();
+          }}
         >
           Pasar a Etapa 2: Calentar y Cuajar
         </Button>
