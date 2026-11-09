@@ -774,9 +774,13 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
                 }))
               }
               timestamp40Grados={
+                batch.calentarYCuajar.finReposoPh58?.timestampPh58 ||
                 batch.calentarYCuajar.temperatura40.timestamp40Grados
               }
-              hora40Grados={batch.calentarYCuajar.temperatura40.horaRegistro}
+              hora40Grados={
+                batch.calentarYCuajar.finReposoPh58?.horaRegistro ||
+                batch.calentarYCuajar.temperatura40.horaRegistro
+              }
               processTimer={batch.processTimer}
               onNextStage={handleNextStage}
               onOpenReviewModal={() => setReviewModalOpen(true)}

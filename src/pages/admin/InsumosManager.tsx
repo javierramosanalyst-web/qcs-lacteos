@@ -27,6 +27,7 @@ const TIPOS: { key: InsumoTipo; label: string; icon: string; unidad: string; hin
   { key: 'colorante', label: 'Colorante (yogur)', icon: 'palette', unidad: 'ml', hint: 'Ej. COL-2026-10A', descLabel: 'Color / referencia' },
   { key: 'estevia', label: 'Stevia (yogur y griego)', icon: 'eco', unidad: 'g', hint: 'Ej. EST-2026-10A', descLabel: 'Pureza / referencia' },
   { key: 'acido_acetico', label: 'Ácido acético (pasta hilada)', icon: 'colorize', unidad: 'ml', hint: 'Ej. AA-2026-01A', descLabel: 'Proveedor / concentración' },
+  { key: 'especia', label: 'Especias y condimentos (ají, pimienta, finas hierbas)', icon: 'grain', unidad: 'g', hint: 'Ej. ESP-2026-01A', descLabel: 'Especia / referencia' },
 ];
 
 interface FormState {
@@ -87,6 +88,10 @@ export const InsumosManager: React.FC = () => {
     setInfo('');
     if (!form.codigo_lote.trim()) {
       setError('El código del lote es obligatorio.');
+      return;
+    }
+    if (tipo === 'especia' && !form.descripcion.trim()) {
+      setError('Debes seleccionar el tipo de especia (Ají Picante, Pimienta o Finas Hierbas).');
       return;
     }
     setSaving(true);
@@ -165,7 +170,7 @@ export const InsumosManager: React.FC = () => {
     return Math.max(0, Math.ceil((t + 30 * 86400000 - Date.now()) / 86400000));
   };
 
-  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k: keyof FormState) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -269,8 +274,21 @@ export const InsumosManager: React.FC = () => {
             <input className={inputClass} value={form.codigo_lote} onChange={set('codigo_lote')} placeholder={meta.hint} />
           </label>
           <label className="flex flex-col gap-1 text-[11px] font-bold text-gray-600 uppercase">
-            {meta.descLabel}
-            <input className={inputClass} value={form.descripcion} onChange={set('descripcion')} />
+            {meta.descLabel} {tipo === 'especia' ? '*' : ''}
+            {tipo === 'especia' ? (
+              <select
+                className={inputClass}
+                value={form.descripcion}
+                onChange={set('descripcion')}
+              >
+                <option value="">Seleccionar especia...</option>
+                <option value="Ají Picante">Ají Picante (Queso Mexicano)</option>
+                <option value="Pimienta">Pimienta (Queso Mexicano)</option>
+                <option value="Finas Hierbas">Mezcla Finas Hierbas (Queso Finas Hierbas)</option>
+              </select>
+            ) : (
+              <input className={inputClass} value={form.descripcion} onChange={set('descripcion')} />
+            )}
           </label>
           <label className="flex flex-col gap-1 text-[11px] font-bold text-gray-600 uppercase">
             Proveedor

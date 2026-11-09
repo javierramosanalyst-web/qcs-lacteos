@@ -239,6 +239,10 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
   // 4. Iniciar Hilado / Amasado en Paila
   const handleStartAmasadoPaila = () => {
     if (state.hiladoEnPaila?.iniciado) return;
+    if (!salmueraLista) {
+      showToast('Debes preparar y confirmar la salmuera caliente antes de iniciar el hilado.', 'warning');
+      return;
+    }
     const timeStr = getCurrentTimeString();
     const nowTs = Date.now();
 
@@ -913,7 +917,7 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
               variant="primary"
               size="md"
               icon="play_circle"
-              disabled={Boolean(state.hiladoEnPaila?.iniciado)}
+              disabled={Boolean(state.hiladoEnPaila?.iniciado) || !salmueraLista}
               onClick={handleStartAmasadoPaila}
             >
               {state.hiladoEnPaila?.iniciado
@@ -1101,7 +1105,14 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
             variant="warning"
             size="xl"
             iconRight="arrow_forward"
-            onClick={onNextStage}
+            disabled={!state.hiladoEnPaila?.completado}
+            onClick={() => {
+              if (!state.hiladoEnPaila?.completado) {
+                showToast('Debes terminar el hilado en paila antes de pasar a moldeo.', 'warning');
+                return;
+              }
+              onNextStage();
+            }}
           >
             IR A RENDIMIENTO Y MOLDEO
           </Button>

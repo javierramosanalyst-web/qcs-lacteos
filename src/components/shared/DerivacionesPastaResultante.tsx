@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { ManualEditToggle } from '../ui/ManualEditToggle';
 import { DerivacionPastaResultante, DerivacionesBatchState } from '../../types';
-import { InputField, Button, Badge } from '../ui';
+import { InputField, SelectField, Button, Badge } from '../ui';
+import { LOTES_ESPECIA_CATALOG, insumoLabel, getInsumoLoteDetail, useInsumoLotesVersion } from '../../data/insumoLotes';
 
 interface DerivacionesPastaResultanteProps {
   batchId: string;
@@ -105,6 +106,8 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
     }
   };
 
+  useInsumoLotesVersion();
+
   const updateMexicano = (partial: Partial<DerivacionPastaResultante>) => {
     setMexicano((prev) => {
       const next = { ...prev, ...partial };
@@ -118,6 +121,14 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
       const next = { ...prev, ...partial };
       if (partial.pesoInicialGramos !== undefined || partial.pesoFinalGramos !== undefined) {
         next.pesoUtilizadoGramos = Math.max(0, (next.pesoInicialGramos || 0) - (next.pesoFinalGramos || 0));
+        next.especiasFinasHierbas = {
+          mezclaHierbas: {
+            pesoInicialGramos: next.pesoInicialGramos || 0,
+            pesoFinalGramos: next.pesoFinalGramos || 0,
+            pesoUtilizadoGramos: next.pesoUtilizadoGramos,
+            lote: next.loteEspecia ?? prev.loteEspecia ?? prev.especiasFinasHierbas?.mezclaHierbas?.lote ?? '',
+          },
+        };
       }
       notifyChange(mexicano, next);
       return next;
@@ -128,10 +139,14 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
   const ajiInicial = mexicano.especiasMexicano?.ajiPicante?.pesoInicialGramos ?? 0;
   const ajiFinal = mexicano.especiasMexicano?.ajiPicante?.pesoFinalGramos ?? 0;
   const ajiConsumido = Math.max(0, ajiInicial - ajiFinal);
+  const ajiLote = mexicano.especiasMexicano?.ajiPicante?.lote || '';
 
   const pimientaInicial = mexicano.especiasMexicano?.pimienta?.pesoInicialGramos ?? 0;
   const pimientaFinal = mexicano.especiasMexicano?.pimienta?.pesoFinalGramos ?? 0;
   const pimientaConsumido = Math.max(0, pimientaInicial - pimientaFinal);
+  const pimientaLote = mexicano.especiasMexicano?.pimienta?.lote || '';
+
+  const hierbasLote = finasHierbas.loteEspecia || finasHierbas.especiasFinasHierbas?.mezclaHierbas?.lote || '';
 
   const mexUtilizadoG = ajiConsumido + pimientaConsumido;
   const mexUtilizadoKg = (mexUtilizadoG / 1000).toFixed(2);
@@ -143,11 +158,13 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
         pesoInicialGramos: inicial,
         pesoFinalGramos: finalVal,
         pesoUtilizadoGramos: consumido,
+        lote: ajiLote,
       },
       pimienta: mexicano.especiasMexicano?.pimienta ?? {
         pesoInicialGramos: pimientaInicial,
         pesoFinalGramos: pimientaFinal,
         pesoUtilizadoGramos: pimientaConsumido,
+        lote: pimientaLote,
       },
     };
     const totalIn = inicial + nextEspecias.pimienta.pesoInicialGramos;
@@ -167,11 +184,13 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
         pesoInicialGramos: ajiInicial,
         pesoFinalGramos: ajiFinal,
         pesoUtilizadoGramos: ajiConsumido,
+        lote: ajiLote,
       },
       pimienta: {
         pesoInicialGramos: inicial,
         pesoFinalGramos: finalVal,
         pesoUtilizadoGramos: consumido,
+        lote: pimientaLote,
       },
     };
     const totalIn = (nextEspecias.ajiPicante?.pesoInicialGramos || 0) + inicial;
@@ -182,6 +201,103 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
       pesoFinalGramos: totalFin,
       pesoUtilizadoGramos: Math.max(0, totalIn - totalFin),
     });
+  };
+
+  const handleUpdateAjiLote = (lote: string) => {
+    const nextEspecias = {
+      ajiPicante: {
+        pesoInicialGramos: ajiInicial,
+        pesoFinalGramos: ajiFinal,
+        pesoUtilizadoGramos: ajiConsumido,
+        lote,
+      },
+      pimienta: mexicano.especiasMexicano?.pimienta ?? {
+        pesoInicialGramos: pimientaInicial,
+        pesoFinalGramos: pimientaFinal,
+        pesoUtilizadoGramos: pimientaConsumido,
+        lote: pimientaLote,
+      },
+    };
+    updateMexicano({ especiasMexicano: nextEspecias });
+  };
+
+  const handleUpdatePimientaLote = (lote: string) => {
+    const nextEspecias = {
+      ajiPicante: mexicano.especiasMexicano?.ajiPicante ?? {
+        pesoInicialGramos: ajiInicial,
+        pesoFinalGramos: ajiFinal,
+        pesoUtilizadoGramos: ajiConsumido,
+        lote: ajiLote,
+      },
+      pimienta: {
+        pesoInicialGramos: pimientaInicial,
+        pesoFinalGramos: pimientaFinal,
+        pesoUtilizadoGramos: pimientaConsumido,
+        lote,
+      },
+    };
+    updateMexicano({ especiasMexicano: nextEspecias });
+  };
+
+  const handleUpdateHierbasLote = (lote: string) => {
+    const nextEspecias = {
+      mezclaHierbas: {
+        pesoInicialGramos: finasHierbas.pesoInicialGramos || 0,
+        pesoFinalGramos: finasHierbas.pesoFinalGramos || 0,
+        pesoUtilizadoGramos: fhUtilizadoG,
+        lote,
+      },
+    };
+    updateFinasHierbas({
+      loteEspecia: lote,
+      especiasFinasHierbas: nextEspecias,
+    });
+  };
+
+  const isEspeciaMatching = (code: string, target: 'aji' | 'pimienta' | 'hierba') => {
+    const detail = getInsumoLoteDetail('especia', code);
+    const text = ((detail?.descripcion || '') + ' ' + code).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (target === 'aji') {
+      return text.includes('aji') || text.includes('picante');
+    }
+    if (target === 'pimienta') {
+      return text.includes('pimienta');
+    }
+    if (target === 'hierba') {
+      return text.includes('hierba') || text.includes('fh');
+    }
+    return false;
+  };
+
+  const getFilteredEspeciaOptions = (target: 'aji' | 'pimienta' | 'hierba', currentVal: string) => {
+    const matched = LOTES_ESPECIA_CATALOG.filter((code) => isEspeciaMatching(code, target));
+    return currentVal && !matched.includes(currentVal) ? [currentVal, ...matched] : matched;
+  };
+
+  const optionsAji = getFilteredEspeciaOptions('aji', ajiLote);
+  const optionsPimienta = getFilteredEspeciaOptions('pimienta', pimientaLote);
+  const optionsHierbas = getFilteredEspeciaOptions('hierba', hierbasLote);
+
+  const handleSaveMexicano = () => {
+    if (optionsAji.length > 0 && !ajiLote) {
+      if (showToast) showToast('Selecciona el lote de ají picante desde el menú desplegable.', 'warning');
+      return;
+    }
+    if (optionsPimienta.length > 0 && !pimientaLote) {
+      if (showToast) showToast('Selecciona el lote de pimienta desde el menú desplegable.', 'warning');
+      return;
+    }
+    updateMexicano({ registroGuardado: true });
+    if (showToast) showToast('✓ Registro de Queso Mexicano guardado', 'success');
+  };
+
+  const handleSaveFinasHierbas = () => {
+    if (optionsHierbas.length > 0 && !hierbasLote) {
+      if (showToast) showToast('Selecciona el lote de finas hierbas desde el menú desplegable.', 'warning');
+      return;
+    }
+    updateFinasHierbas({ registroGuardado: true });
+    if (showToast) showToast('✓ Registro de Queso Finas Hierbas guardado', 'success');
   };
 
   // Moldes Mexicano
@@ -355,6 +471,18 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
                   </span>
                 </div>
 
+                <SelectField
+                  label="Lote de Ají Picante"
+                  icon="qr_code_2"
+                  value={ajiLote}
+                  placeholder={optionsAji.length === 0 ? "Sin lotes de ají picante en BD" : "Seleccionar Lote de Ají Picante"}
+                  options={optionsAji.map((lt) => ({
+                    value: lt,
+                    label: insumoLabel('especia', lt) !== lt ? insumoLabel('especia', lt) : `Lote ${lt}`,
+                  }))}
+                  onChange={(e) => handleUpdateAjiLote(e.target.value)}
+                />
+
                 <div className="grid grid-cols-2 gap-3">
                   <InputField
                     label="Peso Inicial (g)"
@@ -409,6 +537,18 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
                   </span>
                 </div>
 
+                <SelectField
+                  label="Lote de Pimienta"
+                  icon="qr_code_2"
+                  value={pimientaLote}
+                  placeholder={optionsPimienta.length === 0 ? "Sin lotes de pimienta en BD" : "Seleccionar Lote de Pimienta"}
+                  options={optionsPimienta.map((lt) => ({
+                    value: lt,
+                    label: insumoLabel('especia', lt) !== lt ? insumoLabel('especia', lt) : `Lote ${lt}`,
+                  }))}
+                  onChange={(e) => handleUpdatePimientaLote(e.target.value)}
+                />
+
                 <div className="grid grid-cols-2 gap-3">
                   <InputField
                     label="Peso Inicial (g)"
@@ -462,9 +602,19 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
                 <div className="flex flex-wrap items-center gap-2 ml-1">
                   <span className="text-xs bg-white px-2.5 py-1 rounded-lg border border-orange-300 font-bold text-orange-950">
                     Ají Picante: <strong className="font-mono text-orange-900 font-black">{ajiConsumido} g</strong>
+                    {ajiLote && (
+                      <span className="text-[10px] font-mono text-orange-800 ml-1 font-semibold">
+                        (Lote: {ajiLote})
+                      </span>
+                    )}
                   </span>
                   <span className="text-xs bg-white px-2.5 py-1 rounded-lg border border-amber-300 font-bold text-amber-950">
                     Pimienta: <strong className="font-mono text-amber-900 font-black">{pimientaConsumido} g</strong>
+                    {pimientaLote && (
+                      <span className="text-[10px] font-mono text-amber-800 ml-1 font-semibold">
+                        (Lote: {pimientaLote})
+                      </span>
+                    )}
                   </span>
                 </div>
               </div>
@@ -596,10 +746,7 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
                 icon={mexicano.registroGuardado ? 'check_circle' : 'save'}
                 disabled={Boolean(mexicano.registroGuardado)}
                 className="disabled:opacity-100"
-                onClick={() => {
-                  updateMexicano({ registroGuardado: true });
-                  if (showToast) showToast('✓ Registro de Queso Mexicano guardado', 'success');
-                }}
+                onClick={handleSaveMexicano}
               >
                 {mexicano.registroGuardado ? 'Registro Guardado' : 'Guardar Registro Mexicano'}
               </Button>
@@ -766,6 +913,27 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
             </span>
           </div>
 
+          {/* Lote Insumo Mezcla Finas Hierbas */}
+          <div className="bg-emerald-50/80 p-3.5 rounded-xl border border-emerald-300 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex-1 max-w-md">
+              <SelectField
+                label="Lote de Mezcla Finas Hierbas"
+                icon="qr_code_2"
+                value={hierbasLote}
+                placeholder={optionsHierbas.length === 0 ? "Sin lotes de finas hierbas en BD" : "Seleccionar Lote de Finas Hierbas"}
+                options={optionsHierbas.map((lt) => ({
+                  value: lt,
+                  label: insumoLabel('especia', lt) !== lt ? insumoLabel('especia', lt) : `Lote ${lt}`,
+                }))}
+                onChange={(e) => handleUpdateHierbasLote(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2 text-xs text-emerald-950 font-medium">
+              <span className="material-symbols-outlined text-emerald-700 text-[18px]">verified</span>
+              <span>Lote oficial desde BD de insumos</span>
+            </div>
+          </div>
+
           {/* Variables de Pesaje (Regla Estricta de Gramos) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Campo 1: PESO INICIAL DE FINAS HIERBAS (ESPECIAS) */}
@@ -854,10 +1022,15 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
                   </span>
                 </div>
               </div>
-              <div className="mt-3 pt-2.5 border-t border-emerald-300">
+              <div className="mt-3 pt-2.5 border-t border-emerald-300 flex flex-col gap-1">
                 <div className="text-[11px] font-mono font-bold text-emerald-900 bg-white/70 px-2.5 py-1 rounded-lg border border-emerald-200 truncate">
                   Fórmula: {finasHierbas.pesoInicialGramos || 0} g - {finasHierbas.pesoFinalGramos || 0} g = {fhUtilizadoG} g de finas hierbas
                 </div>
+                {hierbasLote && (
+                  <div className="text-[10px] font-mono text-emerald-800 font-bold">
+                    Lote especia: {hierbasLote}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1023,10 +1196,7 @@ export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultantePr
                 icon={finasHierbas.registroGuardado ? 'check_circle' : 'save'}
                 disabled={Boolean(finasHierbas.registroGuardado)}
                 className="disabled:opacity-100"
-                onClick={() => {
-                  updateFinasHierbas({ registroGuardado: true });
-                  if (showToast) showToast('✓ Registro de Queso Finas Hierbas guardado', 'success');
-                }}
+                onClick={handleSaveFinasHierbas}
               >
                 {finasHierbas.registroGuardado ? 'Registro Guardado' : 'Guardar Registro Finas Hierbas'}
               </Button>

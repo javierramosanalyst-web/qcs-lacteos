@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
+import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
 import {
   AcidificarState,
   LotesLeche,
-  LOTES_CULTIVO_LACTEO_DEFAULT,
-  LOTES_CUAJO_PERA_DEFAULT,
-  LOTES_LECHE_PROVEEDOR_DEFAULT,
   ProcessTimerState,
 } from '../../../types';
-import { LOTES_SAL_CATALOG } from '../../../data/insumoLotes';
+import {
+  LOTES_LECHE_PROVEEDOR_DEFAULT,
+  LOTES_CULTIVO_LACTEO_DEFAULT,
+  LOTES_CUAJO_PERA_DEFAULT,
+  LOTES_SAL_CATALOG,
+  useInsumoLotesVersion,
+} from '../../../data/insumoLotes';
 import { getCurrentTimeString } from '../../../utils/timer';
 import {
   StageHeader,
@@ -107,7 +111,48 @@ export const PremaduracionStage: React.FC<PremaduracionStageProps> = ({
 
   const [loteSalInput, setLoteSalInput] = useState<string>(loteSal || '');
 
+  useInsumoLotesVersion();
+
+  const [editModeInsumos, setEditModeInsumos] = useState<boolean>(false);
   const calentamientoIniciado = Boolean(state.inicioCalentamiento?.iniciado);
+  const isLocked = calentamientoIniciado && !editModeInsumos;
+
+  const optionsLeche =
+    loteLecheInput && !LOTES_LECHE_PROVEEDOR_DEFAULT.includes(loteLecheInput)
+      ? [loteLecheInput, ...LOTES_LECHE_PROVEEDOR_DEFAULT]
+      : LOTES_LECHE_PROVEEDOR_DEFAULT;
+
+  const optionsCultivo =
+    loteCultivoInput && !LOTES_CULTIVO_LACTEO_DEFAULT.includes(loteCultivoInput)
+      ? [loteCultivoInput, ...LOTES_CULTIVO_LACTEO_DEFAULT]
+      : LOTES_CULTIVO_LACTEO_DEFAULT;
+
+  const optionsCuajo =
+    loteCuajoPeraInput && !LOTES_CUAJO_PERA_DEFAULT.includes(loteCuajoPeraInput)
+      ? [loteCuajoPeraInput, ...LOTES_CUAJO_PERA_DEFAULT]
+      : LOTES_CUAJO_PERA_DEFAULT;
+
+  const optionsSal =
+    loteSalInput && !LOTES_SAL_CATALOG.includes(loteSalInput)
+      ? [loteSalInput, ...LOTES_SAL_CATALOG]
+      : LOTES_SAL_CATALOG;
+
+  const handleSaveInsumos = () => {
+    const faltantes: string[] = [];
+    if (!loteLecheInput) faltantes.push('lote de leche');
+    if (litrosLeche <= 0) faltantes.push('litros de leche fresca');
+    if (!loteCultivoInput) faltantes.push('lote de cultivo láctico');
+    if (!loteCuajoPeraInput) faltantes.push('lote de cuajo');
+    if (!loteSalInput) faltantes.push('lote de sal');
+
+    if (faltantes.length > 0) {
+      showToast(`Completa los datos requeridos: ${faltantes.join(', ')}.`, 'warning');
+      return;
+    }
+
+    setEditModeInsumos(false);
+    showToast('✓ Cambios en insumos guardados correctamente.', 'success');
+  };
 
   // Manejador para cambio de litros de leche con placeholder limpio
   const handleUpdateLitros = (litros: number) => {
@@ -309,7 +354,8 @@ export const PremaduracionStage: React.FC<PremaduracionStageProps> = ({
               label="Lote de Leche del Proveedor"
               icon="local_shipping"
               value={loteLecheInput}
-              options={LOTES_LECHE_PROVEEDOR_DEFAULT.map((lt) => ({
+              disabled={isLocked}
+              options={optionsLeche.map((lt) => ({
                 value: lt,
                 label: `Lote ${lt}`,
               }))}
@@ -334,6 +380,7 @@ export const PremaduracionStage: React.FC<PremaduracionStageProps> = ({
               unit="Litros"
               placeholder="Ej: 75"
               value={litrosInput}
+              disabled={isLocked}
               onChange={handleLitrosChange}
             />
           </div>
@@ -356,7 +403,8 @@ export const PremaduracionStage: React.FC<PremaduracionStageProps> = ({
               label="Lote de Cultivo Láctico"
               icon="science"
               value={loteCultivoInput}
-              options={LOTES_CULTIVO_LACTEO_DEFAULT.map((lt) => ({
+              disabled={isLocked}
+              options={optionsCultivo.map((lt) => ({
                 value: lt,
                 label: `Lote ${lt}`,
               }))}
@@ -409,7 +457,8 @@ export const PremaduracionStage: React.FC<PremaduracionStageProps> = ({
               label="Lote de Cuajo a Utilizar"
               icon="opacity"
               value={loteCuajoPeraInput}
-              options={LOTES_CUAJO_PERA_DEFAULT.map((lt) => ({
+              disabled={isLocked}
+              options={optionsCuajo.map((lt) => ({
                 value: lt,
                 label: `Lote ${lt}`,
               }))}
@@ -451,7 +500,8 @@ export const PremaduracionStage: React.FC<PremaduracionStageProps> = ({
               label="Lote de Sal a Utilizar"
               icon="grain"
               value={loteSalInput}
-              options={LOTES_SAL_CATALOG.map((lt) => ({
+              disabled={isLocked}
+              options={optionsSal.map((lt) => ({
                 value: lt,
                 label: lt,
               }))}
@@ -464,6 +514,27 @@ export const PremaduracionStage: React.FC<PremaduracionStageProps> = ({
             />
           </div>
         </div>
+
+        {/* Casilla de verificación y botón de Guardar cambios */}
+        {calentamientoIniciado && (
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 mt-4 border-t border-[#D6DEEA]">
+            <ManualEditToggle
+              manual={Boolean(editModeInsumos)}
+              onChange={(checked: boolean) => setEditModeInsumos(checked)}
+            />
+
+            {editModeInsumos && (
+              <Button
+                variant="primary"
+                size="md"
+                icon="save"
+                onClick={handleSaveInsumos}
+              >
+                Guardar cambios
+              </Button>
+            )}
+          </div>
+        )}
       </Card>
 
       {/* =========================================================================
@@ -603,7 +674,21 @@ export const PremaduracionStage: React.FC<PremaduracionStageProps> = ({
             variant="primary"
             size="xl"
             iconRight="arrow_forward"
-            onClick={onNextStage}
+            disabled={!calentamientoIniciado || litrosLeche <= 0}
+            onClick={() => {
+              if (!calentamientoIniciado) {
+                showToast(
+                  'Debes presionar "Empezar a Calentar la Leche a 40 °C" antes de pasar a la siguiente etapa.',
+                  'warning'
+                );
+                return;
+              }
+              if (litrosLeche <= 0) {
+                showToast('Ingresa los litros de leche fresca antes de continuar.', 'warning');
+                return;
+              }
+              onNextStage();
+            }}
           >
             Pasar a Premaduración y Cuajar
           </Button>

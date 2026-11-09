@@ -186,6 +186,10 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
   const mexTotalEspeciasG = isMexHabilitado
     ? (batch.derivaciones?.mexicano?.pesoUtilizadoGramos ?? (mexAjiConsumidoG + mexPimientaConsumidoG))
     : 0;
+  const mexAjiLote = isMexHabilitado ? (batch.derivaciones?.mexicano?.especiasMexicano?.ajiPicante?.lote || '') : '';
+  const mexPimientaLote = isMexHabilitado ? (batch.derivaciones?.mexicano?.especiasMexicano?.pimienta?.lote || '') : '';
+  const mexLoteEspecia = isMexHabilitado ? (batch.derivaciones?.mexicano?.loteEspecia || '') : '';
+  const fhLoteHierbas = isFhHabilitado ? (batch.derivaciones?.finasHierbas?.loteEspecia || batch.derivaciones?.finasHierbas?.especiasFinasHierbas?.mezclaHierbas?.lote || '') : '';
 
   // Sal de ambas salmueras (caliente + fría) para Queso Pera
   const salCalientePeraG =
@@ -202,8 +206,16 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
     batch.lotesLeche.loteLeche2 ||
     'Sin registrar';
   const loteCultivoPera =
+    batch.calentarYCuajar.cultivoLacticoPera?.loteCultivo ||
     batch.acidificar.insumos.loteCultivoLacteo ||
     batch.lotesLeche.loteCultivoLacteo ||
+    'Sin registrar';
+  const loteCuajoPera =
+    batch.loteCuajoPera ||
+    batch.calentarYCuajar.adicionCuajo?.loteCuajo ||
+    batch.lotesLeche.loteCuajoPera ||
+    batch.acidificar.insumos.loteCuajoPera ||
+    batch.loteCuajo ||
     'Sin registrar';
   const cultivoCdtas =
     batch.calentarYCuajar.cultivoLacticoPera?.cucharadas ??
@@ -241,8 +253,24 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
       titulo: isPera ? '1. Leche e Insumos' : '1. Acidificar Leche',
       items: [
         { label: isPera ? 'Inicio premaduración' : 'Inicio calentamiento', value: hora(batch.acidificar.inicioCalentamiento?.horaInicio) },
-        { label: isPera ? '40 °C alcanzado' : '35 °C alcanzado', value: hora(batch.acidificar.phase1.horaAlcanzo35) },
-        { label: 'Tiempo calentamiento', value: dato(batch.acidificar.phase1.tiempoCalentamiento) },
+        {
+          label: isPera ? '40 °C alcanzado' : '35 °C alcanzado',
+          value: hora(
+            isPera
+              ? batch.calentarYCuajar.llegada40?.horaRegistro ||
+                  batch.calentarYCuajar.temperatura40.horaRegistro
+              : batch.acidificar.phase1.horaAlcanzo35
+          ),
+        },
+        {
+          label: 'Tiempo calentamiento',
+          value: dato(
+            isPera
+              ? batch.calentarYCuajar.llegada40?.tiempoCalentamiento40 ||
+                  batch.calentarYCuajar.temperatura40.tiempoCalentamiento40
+              : batch.acidificar.phase1.tiempoCalentamiento
+          ),
+        },
         { label: 'Consigna', value: `${dato(batch.acidificar.tempConsigna)} °C` },
         { label: 'Leche utilizada', value: `${totalLecheUsada} L` },
         ...(isPera || is7Cueros
@@ -260,7 +288,13 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
         ...(is7Cueros ? [{ label: 'Rango pH', value: phRango7C }] : []),
         ...(isPera
           ? [
-              { label: 'Adición cultivo láctico', value: hora(batch.acidificar.phase2.horaAdicionCultivo) },
+              {
+                label: 'Adición cultivo láctico',
+                value: hora(
+                  batch.calentarYCuajar.cultivoLacticoPera?.horaRegistro ||
+                    batch.acidificar.phase2.horaAdicionCultivo
+                ),
+              },
               { label: 'Cultivo láctico', value: `${cultivoCdtas} cdtas` },
               { label: 'Lote cultivo', value: loteCultivoPera },
             ]
@@ -283,9 +317,17 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
         { label: 'Tiempo de cuajado', value: dato(batch.calentarYCuajar.cuajado.tiempoTranscurridoDesdeCuajo) },
         { label: 'Corte finalizado', value: hora(batch.calentarYCuajar.corte.horaRegistro) },
         { label: 'Tiempo de corte', value: dato(batch.calentarYCuajar.corte.tiempoTranscurridoDesdeCuajado) },
-        { label: '40 °C alcanzado', value: hora(batch.calentarYCuajar.temperatura40.horaRegistro) },
-        { label: 'Tiempo a 40 °C', value: dato(batch.calentarYCuajar.temperatura40.tiempoCalentamiento40) },
-        { label: 'Lote cuajo', value: dato(batch.loteCuajo) },
+        ...(isPera
+          ? [
+              { label: 'Fin reposo (pH 5.80)', value: hora(batch.calentarYCuajar.finReposoPh58?.horaRegistro) },
+              { label: 'Tiempo reposo cuajada', value: dato(batch.calentarYCuajar.finReposoPh58?.tiempoTotalReposo) },
+              { label: 'Lote cuajo', value: dato(loteCuajoPera) },
+            ]
+          : [
+              { label: '40 °C alcanzado', value: hora(batch.calentarYCuajar.temperatura40.horaRegistro) },
+              { label: 'Tiempo a 40 °C', value: dato(batch.calentarYCuajar.temperatura40.tiempoCalentamiento40) },
+              { label: 'Lote cuajo', value: dato(batch.loteCuajo) },
+            ]),
       ],
     },
     {
@@ -552,7 +594,7 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
                     LOTE CUAJO (COAGULANTE)
                   </span>
                   <span className="font-bold text-blue-950 font-mono text-xs sm:text-sm mt-0.5">
-                    {batch.loteCuajo || 'Sin registrar'}
+                    {loteCuajoPera}
                   </span>
                   <span className="text-[10px] text-blue-700 font-bold mt-1">
                     1.2 g / 100 L
@@ -718,8 +760,29 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
                         <span className="text-xs sm:text-sm font-bold text-amber-950 block">
                           Sí se elaboró - {mexTotalUnidades} unidades obtenidas ({mexTotalKg.toFixed(2)} kg)
                         </span>
-                        <div className="text-[10px] text-amber-900 mt-1 font-medium bg-amber-100/60 p-1.5 rounded-lg border border-amber-200">
-                          Especias por separado: Ají: <strong className="font-mono text-orange-950">{mexAjiConsumidoG} g</strong> · Pimienta: <strong className="font-mono text-amber-950">{mexPimientaConsumidoG} g</strong> (Total: {mexTotalEspeciasG} g)
+                        <div className="text-[10px] text-amber-900 mt-1 font-medium bg-amber-100/60 p-1.5 rounded-lg border border-amber-200 flex flex-col gap-1">
+                          <div>
+                            Especias por separado: Ají: <strong className="font-mono text-orange-950">{mexAjiConsumidoG} g</strong> · Pimienta: <strong className="font-mono text-amber-950">{mexPimientaConsumidoG} g</strong> (Total: {mexTotalEspeciasG} g)
+                          </div>
+                          {(mexAjiLote || mexPimientaLote || mexLoteEspecia) && (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-amber-200/80 font-mono text-[9px]">
+                              {mexAjiLote && (
+                                <span className="bg-white/90 text-orange-950 px-1.5 py-0.5 rounded border border-orange-300 font-bold">
+                                  Lote Ají: {mexAjiLote}
+                                </span>
+                              )}
+                              {mexPimientaLote && (
+                                <span className="bg-white/90 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300 font-bold">
+                                  Lote Pimienta: {mexPimientaLote}
+                                </span>
+                              )}
+                              {!mexAjiLote && !mexPimientaLote && mexLoteEspecia && (
+                                <span className="bg-white/90 text-amber-950 px-1.5 py-0.5 rounded border border-amber-300 font-bold">
+                                  Lote Especia: {mexLoteEspecia}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         {batch.derivaciones?.mexicano?.codigoLote && (
                           <span className="text-[10px] font-mono text-amber-800 mt-1 block">
@@ -777,8 +840,17 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
                         <span className="text-xs sm:text-sm font-bold text-emerald-950 block">
                           Sí se elaboró - {fhTotalUnidades} unidades obtenidas ({fhTotalKg.toFixed(2)} kg)
                         </span>
-                        <div className="text-[10px] text-emerald-900 mt-1 font-medium bg-emerald-100/60 p-1.5 rounded-lg border border-emerald-200">
-                          Especias: <strong className="font-mono text-emerald-950">{fhEspeciasConsumidasG} g</strong> consumidos (sin pimienta)
+                        <div className="text-[10px] text-emerald-900 mt-1 font-medium bg-emerald-100/60 p-1.5 rounded-lg border border-emerald-200 flex flex-col gap-1">
+                          <div>
+                            Especias: <strong className="font-mono text-emerald-950">{fhEspeciasConsumidasG} g</strong> consumidos (sin pimienta)
+                          </div>
+                          {fhLoteHierbas && (
+                            <div className="pt-1 border-t border-emerald-200/80 font-mono text-[9px]">
+                              <span className="bg-white/90 text-emerald-950 px-1.5 py-0.5 rounded border border-emerald-300 font-bold">
+                                Lote Finas Hierbas: {fhLoteHierbas}
+                              </span>
+                            </div>
+                          )}
                         </div>
                         {batch.derivaciones?.finasHierbas?.codigoLote && (
                           <span className="text-[10px] font-mono text-emerald-800 mt-1 block">
