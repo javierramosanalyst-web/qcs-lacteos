@@ -2,7 +2,6 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
 import {
   AcidificarState,
-  LOTES_LECHE_PROVEEDOR_DEFAULT,
   LotesLeche,
   ProcessTimerState,
 } from '../../../types';
@@ -24,7 +23,13 @@ import {
   TimerBanner,
   PopoverTimePicker,
 } from '../../../components/ui';
-import { LOTES_CUAJO_PERA_DEFAULT as LOTES_CUAJO_DEFAULT, LOTES_SAL_CATALOG as LOTES_SAL_DEFAULT } from '../../../data/insumoLotes';
+import {
+  LOTES_LECHE_PROVEEDOR_DEFAULT,
+  LOTES_CUAJO_PERA_DEFAULT,
+  LOTES_SAL_CATALOG,
+  LOTES_ACIDO_ACETICO_CATALOG,
+  useInsumoLotesVersion,
+} from '../../../data/insumoLotes';
 
 export interface AcidificarStage7CuerosProps {
   state: AcidificarState;
@@ -47,12 +52,6 @@ const SOLUCION_L_POR_L_LECHE = 12 / 400;
 const CONC_OBJETIVO = 5;
 const CONC_ACIDO_BASE = 98;
 
-const LOTES_ACIDO_ACETICO_DEFAULT = [
-  'AA-2026-01',
-  'ACET-98-2026-08A',
-  'ACET-98-2026-09B',
-  'ACET-98-2026-10C',
-];
 export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
   state,
   onChange,
@@ -134,6 +133,28 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
   const [validationAttempted, setValidationAttempted] = useState<boolean>(false);
 
   const isSaved = Boolean(state.insumos.saved);
+
+  useInsumoLotesVersion();
+
+  const optionsLeche =
+    loteLecheFrescaId && !LOTES_LECHE_PROVEEDOR_DEFAULT.includes(loteLecheFrescaId)
+      ? [loteLecheFrescaId, ...LOTES_LECHE_PROVEEDOR_DEFAULT]
+      : LOTES_LECHE_PROVEEDOR_DEFAULT;
+
+  const optionsAcido =
+    loteAcidoAceticoVal && !LOTES_ACIDO_ACETICO_CATALOG.includes(loteAcidoAceticoVal)
+      ? [loteAcidoAceticoVal, ...LOTES_ACIDO_ACETICO_CATALOG]
+      : LOTES_ACIDO_ACETICO_CATALOG;
+
+  const optionsCuajo =
+    loteCuajoVal && !LOTES_CUAJO_PERA_DEFAULT.includes(loteCuajoVal)
+      ? [loteCuajoVal, ...LOTES_CUAJO_PERA_DEFAULT]
+      : LOTES_CUAJO_PERA_DEFAULT;
+
+  const optionsSal =
+    loteSalVal && !LOTES_SAL_CATALOG.includes(loteSalVal)
+      ? [loteSalVal, ...LOTES_SAL_CATALOG]
+      : LOTES_SAL_CATALOG;
 
   // Edición manual de 35 °C con PopoverTimePicker
   const [manual35, setManual35] = useState<boolean>(false);
@@ -544,10 +565,11 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
               label="Lote del Proveedor (Leche Fresca)"
               icon="local_shipping"
               value={loteLecheFrescaId}
-              options={LOTES_LECHE_PROVEEDOR_DEFAULT.map((lote) => ({
+              options={optionsLeche.map((lote) => ({
                 value: lote,
                 label: `Lote ${lote}`,
               }))}
+              disabled={isSaved}
               onChange={(e) => {
                 const val = e.target.value;
                 setLoteLecheFrescaId(val);
@@ -570,6 +592,7 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
               unit="L"
               placeholder="Ej: 600"
               value={litrosLecheFresca !== undefined && litrosLecheFresca > 0 ? litrosLecheFresca : ''}
+              disabled={isSaved}
               onChange={(e) =>
                 setLitrosLecheFresca(
                   e.target.value === ''
@@ -602,10 +625,11 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
               label="Lote Ácido Acético al 98%"
               icon="qr_code_2"
               value={loteAcidoAceticoVal}
-              options={LOTES_ACIDO_ACETICO_DEFAULT.map((cod) => ({
+              options={optionsAcido.map((cod) => ({
                 value: cod,
                 label: `Lote ${cod}`,
               }))}
+              disabled={isSaved}
               onChange={(e) => {
                 const val = e.target.value;
                 setLoteAcidoAceticoVal(val);
@@ -623,8 +647,9 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
                   <button
                     key={u}
                     type="button"
+                    disabled={isSaved}
                     onClick={() => setUnidadAcido(u)}
-                    className={`px-4 h-9 text-xs font-black cursor-pointer ${
+                    className={`px-4 h-9 text-xs font-black cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
                       unidadAcido === u ? 'bg-[#1B4E9B] text-white' : 'bg-white text-amber-950'
                     }`}
                   >
@@ -652,6 +677,7 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
               unit={unidadAcido}
               placeholder={unidadAcido === 'L' ? 'Ej: 11.4' : 'Ej: 11400'}
               value={aguaEfectivaMl !== undefined && aguaEfectivaMl > 0 ? toUnidad(aguaEfectivaMl) : ''}
+              disabled={isSaved}
               onChange={(e) => handleAguaChange(e.target.value)}
               error={isMissingAgua ? 'Ingresa el agua de la preparación' : undefined}
               helperText="El agua es un insumo aparte (sin lote)"
@@ -667,6 +693,7 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
               unit={unidadAcido}
               placeholder={unidadAcido === 'L' ? 'Ej: 0.6' : 'Ej: 600'}
               value={acidoEfectivoMl !== undefined && acidoEfectivoMl > 0 ? toUnidad(acidoEfectivoMl) : ''}
+              disabled={isSaved}
               onChange={(e) => handleAcidoChange(e.target.value)}
               error={isMissingAcido ? 'Ingresa el ácido acético al 98%' : undefined}
               helperText="Al cambiar uno de los dos, el otro se recalcula (regla de 3)"
@@ -701,15 +728,17 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
                 <input
                   type="checkbox"
                   checked={ajusteLibre}
+                  disabled={isSaved}
                   onChange={(e) => setAjusteLibre(e.target.checked)}
-                  className="w-4 h-4 rounded cursor-pointer"
+                  className="w-4 h-4 rounded cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 />
                 Ajustar sin recalcular el otro valor
               </label>
               <button
                 type="button"
+                disabled={isSaved}
                 onClick={handleRestablecerSugerido}
-                className="text-[11px] font-black text-[#1B4E9B] underline cursor-pointer"
+                className="text-[11px] font-black text-[#1B4E9B] underline cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 Usar sugerido
               </button>
@@ -736,10 +765,11 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
                   label="Lote de Cuajo (Para Etapa 2)"
                   icon="science"
                   value={loteCuajoVal}
-                  options={LOTES_CUAJO_DEFAULT.map((cod) => ({
+                  options={optionsCuajo.map((cod) => ({
                     value: cod,
                     label: `Lote ${cod}`,
                   }))}
+                  disabled={isSaved}
                   onChange={(e) => {
                     const val = e.target.value;
                     setLoteCuajoVal(val);
@@ -751,10 +781,11 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
                   label="Lote de Sal (Para Etapa 4)"
                   icon="grain"
                   value={loteSalVal}
-                  options={LOTES_SAL_DEFAULT.map((cod) => ({
+                  options={optionsSal.map((cod) => ({
                     value: cod,
                     label: `Lote ${cod}`,
                   }))}
+                  disabled={isSaved}
                   onChange={(e) => {
                     const val = e.target.value;
                     setLoteSalVal(val);
@@ -811,7 +842,7 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
 
           {/* Checkbox Estándar Global: Habilitar edición manual */}
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
-            <ManualEditToggle manual={Boolean(manualPh)} onChange={(checked: boolean) => setManualPh(checked)} />
+            <ManualEditToggle manual={Boolean(manualPh)} onChange={(checked: boolean) => !isSaved && setManualPh(checked)} />
             <Badge variant={manualPh ? 'warning' : 'neutral'} size="sm">
               {manualPh ? 'Modo Manual Activo' : 'Confirmado'}
             </Badge>
@@ -865,6 +896,7 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
                   unit="pH"
                   placeholder="Ej: 5.35"
                   value={phMedido !== undefined && phMedido > 0 ? phMedido : ''}
+                  disabled={isSaved}
                   onChange={(e) => {
                     const val =
                       e.target.value === '' ? undefined : parseFloat(e.target.value);
@@ -896,6 +928,7 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
                     confirmedLabel="✓ pH confirmado"
                     icon="verified"
                     size="md"
+                    disabled={isSaved}
                     fullWidth={false}
                   />
                 </div>

@@ -24,7 +24,10 @@ import {
   Badge,
   PopoverTimePicker,
 } from '../../../components/ui';
-import { LOTES_CUAJO_PERA_DEFAULT as LOTES_CUAJO_DEFAULT } from '../../../data/insumoLotes';
+import {
+  LOTES_CUAJO_PERA_DEFAULT,
+  useInsumoLotesVersion,
+} from '../../../data/insumoLotes';
 
 export interface CalentarYCuajarStage7CuerosProps {
   state: CalentarYCuajarState;
@@ -113,10 +116,17 @@ export const CalentarYCuajarStage7Cueros: React.FC<
     Boolean(state.temperatura40?.esManual)
   );
 
+  useInsumoLotesVersion();
+
   // Variables editables para Paso 1 (Agregar Cuajo)
   const [loteCuajoInput, setLoteCuajoInput] = useState<string>(
     state.adicionCuajo?.loteCuajo || loteCuajo || ''
   );
+
+  const optionsCuajo =
+    loteCuajoInput && !LOTES_CUAJO_PERA_DEFAULT.includes(loteCuajoInput)
+      ? [loteCuajoInput, ...LOTES_CUAJO_PERA_DEFAULT]
+      : LOTES_CUAJO_PERA_DEFAULT;
   const [cantidadCuajoInput, setCantidadCuajoInput] = useState<
     number | undefined
   >(
@@ -747,6 +757,18 @@ export const CalentarYCuajarStage7Cueros: React.FC<
         }
       />
 
+      {effectiveMilkLiters <= 0 && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 flex items-center gap-3">
+          <span className="material-symbols-outlined text-amber-700 text-2xl">warning</span>
+          <div>
+            <h4 className="text-sm font-bold text-amber-950">Faltan datos de la Etapa 1</h4>
+            <p className="text-xs text-amber-900 mt-0.5">
+              No se han registrado los litros de leche fresca ni los insumos en la etapa de acidificación. Regresa a la Etapa 1 para completar el registro.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* BANNER: TIEMPO TRANSCURRIDO GENERAL */}
       <TimerBanner
         title="Tiempo de Proceso en Tina"
@@ -869,9 +891,9 @@ export const CalentarYCuajarStage7Cueros: React.FC<
                       if (onUpdateCuajoLote)
                         onUpdateCuajoLote(e.target.value);
                     }}
-                    options={LOTES_CUAJO_DEFAULT.map((l) => ({
+                    options={optionsCuajo.map((l) => ({
                       value: l,
-                      label: l,
+                      label: `Lote ${l}`,
                     }))}
                   />
                 </div>
@@ -934,9 +956,9 @@ export const CalentarYCuajarStage7Cueros: React.FC<
                     if (onUpdateCuajoLote)
                       onUpdateCuajoLote(e.target.value);
                   }}
-                  options={LOTES_CUAJO_DEFAULT.map((l) => ({
+                  options={optionsCuajo.map((l) => ({
                     value: l,
-                    label: l,
+                    label: `Lote ${l}`,
                   }))}
                 />
               </div>

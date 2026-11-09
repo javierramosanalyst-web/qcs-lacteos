@@ -28,6 +28,8 @@ const TIPOS: { key: InsumoTipo; label: string; icon: string; unidad: string; hin
   { key: 'estevia', label: 'Stevia (yogur y griego)', icon: 'eco', unidad: 'g', hint: 'Ej. EST-2026-10A', descLabel: 'Pureza / referencia' },
   { key: 'acido_acetico', label: 'Ácido acético (pasta hilada)', icon: 'colorize', unidad: 'ml', hint: 'Ej. AA-2026-01A', descLabel: 'Proveedor / concentración' },
   { key: 'especia', label: 'Especias y condimentos (ají, pimienta, finas hierbas)', icon: 'grain', unidad: 'g', hint: 'Ej. ESP-2026-01A', descLabel: 'Especia / referencia' },
+  { key: 'arequipe', label: 'Arequipe (quesadillas 7 Cueros)', icon: 'cake', unidad: 'g', hint: 'Ej. ARQ-2026-01A', descLabel: 'Proveedor / referencia' },
+  { key: 'bocadillo', label: 'Bocadillo (quesadillas 7 Cueros)', icon: 'bakery_dining', unidad: 'g', hint: 'Ej. BOC-2026-01A', descLabel: 'Proveedor / referencia' },
 ];
 
 interface FormState {

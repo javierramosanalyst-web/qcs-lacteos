@@ -326,7 +326,7 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
           : [
               { label: '40 °C alcanzado', value: hora(batch.calentarYCuajar.temperatura40.horaRegistro) },
               { label: 'Tiempo a 40 °C', value: dato(batch.calentarYCuajar.temperatura40.tiempoCalentamiento40) },
-              { label: 'Lote cuajo', value: dato(batch.loteCuajo) },
+              { label: 'Lote cuajo', value: dato(batch.calentarYCuajar?.adicionCuajo?.loteCuajo || batch.acidificar?.phase2?.loteCuajo || batch.loteCuajo) },
             ]),
       ],
     },

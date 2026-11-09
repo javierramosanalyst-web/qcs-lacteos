@@ -86,7 +86,10 @@ FROM (VALUES
     ('estevia',      'EST-DEMO-003', 'Extracto Stevia 98%', 'Proveedor Stevia',    365, 3000),
     ('especia',      'ESP-AJI-002',  'Ají Picante', 'Especias del Campo', 365, 2000),
     ('especia',      'ESP-PIM-002',  'Pimienta', 'Condimentos Andinos', 365, 2000),
-    ('especia',      'ESP-FH-002',   'Finas Hierbas', 'Hierbas & Aromas', 365, 2000)
+    ('especia',      'ESP-FH-002',   'Finas Hierbas', 'Hierbas & Aromas', 365, 2000),
+    ('acido_acetico','AA-2026-01',   'Ácido Acético al 98%', 'Químicos del Llano', 365, 5000),
+    ('arequipe',     'ARQ-DEMO-001', 'Arequipe Industrial', 'Dulces La Granja', 180, 5000),
+    ('bocadillo',    'BOC-DEMO-001', 'Bocadillo Veleño 60g', 'Dulces Veleños', 180, 5000)
 ) AS v(tipo, codigo_lote, descripcion, proveedor, dias_venc, cantidad)
 JOIN insumos_catalogo c ON c.tipo_insumo = v.tipo
 ON CONFLICT (insumo_id, codigo_lote) DO NOTHING;
