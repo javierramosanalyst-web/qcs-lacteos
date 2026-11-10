@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ProductDefinition, ProductionLine, UserProfile } from '../../types';
 import {
   BatchHistoryRow,
@@ -74,6 +74,29 @@ const isToday = (iso: string | null) => {
 const card = 'bg-white rounded-2xl border border-[#D6DEEA] shadow-xs';
 
 type AdminTab = 'produccion' | 'usuarios' | 'insumos' | 'borradores' | 'anulados' | 'exportar';
+
+type HistorySortKey =
+  | 'codigo_lote'
+  | 'producto_nombre'
+  | 'responsable_nombre'
+  | 'volumen'
+  | 'iniciado_at'
+  | 'finalizado_at'
+  | 'duracion'
+  | 'estado';
+
+const normText = (v: unknown): string =>
+  String(v ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const dayKey = (iso: string | null): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 const ADMIN_TABS: { key: AdminTab; label: string; icon: string }[] = [
   { key: 'produccion', label: 'Producción y Lotes', icon: 'factory' },
@@ -174,6 +197,93 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
   const annulled = history.filter((h) => h.estado === 'ANULADO');
   const activeHistory = history.filter((h) => h.estado !== 'ANULADO');
   const filteredHistory = historyFilter === 'todos' ? activeHistory : activeHistory.filter((h) => h.estado === historyFilter);
+
+  // Orden y filtros por columna del historial de lotes
+  const [sortKey, setSortKey] = useState<HistorySortKey>('iniciado_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+
+  const setColFilter = (key: string, value: string) => setColFilters((f) => ({ ...f, [key]: value }));
+  const hasColFilters = Object.values(colFilters).some((v) => v.trim() !== '');
+  const clearColFilters = () => setColFilters({});
+
+  const toggleSort = (key: HistorySortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortKey(key);
+    setSortDir(key === 'volumen' || key === 'iniciado_at' || key === 'finalizado_at' || key === 'duracion' ? 'desc' : 'asc');
+  };
+
+  const visibleHistory = useMemo(() => {
+    const rows = filteredHistory.filter((h) => {
+      if (colFilters.q) {
+        const hay = normText(`${h.codigo_lote} ${h.producto_nombre} ${h.responsable_nombre}`);
+        if (!hay.includes(normText(colFilters.q))) return false;
+      }
+      if (colFilters.lote && !normText(h.codigo_lote).includes(normText(colFilters.lote))) return false;
+      if (colFilters.producto && !normText(h.producto_nombre).includes(normText(colFilters.producto))) return false;
+      if (colFilters.responsable && !normText(h.responsable_nombre).includes(normText(colFilters.responsable))) return false;
+      if (colFilters.leche) {
+        const litros = normText(Number(h.volumen_leche_base_litros || 0).toLocaleString('es-CO'));
+        if (!litros.includes(normText(colFilters.leche))) return false;
+      }
+      if (colFilters.inicio && dayKey(h.iniciado_at) !== colFilters.inicio) return false;
+      if (colFilters.fin && dayKey(h.finalizado_at) !== colFilters.fin) return false;
+      if (colFilters.duracion && !normText(formatDuration(h.duracion_total_segundos)).includes(normText(colFilters.duracion))) return false;
+      if (colFilters.estado && h.estado !== colFilters.estado) return false;
+      return true;
+    });
+
+    const valueOf = (h: BatchHistoryRow): number | string => {
+      switch (sortKey) {
+        case 'volumen':
+          return Number(h.volumen_leche_base_litros || 0);
+        case 'iniciado_at':
+          return h.iniciado_at ? new Date(h.iniciado_at).getTime() : 0;
+        case 'finalizado_at':
+          return h.finalizado_at ? new Date(h.finalizado_at).getTime() : 0;
+        case 'duracion':
+          return h.duracion_total_segundos ?? -1;
+        case 'estado':
+          return h.estado;
+        default:
+          return normText(h[sortKey]);
+      }
+    };
+
+    return [...rows].sort((a, b) => {
+      const va = valueOf(a);
+      const vb = valueOf(b);
+      const cmp =
+        typeof va === 'number' && typeof vb === 'number'
+          ? va - vb
+          : String(va).localeCompare(String(vb), 'es', { numeric: true });
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [filteredHistory, colFilters, sortKey, sortDir]);
+
+  const sortIcon = (key: HistorySortKey) =>
+    sortKey === key ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more';
+
+  const sortHeader = (label: string, key: HistorySortKey, align: 'left' | 'right' = 'left') => (
+    <button
+      type="button"
+      onClick={() => toggleSort(key)}
+      aria-sort={sortKey === key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className={`flex items-center gap-1 text-[10px] font-bold uppercase cursor-pointer hover:text-[#1B4E9B] ${
+        sortKey === key ? 'text-[#1B4E9B]' : 'text-gray-500'
+      } ${align === 'right' ? 'justify-end w-full' : ''}`}
+    >
+      <span>{label}</span>
+      <span className={`material-symbols-outlined text-[13px] ${sortKey === key ? 'text-[#1B4E9B]' : 'text-gray-300'}`}>
+        {sortIcon(key)}
+      </span>
+    </button>
+  );
+
+  const filterInput = 'w-full min-w-[64px] rounded-md border border-[#D6DEEA] bg-white px-1.5 py-1 text-[10px] font-normal normal-case text-gray-700 outline-none focus:border-[#1B4E9B]';
   const lineName = (id?: string) => lines.find((l) => l.id === id)?.name ?? 'Flotante';
 
   return (
@@ -350,7 +460,10 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#D6DEEA] pb-3">
             <div className="flex items-center gap-2">
               <span className="material-symbols-outlined text-[#1B4E9B] text-[20px]">inventory_2</span>
-              <h3 className="text-sm font-bold text-gray-900">Historial de Lotes ({filteredHistory.length})</h3>
+              <h3 className="text-sm font-bold text-gray-900">
+                Historial de Lotes ({visibleHistory.length}
+                {hasColFilters ? ` de ${filteredHistory.length}` : ''})
+              </h3>
             </div>
             <div className="flex gap-1">
               {(['todos', 'EN_PROCESO', 'COMPLETADO'] as const).map((f) => (
@@ -366,30 +479,302 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
               ))}
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-xs">
+          <div className="lg:hidden flex flex-col gap-2">
+            <input
+              className="w-full rounded-xl border border-[#D6DEEA] bg-white px-3 py-2 text-xs text-gray-700 outline-none focus:border-[#1B4E9B]"
+              value={colFilters.q ?? ''}
+              onChange={(e) => setColFilter('q', e.target.value)}
+              placeholder="Buscar lote, producto o responsable"
+              aria-label="Buscar en el historial"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                className="w-full rounded-xl border border-[#D6DEEA] bg-white px-2 py-2 text-[11px] text-gray-700 outline-none focus:border-[#1B4E9B]"
+                value={colFilters.estado ?? ''}
+                onChange={(e) => setColFilter('estado', e.target.value)}
+                aria-label="Filtrar por estado"
+              >
+                <option value="">Todos</option>
+                <option value="EN_PROCESO">En proceso</option>
+                <option value="COMPLETADO">Completado</option>
+              </select>
+              <select
+                className="w-full rounded-xl border border-[#D6DEEA] bg-white px-2 py-2 text-[11px] text-gray-700 outline-none focus:border-[#1B4E9B]"
+                value={`${sortKey}:${sortDir}`}
+                onChange={(e) => {
+                  const [k, d] = e.target.value.split(':') as [HistorySortKey, 'asc' | 'desc'];
+                  setSortKey(k);
+                  setSortDir(d);
+                }}
+                aria-label="Ordenar historial"
+              >
+                <option value="iniciado_at:desc">Más recientes</option>
+                <option value="iniciado_at:asc">Más antiguos</option>
+                <option value="codigo_lote:asc">Lote (A-Z)</option>
+                <option value="codigo_lote:desc">Lote (Z-A)</option>
+                <option value="producto_nombre:asc">Producto (A-Z)</option>
+                <option value="responsable_nombre:asc">Responsable (A-Z)</option>
+                <option value="volumen:desc">Leche (mayor)</option>
+                <option value="volumen:asc">Leche (menor)</option>
+                <option value="duracion:desc">Duración (mayor)</option>
+                <option value="duracion:asc">Duración (menor)</option>
+                <option value="estado:asc">Estado</option>
+              </select>
+              <input
+                className="w-full rounded-xl border border-[#D6DEEA] bg-white px-2 py-2 text-[11px] text-gray-700 outline-none focus:border-[#1B4E9B]"
+                value={colFilters.leche ?? ''}
+                onChange={(e) => setColFilter('leche', e.target.value)}
+                placeholder="Leche (L)"
+                inputMode="numeric"
+                aria-label="Filtrar por litros de leche"
+              />
+              <input
+                className="w-full rounded-xl border border-[#D6DEEA] bg-white px-2 py-2 text-[11px] text-gray-700 outline-none focus:border-[#1B4E9B]"
+                value={colFilters.duracion ?? ''}
+                onChange={(e) => setColFilter('duracion', e.target.value)}
+                placeholder="Duración (ej. 1h)"
+                aria-label="Filtrar por duración"
+              />
+              <label className="flex flex-col gap-0.5 text-[9px] font-bold uppercase text-gray-500">
+                Inicio
+                <input
+                  type="date"
+                  className="w-full rounded-xl border border-[#D6DEEA] bg-white px-2 py-1.5 text-[11px] font-normal normal-case text-gray-700 outline-none focus:border-[#1B4E9B]"
+                  value={colFilters.inicio ?? ''}
+                  onChange={(e) => setColFilter('inicio', e.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-0.5 text-[9px] font-bold uppercase text-gray-500">
+                Fin
+                <input
+                  type="date"
+                  className="w-full rounded-xl border border-[#D6DEEA] bg-white px-2 py-1.5 text-[11px] font-normal normal-case text-gray-700 outline-none focus:border-[#1B4E9B]"
+                  value={colFilters.fin ?? ''}
+                  onChange={(e) => setColFilter('fin', e.target.value)}
+                />
+              </label>
+            </div>
+            {hasColFilters && (
+              <button
+                type="button"
+                onClick={clearColFilters}
+                className="self-start text-[11px] font-bold text-[#1B4E9B] hover:underline cursor-pointer"
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+
+          <div className="lg:hidden flex flex-col gap-2">
+            {visibleHistory.length === 0 && (
+              <p className="py-6 text-center text-xs text-gray-400">
+                {loading
+                  ? 'Cargando...'
+                  : hasColFilters
+                    ? 'Ningún lote coincide con los filtros aplicados.'
+                    : 'Aún no hay lotes registrados.'}
+              </p>
+            )}
+            {visibleHistory.map((h) => {
+              const productUiId = productUiIdFromCode(h.producto_codigo);
+              const isCheese = products.find((p) => p.id === productUiId)?.lineType === 'pasta_hilada';
+              return (
+                <div key={h.id} className="rounded-xl border border-[#D6DEEA] bg-white p-3 flex flex-col gap-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-mono font-bold text-[11px] text-[#1B4E9B] break-all">{h.codigo_lote}</span>
+                    <span
+                      className={`shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                        h.estado === 'COMPLETADO'
+                          ? 'bg-[#5FAF32]/10 text-[#3F7F1E] border-[#5FAF32]/40'
+                          : 'bg-[#1B4E9B]/10 text-[#1B4E9B] border-[#1B4E9B]/30'
+                      }`}
+                    >
+                      {h.estado === 'COMPLETADO' ? 'Completado' : h.estado === 'EN_PROCESO' ? 'En proceso' : h.estado}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-gray-900 break-words">{h.producto_nombre}</p>
+                    <p className="text-[10px] text-gray-500 break-words">{h.responsable_nombre}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+                    <span className="text-gray-500">Leche</span>
+                    <span className="text-right font-mono text-gray-800">
+                      {Number(h.volumen_leche_base_litros || 0).toLocaleString('es-CO')} L
+                    </span>
+                    <span className="text-gray-500">Inicio</span>
+                    <span className="text-right text-gray-800">{formatDate(h.iniciado_at)}</span>
+                    <span className="text-gray-500">Fin</span>
+                    <span className="text-right text-gray-800">{formatDate(h.finalizado_at)}</span>
+                    <span className="text-gray-500">Duración</span>
+                    <span className="text-right font-mono text-gray-800">{formatDuration(h.duracion_total_segundos)}</span>
+                  </div>
+                  {h.rectificaciones > 0 && (
+                    <span className="text-[10px] text-amber-700 font-bold">{h.rectificaciones} rectificación(es)</span>
+                  )}
+                  <div className="flex flex-wrap gap-2 pt-1 border-t border-[#F2F4F7]">
+                    {h.estado === 'EN_PROCESO' && (
+                      <>
+                        <button
+                          onClick={() => onOpenBatch(productUiId)}
+                          className="flex-1 min-w-[72px] py-1.5 rounded-lg bg-[#1B4E9B] text-white text-[11px] font-bold cursor-pointer"
+                        >
+                          Ver
+                        </button>
+                        {isCheese && (
+                          <button
+                            onClick={() => onCorrectBatch(productUiId)}
+                            className="flex-1 min-w-[72px] py-1.5 rounded-lg bg-red-600 text-white text-[11px] font-bold cursor-pointer"
+                          >
+                            Corregir
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { setAnnulTarget(h); setAnnulText(''); setAnnulError(''); }}
+                          className="flex-1 min-w-[72px] py-1.5 rounded-lg bg-white border border-[#D6DEEA] text-gray-700 text-[11px] font-bold cursor-pointer"
+                        >
+                          Anular
+                        </button>
+                      </>
+                    )}
+                    {h.estado === 'COMPLETADO' && (
+                      <>
+                        <button
+                          onClick={() => onViewBatchDetail(h)}
+                          className="flex-1 min-w-[72px] py-1.5 rounded-lg bg-[#1B4E9B] text-white text-[11px] font-bold cursor-pointer"
+                        >
+                          Ver
+                        </button>
+                        <button
+                          onClick={() => onCorrectBatchDetail(h)}
+                          className="flex-1 min-w-[72px] py-1.5 rounded-lg bg-red-600 text-white text-[11px] font-bold cursor-pointer"
+                        >
+                          Corregir
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="hidden lg:block overflow-x-auto">
+            <table className="w-full min-w-[860px] text-xs">
               <thead>
                 <tr className="text-left text-[10px] uppercase text-gray-500 border-b border-[#D6DEEA]">
-                  <th className="py-2 pr-3">Lote</th>
-                  <th className="py-2 pr-3">Producto</th>
-                  <th className="py-2 pr-3">Responsable</th>
-                  <th className="py-2 pr-3 text-right">Leche (L)</th>
-                  <th className="py-2 pr-3">Inicio</th>
-                  <th className="py-2 pr-3">Fin</th>
-                  <th className="py-2 pr-3">Duración</th>
-                  <th className="py-2 pr-3">Estado</th>
+                  <th className="py-2 pr-3">{sortHeader('Lote', 'codigo_lote')}</th>
+                  <th className="py-2 pr-3">{sortHeader('Producto', 'producto_nombre')}</th>
+                  <th className="py-2 pr-3">{sortHeader('Responsable', 'responsable_nombre')}</th>
+                  <th className="py-2 pr-3">{sortHeader('Leche (L)', 'volumen', 'right')}</th>
+                  <th className="py-2 pr-3">{sortHeader('Inicio', 'iniciado_at')}</th>
+                  <th className="py-2 pr-3">{sortHeader('Fin', 'finalizado_at')}</th>
+                  <th className="py-2 pr-3">{sortHeader('Duración', 'duracion')}</th>
+                  <th className="py-2 pr-3">{sortHeader('Estado', 'estado')}</th>
                   <th className="py-2"></th>
+                </tr>
+                <tr className="align-top border-b border-[#D6DEEA]">
+                  <th className="pb-2 pr-3 font-normal">
+                    <input
+                      className={filterInput}
+                      value={colFilters.lote ?? ''}
+                      onChange={(e) => setColFilter('lote', e.target.value)}
+                      placeholder="Filtrar"
+                      aria-label="Filtrar por lote"
+                    />
+                  </th>
+                  <th className="pb-2 pr-3 font-normal">
+                    <input
+                      className={filterInput}
+                      value={colFilters.producto ?? ''}
+                      onChange={(e) => setColFilter('producto', e.target.value)}
+                      placeholder="Filtrar"
+                      aria-label="Filtrar por producto"
+                    />
+                  </th>
+                  <th className="pb-2 pr-3 font-normal">
+                    <input
+                      className={filterInput}
+                      value={colFilters.responsable ?? ''}
+                      onChange={(e) => setColFilter('responsable', e.target.value)}
+                      placeholder="Filtrar"
+                      aria-label="Filtrar por responsable"
+                    />
+                  </th>
+                  <th className="pb-2 pr-3 font-normal">
+                    <input
+                      className={`${filterInput} text-right`}
+                      value={colFilters.leche ?? ''}
+                      onChange={(e) => setColFilter('leche', e.target.value)}
+                      placeholder="L"
+                      inputMode="numeric"
+                      aria-label="Filtrar por litros de leche"
+                    />
+                  </th>
+                  <th className="pb-2 pr-3 font-normal">
+                    <input
+                      type="date"
+                      className={filterInput}
+                      value={colFilters.inicio ?? ''}
+                      onChange={(e) => setColFilter('inicio', e.target.value)}
+                      aria-label="Filtrar por fecha de inicio"
+                    />
+                  </th>
+                  <th className="pb-2 pr-3 font-normal">
+                    <input
+                      type="date"
+                      className={filterInput}
+                      value={colFilters.fin ?? ''}
+                      onChange={(e) => setColFilter('fin', e.target.value)}
+                      aria-label="Filtrar por fecha de fin"
+                    />
+                  </th>
+                  <th className="pb-2 pr-3 font-normal">
+                    <input
+                      className={filterInput}
+                      value={colFilters.duracion ?? ''}
+                      onChange={(e) => setColFilter('duracion', e.target.value)}
+                      placeholder="Ej. 1h"
+                      aria-label="Filtrar por duración"
+                    />
+                  </th>
+                  <th className="pb-2 pr-3 font-normal">
+                    <select
+                      className={filterInput}
+                      value={colFilters.estado ?? ''}
+                      onChange={(e) => setColFilter('estado', e.target.value)}
+                      aria-label="Filtrar por estado"
+                    >
+                      <option value="">Todos</option>
+                      <option value="EN_PROCESO">En proceso</option>
+                      <option value="COMPLETADO">Completado</option>
+                    </select>
+                  </th>
+                  <th className="pb-2 text-right font-normal">
+                    {hasColFilters && (
+                      <button
+                        type="button"
+                        onClick={clearColFilters}
+                        className="text-[10px] font-bold text-[#1B4E9B] hover:underline cursor-pointer whitespace-nowrap"
+                      >
+                        Limpiar
+                      </button>
+                    )}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {filteredHistory.length === 0 && (
+                {visibleHistory.length === 0 && (
                   <tr>
                     <td colSpan={9} className="py-6 text-center text-gray-400">
-                      {loading ? 'Cargando...' : 'Aún no hay lotes registrados.'}
+                      {loading
+                        ? 'Cargando...'
+                        : hasColFilters
+                          ? 'Ningún lote coincide con los filtros aplicados.'
+                          : 'Aún no hay lotes registrados.'}
                     </td>
                   </tr>
                 )}
-                {filteredHistory.map((h) => {
+                {visibleHistory.map((h) => {
                   const productUiId = productUiIdFromCode(h.producto_codigo);
                   const isCheese = products.find((p) => p.id === productUiId)?.lineType === 'pasta_hilada';
                   return (
