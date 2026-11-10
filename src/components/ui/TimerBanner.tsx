@@ -167,8 +167,8 @@ export const TimerBanner: React.FC<TimerBannerProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center justify-between sm:justify-end gap-4 shrink-0">
-          <div className="text-right">
+        <div className="flex flex-wrap items-center justify-between sm:justify-end gap-3 sm:gap-4 w-full sm:w-auto sm:shrink-0">
+          <div className="text-right shrink-0">
             <div
               className={`text-2xl sm:text-3xl font-mono font-black tracking-tight leading-none ${timerTextColor}`}
             >
@@ -185,7 +185,11 @@ export const TimerBanner: React.FC<TimerBannerProps> = ({
             )}
           </div>
 
-          {actionButton && <div className="shrink-0">{actionButton}</div>}
+          {actionButton && (
+            <div className="w-full sm:w-auto min-w-0 [&>button]:w-full sm:[&>button]:w-auto">
+              {actionButton}
+            </div>
+          )}
         </div>
       </div>
 

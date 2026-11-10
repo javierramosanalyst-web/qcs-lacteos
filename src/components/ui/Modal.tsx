@@ -55,20 +55,20 @@ export const Modal: React.FC<ModalProps> = ({
       <div
         className={`w-full ${MAX_WIDTH_CLASSES[maxWidth]} max-h-[92vh] bg-[#FFFFFF] border border-[#D6DEEA] rounded-3xl shadow-2xl flex flex-col overflow-hidden`}
       >
-        <header className="px-5 sm:px-6 py-4 bg-white border-b border-[#D6DEEA] flex items-center justify-between gap-4 shrink-0">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="w-11 h-11 rounded-2xl bg-[#1B4E9B]/10 border border-[#1B4E9B]/20 text-[#1B4E9B] flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-[24px]">
+        <header className="px-4 sm:px-6 py-3.5 sm:py-4 bg-white border-b border-[#D6DEEA] flex items-center justify-between gap-2 sm:gap-4 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
+            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-2xl bg-[#1B4E9B]/10 border border-[#1B4E9B]/20 text-[#1B4E9B] flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[20px] sm:text-[24px]">
                 {icon}
               </span>
             </div>
             <div className="min-w-0">
-              {badge && <div className="mb-0.5">{badge}</div>}
-              <h2 className="text-base sm:text-lg font-extrabold text-[#191c1e] tracking-tight truncate">
+              {badge && <div className="mb-1 flex flex-wrap">{badge}</div>}
+              <h2 className="text-sm sm:text-lg font-extrabold text-[#191c1e] tracking-tight leading-tight break-words">
                 {title}
               </h2>
               {subtitle && (
-                <div className="text-xs text-[#5f6374] truncate mt-0.5">
+                <div className="text-[11px] sm:text-xs text-[#5f6374] break-words mt-0.5">
                   {subtitle}
                 </div>
               )}

@@ -274,13 +274,13 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
               const lotes = inProcess.filter((h) => lineUiId(h.linea_codigo) === line.id);
               return (
                 <div key={line.id} className={`${card} p-5 flex flex-col gap-4`}>
-                  <div className="flex items-start justify-between gap-2 border-b border-[#D6DEEA] pb-3">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-mono font-bold text-[#1B4E9B] bg-[#1B4E9B]/5 px-2 py-0.5 rounded border border-[#1B4E9B]/20">
+                  <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#D6DEEA] pb-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-mono font-bold text-[#1B4E9B] bg-[#1B4E9B]/5 px-2 py-0.5 rounded border border-[#1B4E9B]/20 whitespace-nowrap">
                           {line.code}
                         </span>
-                        <h3 className="text-base font-bold text-gray-900">{line.name}</h3>
+                        <h3 className="text-base font-bold text-gray-900 min-w-0">{line.name}</h3>
                       </div>
                       <span className="text-[11px] text-gray-500 mt-1 block">
                         Capacidad: {line.capacityLiters.toLocaleString('es-CO')} L · {line.allowedProductIds.length} producto(s)
@@ -367,7 +367,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full min-w-[720px] text-xs">
               <thead>
                 <tr className="text-left text-[10px] uppercase text-gray-500 border-b border-[#D6DEEA]">
                   <th className="py-2 pr-3">Lote</th>
@@ -642,7 +642,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
             <span className="text-[10px] text-gray-500">Registro permanente, no se puede eliminar</span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full min-w-[720px] text-xs">
               <thead>
                 <tr className="text-left text-[10px] uppercase text-gray-500 border-b border-[#D6DEEA]">
                   <th className="py-2 pr-3">Lote</th>

@@ -141,43 +141,43 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
     <div className="flex flex-col flex-1">
       {/* Banner de Modo Administrador si está en vista de inspección */}
       {userRole === 'administrador' && (
-        <div className="bg-red-800 text-white px-4 py-2 text-xs font-bold flex items-center justify-between shadow-xs">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px] text-amber-300">
+        <div className="bg-red-800 text-white px-3 sm:px-4 py-2 text-[11px] sm:text-xs font-bold flex flex-wrap items-center justify-between gap-2 shadow-xs">
+          <div className="flex items-start sm:items-center gap-2 min-w-0 flex-1">
+            <span className="material-symbols-outlined text-[18px] text-amber-300 shrink-0">
               admin_panel_settings
             </span>
-            <span>
+            <span className="min-w-0 break-words">
               Modo Supervisor Activo · Revisando lote en vivo (
               {activeHeaderBatch.productName} · {activeHeaderBatch.id})
             </span>
           </div>
           <button
             onClick={onOpenCorrectionModal}
-            className="px-3 py-1 bg-white text-red-900 rounded-lg hover:bg-red-100 transition-all font-black flex items-center gap-1 cursor-pointer"
+            className="w-full sm:w-auto px-3 py-1.5 bg-white text-red-900 rounded-lg hover:bg-red-100 transition-all font-black flex items-center justify-center gap-1 cursor-pointer shrink-0"
           >
             <span className="material-symbols-outlined text-[15px]">
               edit_note
             </span>
-            <span>Corregir Dato (Con Justificación)</span>
+            <span className="text-center leading-tight">Corregir Dato (Con Justificación)</span>
           </button>
         </div>
       )}
 
       {/* Banner de Modo Solo Lectura para Lotes Cerrados y Auditados */}
       {isReadOnly && (
-        <div className="bg-slate-100 border-b border-slate-300 text-slate-800 px-4 lg:px-6 py-2.5 text-xs font-black flex flex-wrap items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px] text-slate-600">
+        <div className="bg-slate-100 border-b border-slate-300 text-slate-800 px-3 lg:px-6 py-2.5 text-[11px] sm:text-xs font-black flex flex-wrap items-center justify-between gap-2 sm:gap-3 shadow-xs">
+          <div className="flex items-start sm:items-center gap-2 min-w-0 flex-1">
+            <span className="material-symbols-outlined text-[18px] text-slate-600 shrink-0">
               lock
             </span>
-            <span>
+            <span className="min-w-0 break-words">
               🔒 Lote Cerrado y Auditado - Modo de Solo Lectura ({activeHeaderBatch.productName} · {activeHeaderBatch.id})
             </span>
           </div>
           <button
             type="button"
             onClick={batchManager.openActiveReviewModal}
-            className="px-3 py-1 bg-white text-slate-900 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-bold flex items-center gap-1 cursor-pointer text-xs shadow-2xs"
+            className="w-full sm:w-auto px-3 py-1.5 bg-white text-slate-900 border border-slate-300 rounded-lg hover:bg-slate-50 transition-all font-bold flex items-center justify-center gap-1 cursor-pointer text-xs shadow-2xs shrink-0"
           >
             <span className="material-symbols-outlined text-[15px]">
               visibility

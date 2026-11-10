@@ -34,7 +34,7 @@ export const Toast: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
   if (!toasts.length) return null;
 
   return (
-    <div className="fixed top-5 right-5 z-[9999] pointer-events-none flex flex-col gap-2.5 max-w-md w-full px-4 sm:px-0">
+    <div className="fixed top-3 sm:top-5 left-3 right-3 sm:left-auto sm:right-5 z-[9999] pointer-events-none flex flex-col gap-2.5 w-auto sm:w-full sm:max-w-md">
       {toasts.map((toast) => {
         const style = TOAST_STYLES[toast.type] || TOAST_STYLES.info;
         return (
@@ -42,7 +42,7 @@ export const Toast: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
             key={toast.id}
             role="status"
             onClick={() => onDismiss(toast.id)}
-            className={`flex items-center gap-3.5 px-4 py-3.5 rounded-2xl font-semibold text-sm pointer-events-auto cursor-pointer transition-all duration-200 ${style.container}`}
+            className={`flex items-start sm:items-center gap-3 px-3.5 sm:px-4 py-3 sm:py-3.5 rounded-2xl font-semibold text-[13px] sm:text-sm pointer-events-auto cursor-pointer transition-all duration-200 ${style.container}`}
           >
             <div
               className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${style.badge}`}
@@ -51,10 +51,10 @@ export const Toast: React.FC<ToastProps> = ({ toasts, onDismiss }) => {
                 {style.icon}
               </span>
             </div>
-            <span className="flex-1 leading-snug text-[#191c1e]">
+            <span className="flex-1 min-w-0 leading-snug text-[#191c1e] break-words">
               {toast.message}
             </span>
-            <span className="material-symbols-outlined text-[16px] text-[#737686] hover:text-[#191c1e]">
+            <span className="material-symbols-outlined text-[16px] text-[#737686] hover:text-[#191c1e] shrink-0">
               close
             </span>
           </div>

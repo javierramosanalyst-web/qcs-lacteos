@@ -137,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
         {isAdmin && onOpenCorrectionModal && (
           <button
             onClick={onOpenCorrectionModal}
-            className="px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 text-xs font-bold flex items-center gap-1 shadow-xs transition-all cursor-pointer active:scale-95"
+            className="hidden sm:flex px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-300 text-xs font-bold items-center gap-1 shadow-xs transition-all cursor-pointer active:scale-95"
             title="Corrección justificada de un dato del lote"
           >
             <span className="material-symbols-outlined text-[16px]">edit_note</span>

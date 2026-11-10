@@ -228,7 +228,7 @@ export const InsumosManager: React.FC = () => {
             <div className="text-xs text-gray-500 py-6 text-center">La papelera está vacía.</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-xs">
+              <table className="w-full min-w-[560px] text-xs">
                 <thead>
                   <tr className="text-left text-[10px] uppercase text-gray-500 border-b border-[#D6DEEA]">
                     <th className="py-2 pr-3">Insumo</th>
@@ -324,7 +324,7 @@ export const InsumosManager: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full min-w-[560px] text-xs">
               <thead>
                 <tr className="text-left text-[10px] uppercase text-gray-500 border-b border-[#D6DEEA]">
                   <th className="py-2 pr-3">Lote</th>

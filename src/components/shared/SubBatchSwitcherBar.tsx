@@ -20,11 +20,11 @@ export const SubBatchSwitcherBar: React.FC<SubBatchSwitcherBarProps> = ({
   const visibleTabs = tabs.filter((t) => (t.allocatedLiters ?? 0) > 0);
 
   return (
-    <div className="bg-[#F2F4F7] border-b border-[#D6DEEA] px-4 lg:px-6 py-3 flex flex-col gap-3">
+    <div className="bg-[#F2F4F7] border-b border-[#D6DEEA] px-3 sm:px-4 lg:px-6 py-3 flex flex-col gap-3">
       {/* Fila superior: Resumen de Lote Padre (en Fermentados) + Pestañas de Sub-Lotes con Relojes en Vivo */}
       <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
         {/* Pestañas de Sub-Lotes Activos */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 xl:pb-0">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:overflow-x-auto pb-1 xl:pb-0 -mx-1 px-1 scroll-px-1">
           <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#737686] shrink-0 mr-1 flex items-center gap-1">
             <span className="material-symbols-outlined text-[16px] text-[#1B4E9B]">
               call_split
@@ -43,7 +43,7 @@ export const SubBatchSwitcherBar: React.FC<SubBatchSwitcherBarProps> = ({
                 key={tab.productId}
                 type="button"
                 onClick={() => onSelectSubBatch(tab.productId)}
-                className={`group flex items-center gap-3 px-3.5 py-2 rounded-xl border text-left transition-all shrink-0 cursor-pointer ${
+                className={`group flex items-center gap-3 px-3.5 py-2 rounded-xl border text-left transition-all shrink-0 cursor-pointer w-full sm:w-auto ${
                   isActive
                     ? 'bg-white border-2 border-[#1B4E9B] shadow-sm ring-2 ring-[#1B4E9B]/10'
                     : 'bg-[#FFFFFF] hover:bg-white border-[#D6DEEA] opacity-85 hover:opacity-100'
@@ -63,7 +63,7 @@ export const SubBatchSwitcherBar: React.FC<SubBatchSwitcherBarProps> = ({
                   </span>
                 </div>
 
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span
                       className={`text-xs font-extrabold truncate ${
@@ -109,8 +109,8 @@ export const SubBatchSwitcherBar: React.FC<SubBatchSwitcherBarProps> = ({
 
         {/* Resumen Informativo de Trazabilidad del Lote Padre (solo si hay leche repartida) */}
         {isFermentacionLine && parentBatch && parentBatch.allocatedLiters > 0 && (
-          <div className="flex flex-wrap items-center justify-between xl:justify-end gap-2.5 bg-white px-3.5 py-2 rounded-xl border border-[#D6DEEA]">
-            <div className="flex items-center gap-2 text-xs">
+          <div className="flex flex-wrap items-center justify-between xl:justify-end gap-2.5 bg-white px-3 py-2 rounded-xl border border-[#D6DEEA] w-full xl:w-auto">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs min-w-0">
               <span className="px-2 py-0.5 rounded-md bg-blue-50 text-[#1B4E9B] font-mono font-bold border border-blue-200">
                 Lote Padre: {parentBatch.codigoLotePadre}
               </span>
