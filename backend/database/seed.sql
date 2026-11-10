@@ -147,7 +147,8 @@ ON CONFLICT DO NOTHING;
 --    Se incluyen solo campos que la UI usa. Los volúmenes y cantidades de insumos
 --    (leche fresca/ácida, cuajo, azúcar, ácido acético...) NO son mediciones: van
 --    a lote_insumos_utilizados. Tampoco se incluyen horas ni duraciones (hitos).
---    'masa_filtrada_kg' es obligatorio: lo consume la vista v_balance_materia_lote.
+--    'masa_filtrada_kg' y 'suero_eliminado_estimado_litros' ya no se registran (Griego sin
+--    masa filtrada); se conservan solo por las mediciones históricas que los referencian.
 -- ============================================================================
 INSERT INTO parametros_medicion (codigo, nombre, unidad) VALUES
     -- Fermentados (Yogur, Kumis, Yogur Griego)

@@ -3,6 +3,9 @@ import { pool } from './db';
 const MIGRATIONS = `
 ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS estado_ui JSONB;
 ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS producto_ui_id VARCHAR(60);
+ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS finalizado_por_id UUID REFERENCES usuarios(id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_lotes_produccion_producto_ui ON lotes_produccion(producto_ui_id, estado);
 
 CREATE TABLE IF NOT EXISTS borradores_lote (
     producto_ui_id VARCHAR(60) PRIMARY KEY,
@@ -124,6 +127,56 @@ INSERT INTO formatos_envase (codigo, descripcion, tipo_linea, categoria_variedad
   ('griego_natural_bolsa4L', 'Bolsa de 4 L (Griego Natural)',    'fermentacion', 'natural', 4.000, 'kg'),
   ('griego_stevia_bolsa4L',  'Bolsa de 4 L (Griego con Stevia)', 'fermentacion', 'stevia',  4.000, 'kg')
 ON CONFLICT (codigo) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS lote_etapa_operarios (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    lote_id UUID NOT NULL REFERENCES lotes_produccion(id) ON DELETE CASCADE,
+    etapa_codigo VARCHAR(40) NOT NULL,
+    fase_nombre VARCHAR(120) NOT NULL,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+    primera_accion_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ultima_accion_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (lote_id, etapa_codigo, usuario_id)
+);
+CREATE INDEX IF NOT EXISTS idx_lote_etapa_operarios_lote ON lote_etapa_operarios(lote_id);
+CREATE INDEX IF NOT EXISTS idx_lote_etapa_operarios_usuario ON lote_etapa_operarios(usuario_id);
+
+DROP TRIGGER IF EXISTS trg_lock_lote_etapa_operarios ON lote_etapa_operarios;
+CREATE TRIGGER trg_lock_lote_etapa_operarios
+    BEFORE INSERT OR UPDATE OR DELETE ON lote_etapa_operarios
+    FOR EACH ROW EXECUTE FUNCTION fn_bloquear_hijas_de_lote_cerrado();
+
+-- Balance de materia: el Yogur Griego ya no registra masa filtrada; se mide como la app
+-- (kg envasados / litros de leche recibidos). Se recrea la vista sin la columna de masa.
+DROP VIEW IF EXISTS v_balance_materia_lote;
+CREATE VIEW v_balance_materia_lote AS
+WITH envasado AS (
+    SELECT lote_id,
+           SUM(total_volumen_o_peso) FILTER (WHERE unidad_medida = 'L')  AS total_litros_envasados,
+           SUM(total_volumen_o_peso) FILTER (WHERE unidad_medida = 'kg') AS total_kg_envasados,
+           SUM(unidades_conteo)                                            AS total_unidades
+    FROM lote_presentaciones_envasado
+    GROUP BY lote_id
+)
+-- Yogur Griego: ya no se registra masa filtrada ni suero eliminado; su balance es
+-- kg envasados sobre los litros de leche que recibió del Yogur (igual que la app).
+SELECT l.id AS lote_id,
+       l.codigo_lote,
+       l.variante_fermentado,
+       l.volumen_leche_base_litros,
+       e.total_litros_envasados,
+       e.total_kg_envasados,
+       e.total_unidades,
+       -- Yogur / Kumis: litros envasados vs. leche base del propio lote
+       CASE WHEN l.volumen_leche_base_litros > 0 AND e.total_litros_envasados IS NOT NULL
+            THEN l.volumen_leche_base_litros - e.total_litros_envasados END       AS diferencia_litros,
+       CASE WHEN l.volumen_leche_base_litros > 0 AND e.total_litros_envasados IS NOT NULL
+            THEN ROUND(e.total_litros_envasados / l.volumen_leche_base_litros * 100, 2) END AS rendimiento_litros_pct,
+       -- Griego y quesos: kg envasados sobre leche base (kg/L)
+       CASE WHEN l.volumen_leche_base_litros > 0 AND e.total_kg_envasados IS NOT NULL
+            THEN ROUND(e.total_kg_envasados / l.volumen_leche_base_litros * 100, 2) END AS rendimiento_s_leche_pct
+FROM lotes_produccion l
+LEFT JOIN envasado e ON e.lote_id = l.id;
 `;
 
 export async function ensureSchema(): Promise<void> {

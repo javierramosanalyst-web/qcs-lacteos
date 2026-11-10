@@ -477,12 +477,9 @@ WITH envasado AS (
            SUM(unidades_conteo)                                            AS total_unidades
     FROM lote_presentaciones_envasado
     GROUP BY lote_id
-), masa_filtrada AS (  -- Yogur Griego: masa concentrada escurrida (medición manual)
-    SELECT DISTINCT ON (lote_id) lote_id, valor_numerico AS masa_filtrada_kg
-    FROM mediciones_fisicoquimicas
-    WHERE parametro_codigo = 'masa_filtrada_kg'
-    ORDER BY lote_id, registrado_at DESC
 )
+-- Yogur Griego: ya no se registra masa filtrada ni suero eliminado; su balance es
+-- kg envasados sobre los litros de leche que recibió del Yogur (igual que la app).
 SELECT l.id AS lote_id,
        l.codigo_lote,
        l.variante_fermentado,
@@ -490,7 +487,6 @@ SELECT l.id AS lote_id,
        e.total_litros_envasados,
        e.total_kg_envasados,
        e.total_unidades,
-       m.masa_filtrada_kg,
        -- Yogur / Kumis: litros envasados vs. leche base del propio lote
        CASE WHEN l.volumen_leche_base_litros > 0 AND e.total_litros_envasados IS NOT NULL
             THEN l.volumen_leche_base_litros - e.total_litros_envasados END       AS diferencia_litros,
@@ -498,13 +494,9 @@ SELECT l.id AS lote_id,
             THEN ROUND(e.total_litros_envasados / l.volumen_leche_base_litros * 100, 2) END AS rendimiento_litros_pct,
        -- Griego y quesos: kg envasados sobre leche base (kg/L)
        CASE WHEN l.volumen_leche_base_litros > 0 AND e.total_kg_envasados IS NOT NULL
-            THEN ROUND(e.total_kg_envasados / l.volumen_leche_base_litros * 100, 2) END AS rendimiento_s_leche_pct,
-       -- Griego: kg envasados sobre masa concentrada escurrida
-       CASE WHEN m.masa_filtrada_kg > 0 AND e.total_kg_envasados IS NOT NULL
-            THEN ROUND(e.total_kg_envasados / m.masa_filtrada_kg * 100, 2) END     AS rendimiento_s_masa_pct
+            THEN ROUND(e.total_kg_envasados / l.volumen_leche_base_litros * 100, 2) END AS rendimiento_s_leche_pct
 FROM lotes_produccion l
-LEFT JOIN envasado e       ON e.lote_id = l.id
-LEFT JOIN masa_filtrada m  ON m.lote_id = l.id;
+LEFT JOIN envasado e ON e.lote_id = l.id;
 
 -- ============================================================================
 -- 10. TRIGGERS DE SEGURIDAD (versión corregida)
