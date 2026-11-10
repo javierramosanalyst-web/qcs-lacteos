@@ -207,6 +207,29 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
   const hasColFilters = Object.values(colFilters).some((v) => v.trim() !== '');
   const clearColFilters = () => setColFilters({});
 
+  // Opciones de los desplegables de Lote, Producto y Responsable
+  const loteOptions = useMemo(
+    () =>
+      [...new Set(activeHistory.map((h) => h.codigo_lote).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, 'es', { numeric: true }),
+      ),
+    [activeHistory],
+  );
+  const productoOptions = useMemo(
+    () =>
+      [...new Set(activeHistory.map((h) => h.producto_nombre).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, 'es'),
+      ),
+    [activeHistory],
+  );
+  const responsableOptions = useMemo(
+    () =>
+      [...new Set(activeHistory.map((h) => h.responsable_nombre).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b, 'es'),
+      ),
+    [activeHistory],
+  );
+
   const toggleSort = (key: HistorySortKey) => {
     if (sortKey === key) {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -218,13 +241,9 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
 
   const visibleHistory = useMemo(() => {
     const rows = filteredHistory.filter((h) => {
-      if (colFilters.q) {
-        const hay = normText(`${h.codigo_lote} ${h.producto_nombre} ${h.responsable_nombre}`);
-        if (!hay.includes(normText(colFilters.q))) return false;
-      }
-      if (colFilters.lote && !normText(h.codigo_lote).includes(normText(colFilters.lote))) return false;
-      if (colFilters.producto && !normText(h.producto_nombre).includes(normText(colFilters.producto))) return false;
-      if (colFilters.responsable && !normText(h.responsable_nombre).includes(normText(colFilters.responsable))) return false;
+      if (colFilters.lote && h.codigo_lote !== colFilters.lote) return false;
+      if (colFilters.producto && h.producto_nombre !== colFilters.producto) return false;
+      if (colFilters.responsable && h.responsable_nombre !== colFilters.responsable) return false;
       if (colFilters.leche) {
         const litros = normText(Number(h.volumen_leche_base_litros || 0).toLocaleString('es-CO'));
         if (!litros.includes(normText(colFilters.leche))) return false;
@@ -480,13 +499,47 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
             </div>
           </div>
           <div className="lg:hidden flex flex-col gap-2">
-            <input
-              className="w-full rounded-xl border border-[#D6DEEA] bg-white px-3 py-2 text-xs text-gray-700 outline-none focus:border-[#1B4E9B]"
-              value={colFilters.q ?? ''}
-              onChange={(e) => setColFilter('q', e.target.value)}
-              placeholder="Buscar lote, producto o responsable"
-              aria-label="Buscar en el historial"
-            />
+            <div className="grid grid-cols-1 gap-2">
+              <select
+                className="w-full rounded-xl border border-[#D6DEEA] bg-white px-2 py-2 text-[11px] text-gray-700 outline-none focus:border-[#1B4E9B]"
+                value={colFilters.lote ?? ''}
+                onChange={(e) => setColFilter('lote', e.target.value)}
+                aria-label="Filtrar por lote"
+              >
+                <option value="">Todos los lotes</option>
+                {loteOptions.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="w-full rounded-xl border border-[#D6DEEA] bg-white px-2 py-2 text-[11px] text-gray-700 outline-none focus:border-[#1B4E9B]"
+                value={colFilters.producto ?? ''}
+                onChange={(e) => setColFilter('producto', e.target.value)}
+                aria-label="Filtrar por producto"
+              >
+                <option value="">Todos los productos</option>
+                {productoOptions.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="w-full rounded-xl border border-[#D6DEEA] bg-white px-2 py-2 text-[11px] text-gray-700 outline-none focus:border-[#1B4E9B]"
+                value={colFilters.responsable ?? ''}
+                onChange={(e) => setColFilter('responsable', e.target.value)}
+                aria-label="Filtrar por responsable"
+              >
+                <option value="">Todos los responsables</option>
+                {responsableOptions.map((v) => (
+                  <option key={v} value={v}>
+                    {v}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <select
                 className="w-full rounded-xl border border-[#D6DEEA] bg-white px-2 py-2 text-[11px] text-gray-700 outline-none focus:border-[#1B4E9B]"
@@ -674,31 +727,49 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                 </tr>
                 <tr className="align-top border-b border-[#D6DEEA]">
                   <th className="pb-2 pr-3 font-normal">
-                    <input
+                    <select
                       className={filterInput}
                       value={colFilters.lote ?? ''}
                       onChange={(e) => setColFilter('lote', e.target.value)}
-                      placeholder="Filtrar"
                       aria-label="Filtrar por lote"
-                    />
+                    >
+                      <option value="">Todos</option>
+                      {loteOptions.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
                   </th>
                   <th className="pb-2 pr-3 font-normal">
-                    <input
+                    <select
                       className={filterInput}
                       value={colFilters.producto ?? ''}
                       onChange={(e) => setColFilter('producto', e.target.value)}
-                      placeholder="Filtrar"
                       aria-label="Filtrar por producto"
-                    />
+                    >
+                      <option value="">Todos</option>
+                      {productoOptions.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
                   </th>
                   <th className="pb-2 pr-3 font-normal">
-                    <input
+                    <select
                       className={filterInput}
                       value={colFilters.responsable ?? ''}
                       onChange={(e) => setColFilter('responsable', e.target.value)}
-                      placeholder="Filtrar"
                       aria-label="Filtrar por responsable"
-                    />
+                    >
+                      <option value="">Todos</option>
+                      {responsableOptions.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
                   </th>
                   <th className="pb-2 pr-3 font-normal">
                     <input
