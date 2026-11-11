@@ -529,43 +529,11 @@ export const DesuerarStage: React.FC<DesuerarStageProps> = ({
         stageNumber={3}
         totalStages={5}
         title="Sacar el Suero y Escurrir la Cuajada"
-        subtitle="Retira el suero de la tina a 40 °C, traslada la masa a la camilla de desuerado y controla el escurrido hasta llegar al pH ideal para hilar."
         productName="Queso Doble Crema"
         icon="filter_alt"
         isCompleted={Boolean(
           state.desuerado.registrado && state.escurrido?.completado
         )}
-        rightContent={
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="px-3.5 py-2 rounded-xl bg-[#FFFFFF] border border-blue-200 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-[#1B4E9B] text-[20px]">
-                schedule
-              </span>
-              <div>
-                <div className="text-[10px] text-gray-500 uppercase font-bold">
-                  40 °C ALCANZADO A LAS
-                </div>
-                <div className="text-xs font-black text-[#1B4E9B] font-mono">
-                  {horaInicioEtapa}
-                </div>
-              </div>
-            </div>
-
-            <div className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-300 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-emerald-700 text-[22px]">
-                thermostat
-              </span>
-              <div>
-                <div className="text-[10px] text-emerald-800 uppercase font-bold">
-                  TEMPERATURA TINA
-                </div>
-                <div className="text-sm font-black text-emerald-700 font-mono">
-                  {state.temperaturaVerificada.toFixed(1)} °C
-                </div>
-              </div>
-            </div>
-          </div>
-        }
       />
 
       {/* Nota preventiva si no se había confirmado la hora de llegada a 40 °C en la etapa 2 */}
@@ -593,7 +561,6 @@ export const DesuerarStage: React.FC<DesuerarStageProps> = ({
       ========================================================================= */}
       <Card
         title="¡Ya saqué el suero!"
-        subtitle="Apenas termines de retirar el suero de la tina a 40 °C, confirma el momento exacto para calcular cuánto tiempo tardó."
         icon="filter_alt"
         badge={
           state.desuerado.registrado
@@ -716,7 +683,6 @@ export const DesuerarStage: React.FC<DesuerarStageProps> = ({
                 <PopoverTimePicker
                   label="Hora en que se terminó de desuerar"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualDesuerado}
                   onChange={setHoraManualDesuerado}
                 />
@@ -758,7 +724,6 @@ export const DesuerarStage: React.FC<DesuerarStageProps> = ({
       ========================================================================= */}
       <Card
         title="¡Ya pasé la pasta a la camilla de desuerado!"
-        subtitle="Pasa la masa de cuajada a la camilla o mesa de desuerado y confirma para registrar el tiempo de traslado."
         icon="move_to_inbox"
         badge={
           state.escurrido?.iniciado
@@ -852,7 +817,6 @@ export const DesuerarStage: React.FC<DesuerarStageProps> = ({
                 <PopoverTimePicker
                   label="Hora de paso a camilla"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualCamilla}
                   onChange={setHoraManualCamilla}
                 />
@@ -894,7 +858,6 @@ export const DesuerarStage: React.FC<DesuerarStageProps> = ({
       ========================================================================= */}
       <Card
         title="¡He terminado de escurrir!"
-        subtitle="Deja escurrir la pasta en la camilla y verifica que el pH esté en el punto ideal para pasar al hilado."
         icon="hourglass_bottom"
         badge={
           state.escurrido?.completado
@@ -909,16 +872,6 @@ export const DesuerarStage: React.FC<DesuerarStageProps> = ({
             : isPaso3Running
             ? 'warning'
             : 'default'
-        }
-        headerAction={
-          <ConfirmButton
-            label="Confirmar: He terminado de escurrir"
-            confirmedLabel="✓ Escurrido Terminado"
-            icon="verified"
-            isConfirmed={Boolean(state.escurrido?.completado)}
-            disabled={!state.escurrido?.iniciado}
-            onConfirm={handleRecordFinEscurrido}
-          />
         }
       >
         <div className="flex flex-col gap-4">
@@ -1088,7 +1041,6 @@ export const DesuerarStage: React.FC<DesuerarStageProps> = ({
                 <PopoverTimePicker
                   label="Hora de fin de escurrido"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualFinEscurrido}
                   onChange={setHoraManualFinEscurrido}
                 />
@@ -1177,6 +1129,17 @@ export const DesuerarStage: React.FC<DesuerarStageProps> = ({
               </div>
             </div>
           )}
+
+          {/* Confirmación al final: primero se registran los datos de la tarjeta */}
+          <ConfirmButton
+            label="Confirmar: He terminado de escurrir"
+            confirmedLabel="✓ Escurrido Terminado"
+            icon="verified"
+            isConfirmed={Boolean(state.escurrido?.completado)}
+            disabled={!state.escurrido?.iniciado}
+            onConfirm={handleRecordFinEscurrido}
+            fullWidth
+          />
         </div>
       </Card>
 

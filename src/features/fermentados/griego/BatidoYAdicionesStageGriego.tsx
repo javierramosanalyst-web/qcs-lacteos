@@ -122,7 +122,6 @@ export const BatidoYAdicionesStageGriego: React.FC<
     <Card
       stepBadge="Paso 01"
       title="Registro de Insumo Stevia"
-      subtitle="Registra el lote y la cantidad exacta de Stevia en polvo a incorporar en la masa concentrada de Yogur Griego."
       icon="tune"
       tone={isSteviaConfirmada ? 'completed' : 'active'}
       statusBadge={

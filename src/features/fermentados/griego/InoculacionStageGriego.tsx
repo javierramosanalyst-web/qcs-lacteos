@@ -113,35 +113,13 @@ export const InoculacionStageGriego: React.FC<InoculacionStageGriegoProps> = ({
         totalStages={5}
         lineName="Línea de Fermentados · Yogur Griego"
         title="2. Inoculación e Incubación (Griego)"
-        subtitle="Ponle el cultivo a la leche sin azúcar a 45 °C, revuelve parejo 5 minutos y déjala reposar mínimo 8 horas hasta que cuaje bien firme."
         standardBadge="NTC-805"
-        metrics={[
-          {
-            icon: 'thermostat',
-            label: 'Temp. Siembra',
-            value: `${tempLlegada45.toFixed(1)} °C`,
-            tone: 'emerald',
-          },
-          {
-            icon: 'timelapse',
-            label: 'Incubación (8 h)',
-            value: state.incubacion.iniciada
-              ? incubacionTimer.formattedElapsed
-              : '8 Horas',
-            tone: state.incubacion.completada ? 'emerald' : 'amber',
-          },
-        ]}
       />
 
       {/* PASO 01: VERIFICACIÓN DE TEMPERATURA */}
       <Card
         stepBadge="Paso 01"
         title="Temperatura de la Leche a 45.0 °C"
-        subtitle={
-          horaLlegada45
-            ? `La leche llegó a 45.0 °C a las ${horaLlegada45}. Verifica con el termómetro antes de agregar el cultivo.`
-            : 'Verifica que la leche esté entre 44.0 °C y 45.5 °C antes de poner el cultivo.'
-        }
         icon="thermostat"
         tone={state.temperaturaConfirmada ? 'completed' : 'default'}
         statusBadge={
@@ -252,7 +230,6 @@ export const InoculacionStageGriego: React.FC<InoculacionStageGriegoProps> = ({
       <Card
         stepBadge="Paso 03"
         title="Incubación de la Cuajada (Mínimo 8 Horas)"
-        subtitle="Deja las cantinas abrigadas a 42–44 °C durante mínimo 8 horas hasta obtener una cuajada firme lista para enfriar y colar."
         icon="timelapse"
         tone={
           state.incubacion.completada

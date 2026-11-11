@@ -46,6 +46,42 @@ import { InoculacionStageGriego } from '../../features/fermentados/griego/Inocul
 import { MaduracionYFiltradoStageGriego } from '../../features/fermentados/griego/MaduracionYFiltradoStageGriego';
 import { BatidoYAdicionesStageGriego } from '../../features/fermentados/griego/BatidoYAdicionesStageGriego';
 import { EnvasadoGriegoStage } from '../../features/fermentados/griego/EnvasadoGriegoStage';
+import { formatSecondsToHMS } from '../../utils/timer';
+import type { ProcessTimerState } from '../../types';
+
+/**
+ * Fermentados (Yogur, Kumis y Yogur Griego): el reloj del lote se detiene en el
+ * momento en que el producto ingresa al cuarto frío (último paso de la etapa 5),
+ * aunque el operario aún no haya cerrado el lote.
+ * Si el reloj ya estaba detenido (p. ej. al corregir la hora a mano), no se toca.
+ */
+const ingresoCuartoFrio = (e: { almacenamientoCuartoFrio?: { ingresado?: boolean } }) =>
+  Boolean(e.almacenamientoCuartoFrio?.ingresado);
+
+function conRelojDetenidoAlHitoFinal<
+  E,
+  B extends { envasado: E; processTimer: ProcessTimerState }
+>(prev: B, envasado: E, hitoCumplido: (e: E) => boolean): B {
+  const recienCumplido = hitoCumplido(envasado) && !hitoCumplido(prev.envasado);
+  if (!recienCumplido || prev.processTimer.isCompleted) {
+    return { ...prev, envasado };
+  }
+  const { startTimestamp, elapsedSeconds } = prev.processTimer;
+  const totalSeconds = startTimestamp
+    ? Math.max(elapsedSeconds, Math.floor((Date.now() - startTimestamp) / 1000))
+    : elapsedSeconds;
+  return {
+    ...prev,
+    envasado,
+    processTimer: {
+      ...prev.processTimer,
+      isRunning: false,
+      isCompleted: true,
+      elapsedSeconds: totalSeconds,
+      formattedTime: formatSecondsToHMS(Math.max(0, totalSeconds)),
+    },
+  };
+}
 
 export interface BatchExecutionPageProps {
   batchManager: ReturnType<typeof useBatchManager>;
@@ -311,10 +347,9 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
             <EnvasadoGriegoStage
               batch={batchYogurGriego}
               onChange={(updater) =>
-                setBatchYogurGriego((prev) => ({
-                  ...prev,
-                  envasado: updater(prev.envasado),
-                }))
+                setBatchYogurGriego((prev) =>
+                  conRelojDetenidoAlHitoFinal(prev, updater(prev.envasado), ingresoCuartoFrio)
+                )
               }
               onFinalizeProcess={handleFinalizeYogurGriegoBatch}
               onOpenReviewModal={() => setYogurGriegoReviewModalOpen(true)}
@@ -375,10 +410,9 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
               batch={batchKumis}
               llevaAzucar={batchKumis.pasteurizacion.llevaAzucar}
               onChange={(updater) =>
-                setBatchKumis((prev) => ({
-                  ...prev,
-                  envasado: updater(prev.envasado),
-                }))
+                setBatchKumis((prev) =>
+                  conRelojDetenidoAlHitoFinal(prev, updater(prev.envasado), ingresoCuartoFrio)
+                )
               }
               onChangeBatido={(updater) =>
                 setBatchKumis((prev) => ({
@@ -498,10 +532,9 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
               batch={batchYogur}
               llevaAzucar={batchYogur.pasteurizacion.llevaAzucar}
               onChange={(updater) =>
-                setBatchYogur((prev) => ({
-                  ...prev,
-                  envasado: updater(prev.envasado),
-                }))
+                setBatchYogur((prev) =>
+                  conRelojDetenidoAlHitoFinal(prev, updater(prev.envasado), ingresoCuartoFrio)
+                )
               }
               onFinalizeProcess={handleFinalizeYogurBatch}
               onOpenReviewModal={() => setYogurReviewModalOpen(true)}

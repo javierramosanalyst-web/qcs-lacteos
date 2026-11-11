@@ -242,50 +242,16 @@ export const MoldeoStagePera: React.FC<MoldeoStagePeraProps> = ({
         stageNumber={5}
         totalStages={5}
         title="Moldeo y Rendimiento (Queso Pera)"
-        subtitle="Cuenta los moldes de Queso Pera Grande (350 g) y Pequeño (60 g), registra las derivaciones si separaste masa para Mexicano o Finas Hierbas y revisa el rendimiento final."
         productName="Queso Pera"
         icon="scale"
         isCompleted={isCompleted}
-        rightContent={
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-amber-700 text-[22px]">
-                scale
-              </span>
-              <div>
-                <div className="text-[10px] font-bold uppercase text-amber-800">
-                  MASA TOTAL MOLDEADA
-                </div>
-                <div className="text-xs font-black font-mono text-amber-900">
-                  {totalMoldeadoGramos.toLocaleString('es-CO')} g (
-                  {totalMoldeadoKg.toFixed(2)} kg)
-                </div>
-              </div>
-            </div>
-
-            <div className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-emerald-700 text-[22px]">
-                inventory_2
-              </span>
-              <div>
-                <div className="text-[10px] font-bold uppercase text-emerald-800">
-                  TOTAL MOLDES
-                </div>
-                <div className="text-xs font-black font-mono text-emerald-900">
-                  {totalGeneralUnidadesMoldes} unidades
-                </div>
-              </div>
-            </div>
-          </div>
-        }
       />
 
       {/* =========================================================================
           PASO 01 · CONTEO DE MOLDES QUESO PERA (TRADICIONAL: 350 g y 60 g)
       ========================================================================= */}
       <Card
-        title="Paso 1 · Contar Moldes de Queso Pera: Grande (350 g) y Pequeño (60 g)"
-        subtitle="Digita cuántos moldes armaste de Queso Pera Grande (350 g) y de Queso Pera Pequeño (60 g). El peso total se calcula automáticamente."
+        title="Paso 1 · Contar Moldes de Queso Pera: Pequeño (60 g) y Grande (350 g)"
         icon="inventory_2"
         badge={
           moldesConfirmados
@@ -295,61 +261,7 @@ export const MoldeoStagePera: React.FC<MoldeoStagePeraProps> = ({
         variant={moldesConfirmados ? 'success' : 'default'}
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Formato 1: Queso Pera Grande (350 g) */}
-          <div className="p-5 rounded-2xl bg-[#FFFFFF] border-2 border-amber-300 shadow-2xs flex flex-col justify-between gap-4">
-            <div>
-              <div className="flex items-start justify-between gap-2 mb-3">
-                <div>
-                  <h3 className="text-base font-extrabold text-gray-900">
-                    Queso Pera Grande
-                  </h3>
-                  <span className="text-xs font-bold text-amber-900">
-                    Formato 350 g (0.35 kg / molde)
-                  </span>
-                </div>
-                <Badge variant="warning" size="md">
-                  350 g / molde
-                </Badge>
-              </div>
-
-              <InputField
-                label="Cantidad de Moldes (350 g)"
-                type="number"
-                inputMode="numeric"
-                min="0"
-                step="1"
-                placeholder="Ej: 30"
-                unit="unidades"
-                disabled={moldesConfirmados}
-                value={m350 > 0 ? m350 : ''}
-                onChange={(e) => {
-                  const val = Math.max(0, parseInt(e.target.value, 10) || 0);
-                  updateMoldes({ moldesPeraGrande350g: val });
-                }}
-              />
-            </div>
-
-            <div className="pt-3.5 border-t border-[#D6DEEA] flex items-center justify-between gap-2">
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase font-bold text-gray-500">
-                  SUBTOTAL GRAMOS
-                </span>
-                <span className="font-mono font-black text-amber-900 text-xl">
-                  {gramos350.toLocaleString('es-CO')} g
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-300">
-                <span className="text-emerald-800 font-bold text-xs uppercase">
-                  EQUIV. KILOS:
-                </span>
-                <span className="font-mono font-black text-emerald-800 text-base">
-                  {kilos350.toFixed(2)} kg
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Formato 2: Queso Pera Pequeño (60 g) */}
+          {/* Formato 1: Queso Pera Pequeño (60 g) */}
           <div className="p-5 rounded-2xl bg-[#FFFFFF] border-2 border-blue-300 shadow-2xs flex flex-col justify-between gap-4">
             <div>
               <div className="flex items-start justify-between gap-2 mb-3">
@@ -402,6 +314,60 @@ export const MoldeoStagePera: React.FC<MoldeoStagePeraProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Formato 2: Queso Pera Grande (350 g) */}
+          <div className="p-5 rounded-2xl bg-[#FFFFFF] border-2 border-amber-300 shadow-2xs flex flex-col justify-between gap-4">
+            <div>
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div>
+                  <h3 className="text-base font-extrabold text-gray-900">
+                    Queso Pera Grande
+                  </h3>
+                  <span className="text-xs font-bold text-amber-900">
+                    Formato 350 g (0.35 kg / molde)
+                  </span>
+                </div>
+                <Badge variant="warning" size="md">
+                  350 g / molde
+                </Badge>
+              </div>
+
+              <InputField
+                label="Cantidad de Moldes (350 g)"
+                type="number"
+                inputMode="numeric"
+                min="0"
+                step="1"
+                placeholder="Ej: 30"
+                unit="unidades"
+                disabled={moldesConfirmados}
+                value={m350 > 0 ? m350 : ''}
+                onChange={(e) => {
+                  const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                  updateMoldes({ moldesPeraGrande350g: val });
+                }}
+              />
+            </div>
+
+            <div className="pt-3.5 border-t border-[#D6DEEA] flex items-center justify-between gap-2">
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase font-bold text-gray-500">
+                  SUBTOTAL GRAMOS
+                </span>
+                <span className="font-mono font-black text-amber-900 text-xl">
+                  {gramos350.toLocaleString('es-CO')} g
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-300">
+                <span className="text-emerald-800 font-bold text-xs uppercase">
+                  EQUIV. KILOS:
+                </span>
+                <span className="font-mono font-black text-emerald-800 text-base">
+                  {kilos350.toFixed(2)} kg
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Barra de Confirmación y Bloqueo de Moldes Tradicionales */}
@@ -418,7 +384,7 @@ export const MoldeoStagePera: React.FC<MoldeoStagePeraProps> = ({
                 <strong className="text-amber-900 font-mono">
                   {unidadesMoldesPera} unidades
                 </strong>{' '}
-                ({m350} de 350 g + {m60} de 60 g) ={' '}
+                ({m60} de 60 g + {m350} de 350 g) ={' '}
                 <strong className="text-emerald-800 font-mono">
                   {kilosMoldesPera.toFixed(2)} kg
                 </strong>{' '}
@@ -479,7 +445,6 @@ export const MoldeoStagePera: React.FC<MoldeoStagePeraProps> = ({
       ========================================================================= */}
       <Card
         title="Resumen de Masa Moldeada y Rendimiento del Lote"
-        subtitle="Desglose consolidado de la masa distribuida por variante y cálculo automático de rendimiento del lote sobre la leche inicial."
         icon="analytics"
         badge={`Rendimiento: ${yieldPercentage.toFixed(2)} %`}
         variant="success"
@@ -507,7 +472,7 @@ export const MoldeoStagePera: React.FC<MoldeoStagePeraProps> = ({
                         Total Tradicional (Queso Pera)
                       </span>
                       <span className="text-[11px] text-gray-500 font-semibold">
-                        {m350} de 350 g + {m60} de 60 g ({unidadesMoldesPera} moldes)
+                        {m60} de 60 g + {m350} de 350 g ({unidadesMoldesPera} moldes)
                       </span>
                     </div>
                   </div>

@@ -294,22 +294,9 @@ export const PasteurizacionStageGriego: React.FC<
         stageNumber={1}
         totalStages={5}
         title="Pasteurización de la Leche (Sin Azúcar)"
-        subtitle="Calienta la leche pura entre 85 y 90 °C por 15 minutos, luego enfríala a 45 °C y pásala a las cantinas."
         productName="Yogur Griego"
         icon="local_fire_department"
         isCompleted={state.trasiego.completado}
-        startTime={state.calentamiento.horaInicio}
-        endTime={state.trasiego.horaFin}
-        rightContent={
-          <div className="px-4 py-2 rounded-xl bg-[#FFFFFF] border border-[#D6DEEA] text-right">
-            <span className="block text-[10px] font-bold uppercase tracking-wider text-[#737686]">
-              Leche a Procesar
-            </span>
-            <span className="text-2xl font-mono font-black text-[#1B4E9B]">
-              {state.litrosLeche} L
-            </span>
-          </div>
-        }
       />
 
       {/* Nota amigable para el operario */}
@@ -331,7 +318,6 @@ export const PasteurizacionStageGriego: React.FC<
       <Card
         stepBadge="PASO 00"
         title="Datos de la Leche y Número de Lote"
-        subtitle="Anota el lote compartido con el Yogur sin Azúcar y revisa cómo llegó la leche."
         icon="inventory_2"
         headerRight={
           state.loteYogurSinAzucar?.trim() ? (
@@ -422,7 +408,6 @@ export const PasteurizacionStageGriego: React.FC<
       <Card
         stepBadge="PASO 01"
         title="Calentar la Leche hasta 85–90 °C"
-        subtitle="Prende la marmita o tina y confirma apenas el termómetro llegue entre 85 y 90 °C."
         icon="thermostat"
         variant={
           state.calentamiento.completado
@@ -519,7 +504,6 @@ export const PasteurizacionStageGriego: React.FC<
       <Card
         stepBadge="PASO 02"
         title="Mantener entre 85 y 90 °C por 15 Minutos"
-        subtitle="El reloj corre solo. Mantén la temperatura estable durante los 15 minutos."
         icon="timer"
         variant={
           state.sostenimiento.completado
@@ -561,7 +545,6 @@ export const PasteurizacionStageGriego: React.FC<
       <Card
         stepBadge="PASO 03"
         title="Enfriar la Leche a 45 °C"
-        subtitle="Abre el agua fría de la chaqueta hasta que la leche baje a 45 °C."
         icon="ac_unit"
         variant={
           state.enfriamiento.enfriamientoCompletado
@@ -635,7 +618,6 @@ export const PasteurizacionStageGriego: React.FC<
       <Card
         stepBadge="PASO 04"
         title="Pasar la Leche a las Cantinas (Trasiego)"
-        subtitle="Pasa la leche a 45 °C a las cantinas limpias donde vas a agregar el cultivo."
         icon="move_down"
         variant={
           state.trasiego.completado

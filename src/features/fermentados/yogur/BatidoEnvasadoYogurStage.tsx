@@ -148,22 +148,7 @@ export const BatidoEnvasadoYogurStage: React.FC<BatidoEnvasadoYogurStageProps> =
         totalStages={5}
         lineName={lineName}
         title="4. Batido y Envasado"
-        subtitle="Un solo cronómetro mide desde el inicio del batido hasta el fin del envasado."
         standardBadge="NTC-805"
-        metrics={[
-          {
-            icon: 'water_drop',
-            label: 'Volumen del Lote',
-            value: `${litrosLecheBase} L`,
-            tone: 'emerald',
-          },
-          {
-            icon: 'timer',
-            label: 'Batido a Envasado',
-            value: completado ? datos.tiempoBatido || '--' : datos.iniciado ? 'En curso' : 'Por iniciar',
-            tone: completado ? 'emerald' : datos.iniciado ? 'amber' : 'default',
-          },
-        ]}
       />
 
       {antes}
@@ -172,7 +157,6 @@ export const BatidoEnvasadoYogurStage: React.FC<BatidoEnvasadoYogurStageProps> =
         <Card
           stepBadge="Paso 01"
           title="Salida del Yogur del Cuarto Frío"
-          subtitle="Registra la hora en que el yogur sale del cuarto frío hacia batido y envasado."
           icon="ac_unit"
           tone={salidaConfirmada ? 'completed' : 'active'}
           statusBadge={

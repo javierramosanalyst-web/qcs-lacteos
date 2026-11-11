@@ -530,39 +530,9 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
         stageNumber={2}
         totalStages={5}
         title="Cuajar, Cortar y Calentar a 40 °C"
-        subtitle="Espera a que la leche cuaje firme, córtala en cubos parejos y caliéntala suavemente hasta llegar a 40 °C."
         productName="Queso Doble Crema"
         icon="thermostat"
         isCompleted={Boolean(state.temperatura40.alcanzado)}
-        rightContent={
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-300 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-amber-700 text-[22px]">
-                water_drop
-              </span>
-              <div>
-                <div className="text-[10px] text-amber-900 uppercase font-bold">
-                  CUAJO AGREGADO
-                </div>
-                <div className="text-xs font-black text-amber-950 font-mono">
-                  {horaCultivo}
-                </div>
-              </div>
-            </div>
-
-            <div className="px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-[#1B4E9B] text-[22px]">
-                thermostat
-              </span>
-              <div>
-                <div className="text-[10px] text-[#434655] uppercase font-bold">
-                  META PARA DESUERAR
-                </div>
-                <div className="text-xs font-black text-[#1B4E9B]">40.0 °C</div>
-              </div>
-            </div>
-          </div>
-        }
       />
 
       {/* BANNER: TIEMPO TRANSCURRIDO DESDE LA ADICIÓN DEL CUAJO */}
@@ -595,7 +565,6 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
       ========================================================================= */}
       <Card
         title="La leche ya cuajó!!"
-        subtitle="Cuando la cuajada esté firme y haga un corte limpio al probarla, confirma el momento exacto para activar los cronómetros de corte y calentamiento."
         icon="egg"
         badge={state.cuajado.registrado ? '✓ Cuajada Lista' : 'Esperando que cuaje'}
         variant={state.cuajado.registrado ? 'success' : 'default'}
@@ -677,7 +646,6 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
                 <PopoverTimePicker
                   label="Hora de Cuajado"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualCuajado}
                   onChange={setHoraManualCuajado}
                 />
@@ -728,7 +696,6 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
       ========================================================================= */}
       <Card
         title="Ya terminé de cortar la cuajada!!"
-        subtitle="Corta la cuajada en cubos parejos y confirma al terminar de cortar mientras la tina sigue calentando hacia 40 °C."
         icon="grid_4x4"
         badge={
           state.corte.registrado
@@ -836,7 +803,6 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
                 <PopoverTimePicker
                   label="Hora de Corte Terminado"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualCorte}
                   onChange={setHoraManualCorte}
                 />
@@ -878,7 +844,6 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
       ========================================================================= */}
       <Card
         title="Ya calenté la mezcla hasta llegar a 40 grados"
-        subtitle="Sube la temperatura agitando despacio y confirma apenas el termómetro marque los 40 °C para pasar a sacar el suero."
         icon="thermostat"
         badge={
           state.temperatura40.alcanzado
@@ -1030,7 +995,6 @@ export const CalentarYCuajarStage: React.FC<CalentarYCuajarStageProps> = ({
                 <PopoverTimePicker
                   label="Hora a la que llegó"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManual40}
                   onChange={setHoraManual40}
                 />

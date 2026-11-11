@@ -286,26 +286,9 @@ export const PremaduracionStage: React.FC<PremaduracionStageProps> = ({
         stageNumber={1}
         totalStages={5}
         title="Preparar la Leche e Insumos del Día"
-        subtitle="Anota los litros de leche fresca en la tina y selecciona los lotes de cultivo láctico y cuajo antes de prender el calentamiento a 40 °C."
         productName="Queso Pera"
         icon="science"
         isCompleted={calentamientoIniciado}
-        startTime={state.inicioCalentamiento?.horaInicio}
-        rightContent={
-          <div className="px-3.5 py-2.5 rounded-xl bg-[#FFFFFF] border border-[#D6DEEA] flex items-center gap-2.5 min-h-[48px]">
-            <span className="material-symbols-outlined text-[#1B4E9B] text-[22px]">
-              badge
-            </span>
-            <div>
-              <span className="text-[10px] uppercase font-bold text-[#737686] block">
-                Operario a Cargo
-              </span>
-              <span className="text-xs font-black text-[#191c1e]">
-                {responsableProceso}
-              </span>
-            </div>
-          </div>
-        }
       />
 
       {/* BANNER DEL CRONÓMETRO GENERAL DEL LOTE */}
@@ -330,7 +313,6 @@ export const PremaduracionStage: React.FC<PremaduracionStageProps> = ({
       ========================================================================= */}
       <Card
         title="Insumos y Lotes del Día"
-        subtitle="Registra los litros de leche fresca en la tina y selecciona los lotes de cultivo láctico y cuajo correspondientes."
         icon="inventory_2"
         badge={`Total en Tina: ${litrosLeche} L`}
         variant="default"
@@ -542,7 +524,6 @@ export const PremaduracionStage: React.FC<PremaduracionStageProps> = ({
       ========================================================================= */}
       <Card
         title="Empezar a calentar la leche a 40 °C"
-        subtitle="Abre el vapor o enciende el calor de la tina para llevar la leche hasta 40 °C. Al pulsar el botón se guardará la hora de inicio y arrancará de inmediato el cronómetro general del lote."
         icon="local_fire_department"
         badge={
           calentamientoIniciado

@@ -497,41 +497,9 @@ export const HilarStage: React.FC<HilarStageProps> = ({
         stageNumber={4}
         totalStages={5}
         title="Prueba de Hilado, Sal e Hilado en Paila"
-        subtitle="Verifica que la hebra estire más de 10 cm, agrega la sal calculada según el volumen inicial e hila en la paila."
         productName="Queso Doble Crema"
         icon="waves"
         isCompleted={Boolean(state.hiladoEnPaila?.completado)}
-        rightContent={
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="px-3.5 py-2 rounded-xl bg-[#FFFFFF] border border-blue-200 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-[#1B4E9B] text-[20px]">
-                schedule
-              </span>
-              <div>
-                <div className="text-[10px] text-gray-500 uppercase font-bold">
-                  FIN DE ESCURRIDO
-                </div>
-                <div className="text-xs font-black text-[#1B4E9B] font-mono">
-                  {horaFinEscurridoRef}
-                </div>
-              </div>
-            </div>
-
-            <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-300 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-amber-700 text-[22px]">
-                science
-              </span>
-              <div>
-                <div className="text-[10px] text-amber-900 uppercase font-bold">
-                  pH MEDIDO EN ESCURRIDO
-                </div>
-                <div className="text-sm font-black text-amber-950 font-mono">
-                  {phMedidoEnEscurrido.toFixed(2)} pH
-                </div>
-              </div>
-            </div>
-          </div>
-        }
       />
 
       {/* BANNER: CRONÓMETRO GENERAL DE PRODUCCIÓN DEL LOTE */}
@@ -558,9 +526,6 @@ export const HilarStage: React.FC<HilarStageProps> = ({
       ========================================================================= */}
       <Card
         title="La prueba de hilado ha sido exitosa"
-        subtitle={`Con el pH de ${phMedidoEnEscurrido.toFixed(
-          2
-        )} alcanzado en el escurrido, sumerge un trozo de masa en agua a 70–75 °C y confirma que la hebra se estiró más de 10 cm sin romperse.`}
         icon="verified"
         badge={
           state.pruebaHilado.exitosa
@@ -674,7 +639,6 @@ export const HilarStage: React.FC<HilarStageProps> = ({
                 <PopoverTimePicker
                   label="Hora de confirmación de la prueba"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualPrueba}
                   onChange={setHoraManualPrueba}
                 />
@@ -833,7 +797,6 @@ export const HilarStage: React.FC<HilarStageProps> = ({
                 <PopoverTimePicker
                   label="Hora en que se agregó la sal"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualSal}
                   onChange={setHoraManualSal}
                 />
@@ -892,7 +855,6 @@ export const HilarStage: React.FC<HilarStageProps> = ({
       ========================================================================= */}
       <Card
         title="Hilar y Amasar"
-        subtitle="Calienta, estira y amasa la pasta en la paila a fuego suave hasta que quede brillante y suave. Pulsa para iniciar y finalizar el hilado."
         icon="settings_motion_mode"
         badge={
           state.hiladoEnPaila?.completado
@@ -1037,7 +999,6 @@ export const HilarStage: React.FC<HilarStageProps> = ({
                 <PopoverTimePicker
                   label="Hora de inicio"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualInicioHilado}
                   onChange={setHoraManualInicioHilado}
                 />
@@ -1046,7 +1007,6 @@ export const HilarStage: React.FC<HilarStageProps> = ({
                 <PopoverTimePicker
                   label="Hora de fin"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualFinHilado}
                   onChange={setHoraManualFinHilado}
                 />

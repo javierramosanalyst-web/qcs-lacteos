@@ -273,44 +273,7 @@ export const MaduracionYFiltradoStageGriego: React.FC<
         totalStages={5}
         lineName="Línea de Fermentados · Yogur Griego"
         title="3. Cuarto Frío y Escurrido en Telas"
-        subtitle="Reposo en frío entre 1 y 2 días y escurrido natural con lienzos por ~2 días (48 horas) para concentrar el yogur sin adición de espesantes ni crema."
         standardBadge="NTC-805"
-        metrics={[
-          {
-            icon: 'water_drop',
-            label: 'Leche Base Griego',
-            value: `${litrosLecheBase} L`,
-            tone: 'default',
-          },
-          {
-            icon: 'ac_unit',
-            label: 'Maduración Frío (1-2 Días)',
-            value: state.cuartoFrio.completado
-              ? state.cuartoFrio.tiempoTranscurrido || 'Completado'
-              : state.cuartoFrio.iniciado
-              ? formatDaysHours(cuartoFrioTimer.elapsedSeconds)
-              : '1 a 2 Días',
-            tone: state.cuartoFrio.completado
-              ? 'emerald'
-              : state.cuartoFrio.iniciado
-              ? 'amber'
-              : 'default',
-          },
-          {
-            icon: 'filter_alt',
-            label: 'Escurrido en Telas (2 Días)',
-            value: state.filtradoTelas.completado
-              ? state.filtradoTelas.tiempoTranscurrido || 'Finalizado'
-              : state.filtradoTelas.iniciado
-              ? formatDaysHours(filtradoTimer.elapsedSeconds)
-              : '~48 Horas',
-            tone: state.filtradoTelas.completado
-              ? 'emerald'
-              : state.filtradoTelas.iniciado
-              ? 'amber'
-              : 'default',
-          },
-        ]}
       />
 
       {/* ========================================================================= */}
@@ -319,7 +282,6 @@ export const MaduracionYFiltradoStageGriego: React.FC<
       <Card
         stepBadge="Paso 01"
         title="Maduración en Cuarto Frío (1 a 2 Días)"
-        subtitle="Control exclusivo de tiempo transcurrido para la estabilización y firmeza de la cuajada antes de su drenado."
         icon="ac_unit"
         tone={state.cuartoFrio.completado ? 'completed' : state.cuartoFrio.iniciado ? 'active' : 'default'}
         statusBadge={
@@ -468,7 +430,6 @@ export const MaduracionYFiltradoStageGriego: React.FC<
       <Card
         stepBadge="Paso 02"
         title="Filtrado y Escurrido en Telas (2 Días / ~48 Horas)"
-        subtitle="Drenado natural por gravedad mediante lienzos o telas de filtración. Control exclusivo de tiempo transcurrido."
         icon="filter_alt"
         tone={
           state.filtradoTelas.completado

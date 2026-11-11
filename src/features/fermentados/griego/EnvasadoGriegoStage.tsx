@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   EnvasadoYAlmacenamientoYogurGriegoState,
   YogurGriegoBatchData,
@@ -9,7 +9,10 @@ import {
   InputField,
   Button,
   Badge,
+  PopoverTimePicker,
 } from '../../../components/ui';
+import { ManualEditToggle } from '../../../components/ui/ManualEditToggle';
+import { getCurrentTimeString } from '../../../utils/timer';
 
 interface EnvasadoGriegoStageProps {
   batch: YogurGriegoBatchData;
@@ -97,6 +100,51 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
       ? Number(((totalKgEnvasados / lecheInicialL) * 100).toFixed(1))
       : 0;
 
+  // =========================================================================
+  // ENTRADA A CUARTO FRÍO (mismo paso final que Yogur y Kumis).
+  // Al confirmarla se detiene el reloj del lote (ver BatchExecutionPage).
+  // Se usa onChangeSaved para no reabrir el conteo de envases ya guardado.
+  // =========================================================================
+  const isIngresadoCuartoFrio = Boolean(state.almacenamientoCuartoFrio?.ingresado);
+  const [manualCuartoFrio, setManualCuartoFrio] = useState<boolean>(false);
+  const [horaManualIngreso, setHoraManualIngreso] = useState<string>(
+    state.almacenamientoCuartoFrio?.horaIngreso || getCurrentTimeString()
+  );
+
+  useEffect(() => {
+    if (!manualCuartoFrio && state.almacenamientoCuartoFrio?.horaIngreso) {
+      setHoraManualIngreso(state.almacenamientoCuartoFrio.horaIngreso);
+    }
+  }, [manualCuartoFrio, state.almacenamientoCuartoFrio?.horaIngreso]);
+
+  const registrarIngresoCuartoFrio = (hora: string, mensaje: string) => {
+    onChangeSaved((prev) => ({
+      ...prev,
+      almacenamientoCuartoFrio: {
+        ...prev.almacenamientoCuartoFrio,
+        ingresado: true,
+        horaIngreso: hora,
+      },
+    }));
+    showToast(mensaje, 'success');
+  };
+
+  const handleIngresoCuartoFrio = () => {
+    const timeStr = getCurrentTimeString();
+    registrarIngresoCuartoFrio(
+      timeStr,
+      `✓ ¡Producto ingresado al cuarto frío! Hora registrada: ${timeStr}.`
+    );
+  };
+
+  const handleSaveManualIngreso = () => {
+    registrarIngresoCuartoFrio(
+      horaManualIngreso,
+      `✓ Hora de ingreso a cuarto frío actualizada a ${horaManualIngreso}.`
+    );
+    setManualCuartoFrio(false);
+  };
+
   const handleGuardarConteo = () => {
     onChangeSaved((prev) => ({
       ...prev,
@@ -117,7 +165,6 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
         totalStages={5}
         lineName="Línea de Fermentados · Yogur Griego"
         title="5. Guardar"
-        subtitle="Conteo directo de envases en gramos para Griego Natural y Griego con Stevia (120 g, 500 g, 1000 g), balance de materia y rendimiento."
         standardBadge="NTC-805"
         metrics={[
           {
@@ -141,7 +188,6 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
       <Card
         stepBadge="Etapa 5"
         title="Conteo de Tarrinas / Vasos"
-        subtitle="Ingresa directamente la cantidad de unidades envasadas en cada gramaje para Griego Natural y Griego con Stevia."
         icon="format_list_numbered"
         tone={totalUnidades > 0 ? 'completed' : 'default'}
         statusBadge={{
@@ -455,6 +501,74 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
           )}
           </div>
         </div>
+      </Card>
+
+      {/* ========================================================================= */}
+      {/* ENTRADA A CUARTO FRÍO: detiene el reloj del lote (igual que Yogur y Kumis) */}
+      {/* ========================================================================= */}
+      <Card
+        title="Entrada a Cuarto Frío"
+        icon="kitchen"
+        badge={
+          isIngresadoCuartoFrio
+            ? `✓ En Cuarto Frío (${state.almacenamientoCuartoFrio?.horaIngreso || 'Listo'})`
+            : 'Por ingresar'
+        }
+        variant={isIngresadoCuartoFrio ? 'success' : 'default'}
+        headerAction={
+          <div className="flex flex-wrap items-center gap-3">
+            <ManualEditToggle manual={manualCuartoFrio} onChange={(checked: boolean) => setManualCuartoFrio(checked)} />
+
+            <Button
+              variant={isIngresadoCuartoFrio ? 'secondary' : 'primary'}
+              size="md"
+              icon="kitchen"
+              onClick={handleIngresoCuartoFrio}
+              disabled={isIngresadoCuartoFrio}
+              className={
+                isIngresadoCuartoFrio
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold'
+                  : 'font-bold shadow-sm'
+              }
+            >
+              {isIngresadoCuartoFrio
+                ? `✓ ¡Producto ingresado al cuarto frío! (${state.almacenamientoCuartoFrio?.horaIngreso || 'OK'})`
+                : '¡Producto ingresado al cuarto frío!'}
+            </Button>
+          </div>
+        }
+      >
+        {manualCuartoFrio ? (
+          <div className="p-4 rounded-xl bg-amber-50/90 border-2 border-amber-300 flex flex-col sm:flex-row items-end gap-3 justify-between">
+            <div className="w-full sm:max-w-xs">
+              <PopoverTimePicker
+                label="Hora de ingreso al cuarto frío"
+                icon="schedule"
+                value={horaManualIngreso}
+                onChange={setHoraManualIngreso}
+              />
+            </div>
+            <Button
+              variant="secondary"
+              size="md"
+              icon="save"
+              onClick={handleSaveManualIngreso}
+              className="w-full sm:w-auto font-bold"
+            >
+              Guardar Hora de Ingreso
+            </Button>
+          </div>
+        ) : isIngresadoCuartoFrio ? (
+          <div className="p-3.5 bg-[#FFFFFF] rounded-xl border border-[#D6DEEA] flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-[24px] text-emerald-600">check_circle</span>
+              <span className="text-xs text-[#4A5263]">En cuarto frío desde las</span>
+            </div>
+            <span className="font-mono font-black text-emerald-800 text-sm">
+              {state.almacenamientoCuartoFrio?.horaIngreso}
+            </span>
+          </div>
+        ) : null}
       </Card>
 
       {/* ========================================================================= */}
