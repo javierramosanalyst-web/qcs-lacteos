@@ -42,6 +42,22 @@ const card = 'bg-white rounded-2xl border border-[#D6DEEA] shadow-xs';
 const fmtDateTime = (iso: string | null | undefined): string =>
   iso ? new Date(iso).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '';
 
+const toDate = (v: string | number | null | undefined): Date | null => {
+  if (v === null || v === undefined || v === '') return null;
+  const d = typeof v === 'number' ? new Date(v) : /^\d{10,}$/.test(v) ? new Date(Number(v)) : new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const fmtDate = (v: string | number | null | undefined): string => {
+  const d = toDate(v);
+  return d ? d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+};
+
+const fmtTime = (v: string | number | null | undefined): string => {
+  const d = toDate(v);
+  return d ? d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '';
+};
+
 const fmtDuration = (sec: number | null): string => {
   if (!sec || sec <= 0) return '';
   const h = Math.floor(sec / 3600);
@@ -55,28 +71,288 @@ const toNumber = (v: string | number | null | undefined): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
+const STAGE_LABELS: Record<string, string> = {
+  acidificar: '1. Acidificar leche',
+  calentarYCuajar: '2. Calentar y cuajar',
+  desuerar: '3. Desuerar y escurrir',
+  hilar: '4. Hilar y salar',
+  moldesDesglose: '5. Moldes y pesos',
+  pasteurizacion: '1. Pasteurización y enfriamiento',
+  inoculacion: '2. Inoculación e incubación',
+  maduracionFrio: '3. Maduración en frío',
+  batidoYAdiciones: '4. Batido y adiciones',
+  envasado: '5. Envasado',
+  lotesLeche: 'Materia prima · lotes de leche',
+  observaciones: 'Observaciones del lote',
+  operariosIntervinientes: 'Equipo que intervino',
+  responsableProceso: 'Responsable del proceso',
+  actividadOperarios: 'Actividad por operario',
+};
+
+const VARIABLE_LABELS: Record<string, string> = {
+  litrosLeche: 'Leche pasteurizada',
+  litrosConfirmados: 'Leche confirmada',
+  lecheFresca: 'Leche fresca',
+  lecheAcida: 'Leche ácida',
+  litrosLote1: 'Litros del lote de leche 1',
+  litrosLote2: 'Litros del lote de leche 2',
+  loteLeche1: 'Lote de leche 1',
+  loteLeche2: 'Lote de leche 2',
+  loteLecheFresca: 'Lote de leche fresca',
+  loteAcidoAcetico: 'Lote de ácido acético',
+  loteCuajo: 'Lote de cuajo',
+  loteSal: 'Lote de sal',
+  loteAzucar: 'Lote de azúcar',
+  loteEstevia: 'Lote de estevia',
+  loteSaborizante: 'Lote de saborizante',
+  loteColorante: 'Lote de colorante',
+  loteCultivo: 'Lote de cultivo láctico',
+  cantidadGramos: 'Cantidad dosificada',
+  gramosAzucar: 'Azúcar dosificada',
+  kilosAzucar: 'Azúcar dosificada',
+  gramosEstevia: 'Estevia dosificada',
+  kilosSaborizante: 'Saborizante dosificado',
+  saborizanteMl: 'Saborizante dosificado',
+  coloranteMl: 'Colorante dosificado',
+  acidezLA: 'Acidez (ácido láctico)',
+  phActual: 'pH medido',
+  phMezcla: 'pH de la mezcla',
+  phEscurrido: 'pH del escurrido',
+  tempBano: 'Temperatura del baño',
+  temperaturaEnvasado: 'Temperatura de envasado',
+  temperaturaIncubacion: 'Temperatura de incubación',
+  numeroMoldes: 'Número de moldes',
+  pesoTotalQueso: 'Peso total de queso',
+  pesoTotalHilado: 'Peso total hilado',
+  pesadoTotalHiladoKg: 'Peso total hilado',
+  pesoTotalCalculadoKg: 'Peso total calculado',
+  moldes100g: 'Moldes de 100 g',
+  moldes200g: 'Moldes de 200 g',
+  moldes400g: 'Moldes de 400 g',
+  moldes800g: 'Moldes de 800 g',
+  moldes1600g: 'Moldes de 1600 g',
+  moldes7Cueros350g: 'Moldes 7 Cueros de 350 g',
+  moldesTrenza350g: 'Moldes trenza de 350 g',
+  moldesPeraGrande350g: 'Moldes Pera grande de 350 g',
+  moldes60g: 'Moldes de 60 g',
+  botella120ml: 'Botellas de 120 ml',
+  botella200ml: 'Botellas de 200 ml',
+  botella1L: 'Botellas de 1 L',
+  botella2L: 'Botellas de 2 L',
+  botella4L: 'Botellas de 4 L',
+  bolsa4L: 'Bolsas de 4 L',
+  vaso150g: 'Vasos de 150 g',
+  vaso200g: 'Vasos de 200 g',
+  botella1000g: 'Botellas de 1000 g',
+  botella500g: 'Botellas de 500 g',
+  tarro1000g: 'Tarros de 1000 g',
+  tarro500g: 'Tarros de 500 g',
+  vaso120g: 'Vasos de 120 g',
+  bolsa4l: 'Bolsas de 4 L',
+  resultado: 'Resultado de la prueba',
+  exitosa: 'Prueba superada',
+  tiempoTotalProceso: 'Tiempo total del proceso',
+  selladoVerificado: 'Sellado verificado',
+  rotuladoCumpleNTC805: 'Rotulado conforme a NTC 805',
+  procesoFinalizado: 'Proceso finalizado',
+  horaFinalizacion: 'Hora de finalización',
+  horaInicio: 'Hora de inicio',
+  horaFin: 'Hora de fin',
+  horaRegistro: 'Hora de registro',
+  hora40GradosReferencia: 'Hora de referencia a 40 °C',
+  tiempoDesuerado: 'Tiempo de desuerado',
+  segundosDesuerado: 'Tiempo de desuerado',
+  tiempoDesdeDesuerado: 'Tiempo desde el desuerado',
+  tiempoCalentamiento: 'Tiempo de calentamiento',
+  tiempoCuajado: 'Tiempo de cuajado',
+  tiempoCorte: 'Tiempo de corte',
+  tiempoEscurrido: 'Tiempo de escurrido',
+  duracionHilado: 'Duración del hilado',
+  duracion: 'Duración',
+  tipoYogur: 'Variedad de yogur',
+  litrosBase: 'Litros base de la variedad',
+  litrosYogurConAzucar: 'Litros destinados a yogur con azúcar',
+  litrosYogurSinAzucar: 'Litros destinados a yogur sin azúcar',
+  litrosYogurGriego: 'Litros destinados a yogur griego',
+  litrosKumis: 'Litros destinados a kumis',
+  litrosKumisDestinados: 'Litros destinados a kumis',
+  incluyeKumis: 'El lote incluye kumis',
+  llevaAzucar: 'El lote lleva azúcar',
+  sabor: 'Sabor',
+  variedad: 'Variedad',
+  masaFormulada: 'Masa formulada',
+  rendimiento: 'Rendimiento',
+  merma: 'Merma',
+  temperatura: 'Temperatura',
+  temperaturaAlcanzada: 'Temperatura alcanzada',
+  temperaturaSembrado: 'Temperatura de siembra',
+  dosis: 'Dosis',
+  dosisDv: 'Dosis de cultivo (DV)',
+  adicion: 'Adición',
+  adiciones: 'Adiciones',
+  observaciones: 'Observaciones',
+  responsable: 'Responsable',
+  operario: 'Operario',
+  nombre: 'Nombre',
+  codigo: 'Código',
+  descripcion: 'Descripción',
+  motivo: 'Motivo',
+  justificacion: 'Justificación',
+};
+
+const SKIP_VAR =
+  /(^|\.)(id|line|lineId|productId|productName|standard|status|operator|operatorRole|version|processTimer|stageStatuses|esManual|registrado|iniciado|completado|confirmado|saved|habilitado|timestamp[A-Za-z0-9]*|hora[A-Za-z0-9]*|fecha[A-Za-z0-9]*|[a-zA-Z]+At|[a-zA-Z]+Ms)$/;
+
+const ACRONYMS: Record<string, string> = {
+  ph: 'pH',
+  ntc: 'NTC',
+  dv: 'DV',
+  la: 'LA',
+  kg: 'kg',
+  ml: 'ml',
+  l: 'L',
+  pt100: 'PT-100',
+  ui: 'UI',
+};
+
 const humanize = (key: string): string =>
   key
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+    .replace(/([A-Za-z])(\d)/g, '$1 $2')
+    .replace(/(\d)([A-Za-z])/g, '$1 $2')
     .replace(/[_-]+/g, ' ')
-    .replace(/^\w/, (c) => c.toUpperCase());
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .map((w) => ACRONYMS[w.toLowerCase()] ?? (/^\d/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ');
 
-const flattenState = (node: unknown, trail: string[], out: { section: string; variable: string; value: CellValue }[]) => {
-  if (node === null || node === undefined || node === '') return;
-  if (typeof node === 'number' || typeof node === 'string' || typeof node === 'boolean') {
-    const labels = trail.map((t) => (/^\d+$/.test(t) ? `#${Number(t) + 1}` : humanize(t)));
-    let value: CellValue = node;
-    if (typeof node === 'number' && node > 1e12 && node < 1e14) value = new Date(node).toLocaleString('es-CO');
-    out.push({ section: labels[0] ?? 'Lote', variable: labels.slice(1).join(' › ') || labels[0] || '', value });
-    return;
+const labelFor = (key: string): string => {
+  if (VARIABLE_LABELS[key]) return VARIABLE_LABELS[key];
+  const prefixed = /^(sinAzucar|stevia)_(.+)$/.exec(key);
+  if (prefixed) {
+    const base = VARIABLE_LABELS[prefixed[2]] ?? humanize(prefixed[2]);
+    return `${prefixed[1] === 'sinAzucar' ? 'Sin azúcar' : 'Con estevia'} › ${base}`;
   }
-  if (Array.isArray(node)) {
-    node.forEach((item, i) => flattenState(item, [...trail, String(i)], out));
-    return;
-  }
-  if (typeof node === 'object') {
-    Object.entries(node as Record<string, unknown>).forEach(([k, v]) => flattenState(v, [...trail, k], out));
-  }
+  return humanize(key);
+};
+
+const unitFor = (key: string): string => {
+  if (/^(sinAzucar_|stevia_)?(botella|bolsa|vaso|tarro|tarrina|moldes)/i.test(key)) return 'und';
+  if (/Litros$|^litros/i.test(key)) return 'L';
+  if (/Gramos$|^gramos/i.test(key)) return 'g';
+  if (/Kilos$|Kg$|^kilos/i.test(key)) return 'kg';
+  if (/Ml$|^ml/i.test(key)) return 'ml';
+  if (/Grados|Temperatura|^temp/i.test(key)) return '°C';
+  if (/Segundos$|^segundos/i.test(key)) return 's';
+  if (/Minutos$|^minutos/i.test(key)) return 'min';
+  if (/Porcentaje|Rendimiento|^rendimiento/i.test(key)) return '%';
+  if (/^ph/i.test(key)) return 'pH';
+  return '';
+};
+
+const collectVariables = (batch: unknown): { etapa: string; variable: string; valor: CellValue; unidad: string }[] => {
+  const out: { etapa: string; variable: string; valor: CellValue; unidad: string }[] = [];
+  const walk = (node: unknown, trail: string[]) => {
+    if (node === null || node === undefined || node === '') return;
+    if (typeof node === 'number' || typeof node === 'string' || typeof node === 'boolean') {
+      const key = trail[trail.length - 1] ?? '';
+      if (SKIP_VAR.test(key)) return;
+      if (typeof node === 'number' && node === 0) return;
+      const stageKey = trail[0] ?? '';
+      const etapa = STAGE_LABELS[stageKey] ?? humanize(stageKey);
+      const path = trail.slice(1).map((t) => (/^\d+$/.test(t) ? `#${Number(t) + 1}` : labelFor(t)));
+      const variable = path.length ? path.join(' › ') : labelFor(key);
+      let valor: CellValue = node;
+      if (typeof node === 'boolean') valor = node ? 'Sí' : 'No';
+      else if (typeof node === 'number' && node > 1e11 && node < 1e14) valor = new Date(node).toLocaleString('es-CO');
+      out.push({ etapa, variable, valor, unidad: typeof node === 'number' ? unitFor(key) : '' });
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach((item, i) => walk(item, [...trail, String(i)]));
+      return;
+    }
+    if (typeof node === 'object') {
+      Object.entries(node as Record<string, unknown>).forEach(([k, v]) => {
+        if (SKIP_VAR.test(k)) return;
+        walk(v, [...trail, k]);
+      });
+    }
+  };
+  walk(batch, []);
+  return out;
+};
+
+const FORMAT_LITERS: Record<string, number> = {
+  botella120ml: 0.12,
+  botella200ml: 0.2,
+  botella1L: 1,
+  botella2L: 2,
+  botella4L: 4,
+  bolsa4L: 4,
+  vaso120g: 0.12,
+  vaso150g: 0.15,
+  vaso200g: 0.2,
+  botella500g: 0.5,
+  botella1000g: 1,
+  tarro500g: 0.5,
+  tarro1000g: 1,
+};
+
+const formatLiters = (key: string): number => {
+  const base = key.replace(/^(sinAzucar_|stevia_)/, '');
+  if (FORMAT_LITERS[base] !== undefined) return FORMAT_LITERS[base];
+  const m = /(\d+(?:[.,]\d+)?)(ml|l|kg|g)$/i.exec(base);
+  if (!m) return 0;
+  const n = Number(m[1].replace(',', '.'));
+  const u = m[2].toLowerCase();
+  if (u === 'ml' || u === 'g') return n / 1000;
+  return n;
+};
+
+const productionOutcome = (
+  batch: any,
+  lecheLitros: number | null
+): { kg: number | null; unidades: number | null; rendimiento: number | null } => {
+  if (!batch) return { kg: null, unidades: null, rendimiento: null };
+  const leche = lecheLitros && lecheLitros > 0 ? lecheLitros : null;
+
+  const moldes = batch.moldesDesglose ?? {};
+  const moldesQueso =
+    (Number(moldes.moldes100g) || 0) * 0.1 +
+    (Number(moldes.moldes200g) || 0) * 0.2 +
+    (Number(moldes.moldes400g) || 0) * 0.4 +
+    (Number(moldes.moldes800g) || 0) * 0.8 +
+    (Number(moldes.moldes1600g) || 0) * 1.6;
+  const kgQueso =
+    Number(batch.hilar?.pesoTotalQueso) ||
+    Number(moldes.pesoTotalCalculadoKg) ||
+    Number(moldes.pesadoTotalHiladoKg) ||
+    moldesQueso ||
+    0;
+  const unidadesQueso = Number(batch.hilar?.numeroMoldes) || 0;
+
+  const envasado = batch.envasado ?? {};
+  let unidadesEnv = 0;
+  let litrosEnv = 0;
+  Object.entries(envasado as Record<string, unknown>).forEach(([groupKey, group]) => {
+    if (!/^formatos/i.test(groupKey) || !group || typeof group !== 'object') return;
+    Object.entries(group as Record<string, unknown>).forEach(([k, v]) => {
+      const n = Number(v) || 0;
+      if (n <= 0) return;
+      unidadesEnv += n;
+      litrosEnv += n * formatLiters(k);
+    });
+  });
+  const kgEnv = Math.round(litrosEnv * 1.03 * 100) / 100;
+
+  const kg = kgQueso > 0 ? Math.round(kgQueso * 100) / 100 : kgEnv > 0 ? kgEnv : null;
+  const unidades = unidadesQueso > 0 ? unidadesQueso : unidadesEnv > 0 ? unidadesEnv : null;
+  const base = kgQueso > 0 ? kgQueso : litrosEnv;
+  const rendimiento = leche && base > 0 ? Math.round((base / leche) * 1000) / 10 : null;
+  return { kg, unidades, rendimiento };
 };
 
 const stamp = () => {
@@ -189,8 +465,13 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
         { key: 'estado', label: 'Estado' },
         { key: 'etapa', label: 'Etapa actual' },
         { key: 'leche', label: 'Leche base (L)' },
-        { key: 'inicio', label: 'Inicio' },
-        { key: 'fin', label: 'Fin' },
+        { key: 'kg', label: 'Kg producidos' },
+        { key: 'unidades', label: 'Unidades producidas' },
+        { key: 'rend', label: 'Rendimiento (%)' },
+        { key: 'fechaInicio', label: 'Fecha de inicio' },
+        { key: 'horaInicio', label: 'Hora de inicio' },
+        { key: 'fechaFin', label: 'Fecha de fin' },
+        { key: 'horaFin', label: 'Hora de fin' },
         { key: 'duracion', label: 'Duración (h:mm)' },
         { key: 'minutos', label: 'Duración (min)' },
         { key: 'rect', label: 'Rectificaciones' },
@@ -204,8 +485,13 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
         estado: ESTADO_LABEL[h.estado] ?? h.estado,
         etapa: h.estado === 'EN_PROCESO' ? humanize(h.etapa_actual_codigo ?? '') : '',
         leche: toNumber(h.volumen_leche_base_litros),
-        inicio: fmtDateTime(h.iniciado_at),
-        fin: fmtDateTime(h.finalizado_at),
+        kg: h.kg_producidos ?? null,
+        unidades: h.unidades_producidas ?? null,
+        rend: h.rendimiento_pct ?? null,
+        fechaInicio: fmtDate(h.iniciado_at),
+        horaInicio: fmtTime(h.iniciado_at),
+        fechaFin: fmtDate(h.finalizado_at),
+        horaFin: fmtTime(h.finalizado_at),
         duracion: fmtDuration(h.duracion_total_segundos),
         minutos: h.duracion_total_segundos ? Math.round(h.duracion_total_segundos / 60) : null,
         rect: h.rectificaciones,
@@ -224,6 +510,9 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
         { key: 'proceso', label: 'En proceso' },
         { key: 'anulados', label: 'Anulados' },
         { key: 'leche', label: 'Leche procesada en completados (L)' },
+        { key: 'kg', label: 'Kg producidos en completados' },
+        { key: 'unidades', label: 'Unidades producidas en completados' },
+        { key: 'rend', label: 'Rendimiento promedio (%)' },
         { key: 'promedio', label: 'Duración promedio (min)' },
         { key: 'rect', label: 'Rectificaciones' },
       ],
@@ -238,6 +527,12 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
           proceso: rows.filter((r) => r.estado === 'EN_PROCESO').length,
           anulados: rows.filter((r) => r.estado === 'ANULADO').length,
           leche: done.reduce((s, r) => s + (toNumber(r.volumen_leche_base_litros) ?? 0), 0),
+          kg: Math.round(done.reduce((s, r) => s + (r.kg_producidos ?? 0), 0) * 100) / 100,
+          unidades: done.reduce((s, r) => s + (r.unidades_producidas ?? 0), 0),
+          rend: (() => {
+            const vals = done.map((r) => r.rendimiento_pct).filter((v): v is number => typeof v === 'number' && v > 0);
+            return vals.length ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10 : null;
+          })(),
           promedio: durs.length ? Math.round(durs.reduce((s, x) => s + x, 0) / durs.length / 60) : null,
           rect: rows.reduce((s, r) => s + r.rectificaciones, 0),
         };
@@ -248,6 +543,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
       name: 'Auditoría',
       columns: [
         { key: 'fecha', label: 'Fecha' },
+        { key: 'hora', label: 'Hora' },
         { key: 'lote', label: 'Lote' },
         { key: 'linea', label: 'Línea' },
         { key: 'admin', label: 'Autorizado por' },
@@ -260,7 +556,8 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
         { key: 'just', label: 'Justificación', width: 60 },
       ],
       rows: filteredAudit.map((a) => ({
-        fecha: new Date(a.timestamp).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }),
+        fecha: fmtDate(a.timestamp),
+        hora: fmtTime(a.timestamp),
         lote: a.batchId,
         linea: a.lineName,
         admin: a.adminName,
@@ -281,9 +578,11 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
         { key: 'producto', label: 'Producto' },
         { key: 'linea', label: 'Línea' },
         { key: 'responsable', label: 'Responsable' },
-        { key: 'inicio', label: 'Inicio' },
+        { key: 'inicio', label: 'Fecha de inicio' },
+        { key: 'horaInicio', label: 'Hora de inicio' },
         { key: 'por', label: 'Anulado por' },
         { key: 'fecha', label: 'Fecha de anulación' },
+        { key: 'hora', label: 'Hora de anulación' },
         { key: 'motivo', label: 'Motivo', width: 60 },
       ],
       rows: filteredLots
@@ -293,9 +592,11 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
           producto: h.producto_nombre,
           linea: h.linea_nombre,
           responsable: h.responsable_nombre,
-          inicio: fmtDateTime(h.iniciado_at),
+          inicio: fmtDate(h.iniciado_at),
+          horaInicio: fmtTime(h.iniciado_at),
           por: h.anulado_por ?? '',
-          fecha: fmtDateTime(h.anulado_at),
+          fecha: fmtDate(h.anulado_at),
+          hora: fmtTime(h.anulado_at),
           motivo: h.anulacion_justificacion ?? '',
         })),
     };
@@ -355,7 +656,8 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
     const columns: ExportColumn[] = [
       ...sheets.historial.columns.map((c) => ({ key: `h_${c.key}`, label: `${PREFIX.historial} ${c.label}`, width: c.width })),
       { key: 'a_total', label: `${PREFIX.auditoria} Correcciones` },
-      { key: 'a_fecha', label: `${PREFIX.auditoria} Última corrección` },
+      { key: 'a_fecha', label: `${PREFIX.auditoria} Fecha de la última corrección` },
+      { key: 'a_hora', label: `${PREFIX.auditoria} Hora de la última corrección` },
       { key: 'a_etapa', label: `${PREFIX.auditoria} Etapa` },
       { key: 'a_variable', label: `${PREFIX.auditoria} Variable` },
       { key: 'a_anterior', label: `${PREFIX.auditoria} Valor anterior` },
@@ -365,6 +667,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
       { key: 'a_admin', label: `${PREFIX.auditoria} Autorizado por` },
       { key: 'n_por', label: `${PREFIX.anulado} Anulado por` },
       { key: 'n_fecha', label: `${PREFIX.anulado} Fecha de anulación` },
+      { key: 'n_hora', label: `${PREFIX.anulado} Hora de anulación` },
       { key: 'n_motivo', label: `${PREFIX.anulado} Motivo`, width: 60 },
       { key: 'p_total', label: `${PREFIX.producto} Lotes del producto` },
       { key: 'p_completados', label: `${PREFIX.producto} Completados` },
@@ -391,6 +694,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
       });
       row.a_total = correcciones.length;
       row.a_fecha = ultima?.fecha ?? '';
+      row.a_hora = ultima?.hora ?? '';
       row.a_etapa = ultima?.etapa ?? '';
       row.a_variable = ultima?.variable ?? '';
       row.a_anterior = ultima?.anterior ?? '';
@@ -400,6 +704,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
       row.a_admin = ultima?.admin ?? '';
       row.n_por = anulado?.por ?? '';
       row.n_fecha = anulado?.fecha ?? '';
+      row.n_hora = anulado?.hora ?? '';
       row.n_motivo = anulado?.motivo ?? '';
       row.p_total = producto?.total ?? null;
       row.p_completados = producto?.completados ?? null;
@@ -420,22 +725,21 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
       setBusy(`Leyendo variables del lote ${i + 1} de ${lots.length}...`);
       try {
         const detail = await fetchBatchDetail(lot.id);
-        const out: { section: string; variable: string; value: CellValue }[] = [];
-        flattenState(detail.estado_ui?.batch, [], out);
+        const out = collectVariables(detail.estado_ui?.batch);
         out.forEach((o) =>
           rows.push({
             lote: lot.codigo_lote,
             producto: lot.producto_nombre,
             linea: lot.linea_nombre,
-            inicio: fmtDateTime(lot.iniciado_at),
             estado: ESTADO_LABEL[lot.estado] ?? lot.estado,
-            seccion: o.section,
+            etapa: o.etapa,
             variable: o.variable,
-            valor: o.value,
+            valor: o.valor,
+            unidad: o.unidad,
           })
         );
       } catch {
-        rows.push({ lote: lot.codigo_lote, producto: lot.producto_nombre, linea: lot.linea_nombre, inicio: fmtDateTime(lot.iniciado_at), estado: lot.estado, seccion: 'Error', variable: 'No se pudo leer el lote', valor: '' });
+        rows.push({ lote: lot.codigo_lote, producto: lot.producto_nombre, linea: lot.linea_nombre, estado: lot.estado, etapa: 'Error', variable: 'No se pudo leer el lote', valor: '', unidad: '' });
       }
     }
     return {
@@ -444,11 +748,11 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
         { key: 'lote', label: 'Lote' },
         { key: 'producto', label: 'Producto' },
         { key: 'linea', label: 'Línea' },
-        { key: 'inicio', label: 'Inicio del lote' },
         { key: 'estado', label: 'Estado' },
-        { key: 'seccion', label: 'Fase / Sección' },
-        { key: 'variable', label: 'Variable' },
+        { key: 'etapa', label: 'Etapa del proceso' },
+        { key: 'variable', label: 'Variable registrada', width: 45 },
         { key: 'valor', label: 'Valor', width: 40 },
+        { key: 'unidad', label: 'Unidad' },
       ],
       rows,
     };
@@ -529,13 +833,33 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
       const resumen: ExportSheet = {
         name: 'Resumen del lote',
         columns: [
-          { key: 'campo', label: 'Campo' },
+          { key: 'campo', label: 'Dato del lote', width: 42 },
           { key: 'valor', label: 'Valor', width: 50 },
         ],
-        rows: sheets.historial.columns.map((c) => ({
-          campo: c.label,
-          valor: sheets.historial.rows.find((r) => r.lote === lot.codigo_lote)?.[c.key] ?? (c.key === 'lote' ? lot.codigo_lote : ''),
-        })),
+        rows: [
+          { campo: 'Código del lote', valor: lot.codigo_lote },
+          { campo: 'Producto', valor: lot.producto_nombre },
+          { campo: 'Código del producto', valor: lot.producto_codigo },
+          { campo: 'Línea de producción', valor: lot.linea_nombre },
+          { campo: 'Responsable del lote', valor: lot.responsable_nombre },
+          { campo: 'Estado del lote', valor: ESTADO_LABEL[lot.estado] ?? lot.estado },
+          { campo: 'Etapa actual', valor: lot.estado === 'EN_PROCESO' ? humanize(lot.etapa_actual_codigo ?? '') : 'Proceso terminado' },
+          { campo: 'Leche base utilizada (L)', valor: toNumber(lot.volumen_leche_base_litros) },
+          { campo: 'Kg producidos', valor: lot.kg_producidos ?? null },
+          { campo: 'Unidades producidas', valor: lot.unidades_producidas ?? null },
+          { campo: 'Rendimiento (%)', valor: lot.rendimiento_pct ?? null },
+          { campo: 'Fecha de inicio', valor: fmtDate(lot.iniciado_at) },
+          { campo: 'Hora de inicio', valor: fmtTime(lot.iniciado_at) },
+          { campo: 'Fecha de fin', valor: fmtDate(lot.finalizado_at) },
+          { campo: 'Hora de fin', valor: fmtTime(lot.finalizado_at) },
+          { campo: 'Duración total (h:mm)', valor: fmtDuration(lot.duracion_total_segundos) },
+          { campo: 'Duración total (min)', valor: lot.duracion_total_segundos ? Math.round(lot.duracion_total_segundos / 60) : null },
+          { campo: 'Rectificaciones registradas', valor: lot.rectificaciones },
+          { campo: 'Anulado por', valor: lot.anulado_por ?? '' },
+          { campo: 'Fecha de anulación', valor: fmtDate(lot.anulado_at) },
+          { campo: 'Hora de anulación', valor: fmtTime(lot.anulado_at) },
+          { campo: 'Motivo de anulación', valor: lot.anulacion_justificacion ?? '' },
+        ],
       };
       const auditLot: ExportSheet = { ...sheets.auditoria, name: 'Correcciones', rows: sheets.auditoria.rows.filter((r) => r.lote === lot.codigo_lote) };
       const name = `Ficha_${lot.codigo_lote}`;

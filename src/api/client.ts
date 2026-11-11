@@ -401,6 +401,9 @@ export interface BatchHistoryRow {
   linea_codigo: string;
   responsable_nombre: string;
   rectificaciones: number;
+  kg_producidos?: number | null;
+  unidades_producidas?: number | null;
+  rendimiento_pct?: number | null;
   anulacion_justificacion?: string | null;
   anulado_at?: string | null;
   anulado_por?: string | null;

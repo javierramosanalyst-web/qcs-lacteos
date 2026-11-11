@@ -563,12 +563,80 @@ export async function discardDraft(req: Request, res: Response): Promise<void> {
 }
 
 /** GET /api/workspace/history?limit=50  Lotes (en proceso y cerrados) para el panel de administración */
+const FORMAT_LITERS: Record<string, number> = {
+  botella120ml: 0.12,
+  botella200ml: 0.2,
+  botella1L: 1,
+  botella2L: 2,
+  botella4L: 4,
+  bolsa4L: 4,
+  vaso120g: 0.12,
+  vaso150g: 0.15,
+  vaso200g: 0.2,
+  botella500g: 0.5,
+  botella1000g: 1,
+  tarro500g: 0.5,
+  tarro1000g: 1,
+};
+
+const formatLiters = (key: string): number => {
+  const base = key.replace(/^(sinAzucar_|stevia_)/, '');
+  if (FORMAT_LITERS[base] !== undefined) return FORMAT_LITERS[base];
+  const m = /(\d+(?:[.,]\d+)?)(ml|l|kg|g)$/i.exec(base);
+  if (!m) return 0;
+  const n = Number(m[1].replace(',', '.'));
+  const u = m[2].toLowerCase();
+  if (u === 'ml' || u === 'g') return n / 1000;
+  return n;
+};
+
+const productionOutcome = (estadoUi: any, lecheLitros: number | null) => {
+  const batch = estadoUi?.batch;
+  if (!batch) return { kg_producidos: null, unidades_producidas: null, rendimiento_pct: null };
+  const leche = lecheLitros && lecheLitros > 0 ? lecheLitros : null;
+
+  const moldes = batch.moldesDesglose ?? {};
+  const moldesQueso =
+    (Number(moldes.moldes100g) || 0) * 0.1 +
+    (Number(moldes.moldes200g) || 0) * 0.2 +
+    (Number(moldes.moldes400g) || 0) * 0.4 +
+    (Number(moldes.moldes800g) || 0) * 0.8 +
+    (Number(moldes.moldes1600g) || 0) * 1.6;
+  const kgQueso =
+    Number(batch.hilar?.pesoTotalQueso) ||
+    Number(moldes.pesoTotalCalculadoKg) ||
+    Number(moldes.pesadoTotalHiladoKg) ||
+    moldesQueso ||
+    0;
+  const unidadesQueso = Number(batch.hilar?.numeroMoldes) || 0;
+
+  const envasado = batch.envasado ?? {};
+  let unidadesEnv = 0;
+  let litrosEnv = 0;
+  Object.entries(envasado as Record<string, unknown>).forEach(([groupKey, group]) => {
+    if (!/^formatos/i.test(groupKey) || !group || typeof group !== 'object') return;
+    Object.entries(group as Record<string, unknown>).forEach(([k, v]) => {
+      const n = Number(v) || 0;
+      if (n <= 0) return;
+      unidadesEnv += n;
+      litrosEnv += n * formatLiters(k);
+    });
+  });
+  const kgEnv = Math.round(litrosEnv * 1.03 * 100) / 100;
+
+  const kg = kgQueso > 0 ? Math.round(kgQueso * 100) / 100 : kgEnv > 0 ? kgEnv : null;
+  const unidades = unidadesQueso > 0 ? unidadesQueso : unidadesEnv > 0 ? unidadesEnv : null;
+  const base = kgQueso > 0 ? kgQueso : litrosEnv;
+  const rendimiento = leche && base > 0 ? Math.round((base / leche) * 1000) / 10 : null;
+  return { kg_producidos: kg, unidades_producidas: unidades, rendimiento_pct: rendimiento };
+};
+
 export async function getBatchHistory(req: Request, res: Response): Promise<void> {
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
     const { rows } = await pool.query(
       `SELECT lp.id, lp.codigo_lote, lp.estado, lp.etapa_actual_codigo, lp.volumen_leche_base_litros,
-              lp.iniciado_at, lp.finalizado_at, lp.duracion_total_segundos, lp.producto_ui_id,
+              lp.iniciado_at, lp.finalizado_at, lp.duracion_total_segundos, lp.producto_ui_id, lp.estado_ui,
               p.nombre AS producto_nombre, p.codigo AS producto_codigo,
               l.nombre AS linea_nombre, l.codigo AS linea_codigo,
               u.nombre_completo AS responsable_nombre,
@@ -591,7 +659,12 @@ export async function getBatchHistory(req: Request, res: Response): Promise<void
        LIMIT $1;`,
       [limit]
     );
-    res.json(rows);
+    res.json(
+      rows.map((r: any) => {
+        const { estado_ui, ...rest } = r;
+        return { ...rest, ...productionOutcome(estado_ui, Number(r.volumen_leche_base_litros) || null) };
+      })
+    );
   } catch (error) {
     console.error('[workspace] Error al consultar historial:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al consultar el historial de lotes.' });
