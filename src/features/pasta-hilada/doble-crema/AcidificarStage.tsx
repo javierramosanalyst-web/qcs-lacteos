@@ -562,11 +562,6 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
         stageNumber={1}
         totalStages={5}
         title="Preparar y Acidificar la Leche"
-        subtitle={
-          isIndustrial
-            ? 'Registra la leche en la tina, agrega el ácido acético, verifica el pH (5.6 – 5.8) y calienta a 35 °C.'
-            : 'Combina la leche fresca con la leche ácida en la tina, verifica que el pH esté entre 5.6 y 5.8 (Objetivo 5.6) y calienta a 35 °C.'
-        }
         productName={
           isIndustrial
             ? 'Queso Doble Crema Industrial'
@@ -574,22 +569,6 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
         }
         icon="science"
         isCompleted={Boolean(state.phase2?.cuajoAdicionado)}
-        startTime={state.inicioCalentamiento?.horaInicio}
-        rightContent={
-          <div className="px-3.5 py-2.5 rounded-xl bg-[#FFFFFF] border border-[#D6DEEA] flex items-center gap-2.5 min-h-[48px]">
-            <span className="material-symbols-outlined text-[#1B4E9B] text-[22px]">
-              badge
-            </span>
-            <div>
-              <span className="text-[10px] uppercase font-bold text-[#737686] block">
-                Operario a Cargo
-              </span>
-              <span className="text-xs font-black text-[#191c1e]">
-                {responsableProceso}
-              </span>
-            </div>
-          </div>
-        }
       />
 
       {/* 1. PREPARACIÓN DE LA LECHE EN TINA Y TRAZABILIDAD */}
@@ -599,7 +578,6 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
             ? 'Leche en Tina, Ácido Acético y Lotes del Día'
             : 'Mezcla de Leches en la Tina y Lotes del Día'
         }
-        subtitle="Registra los litros de leche, selecciona los lotes y verifica el pH antes de iniciar el calentamiento."
         icon="inventory_2"
         badge={`Total en Tina: ${totalLeche} L`}
         variant={isHeatingStarted && !editModeInsumos ? 'success' : 'default'}
@@ -975,7 +953,6 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
       {/* PASO 1: La mezcla ya alcanzó los 35 grados!! */}
       <Card
         title="La mezcla ya alcanzó los 35 grados!!"
-        subtitle="Confirma cuando la mezcla llegue a 35 °C para registrar el tiempo y momento exactos."
         icon="thermostat"
         badge={
           state.phase1.alcanzo35
@@ -1090,7 +1067,6 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
       {/* PASO 2: Ya agregué el cuajo a la mezcla */}
       <Card
         title="Ya agregué el cuajo a la mezcla"
-        subtitle="Fórmula: 1.2 g de cuajo por cada 100 L de mezcla."
         icon="water_drop"
         badge={
           state.phase2?.cuajoAdicionado
@@ -1098,16 +1074,6 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
             : `Sugerido para ${totalLeche} L: ${cuajoSugeridoGramos} g`
         }
         variant={state.phase2?.cuajoAdicionado ? 'success' : 'default'}
-        headerAction={
-          <ConfirmButton
-            label="Ya agregué el cuajo"
-            confirmedLabel={`✓ Cuajo agregado (${state.phase2?.horaAdicionCuajo || ''})`}
-            icon="add_circle"
-            isConfirmed={Boolean(state.phase2?.cuajoAdicionado)}
-            disabled={!state.phase1.alcanzo35}
-            onConfirm={handleRecordAdicionCuajo}
-          />
-        }
       >
         <div className="p-4 rounded-xl bg-white border border-[#D6DEEA] flex flex-col gap-4">
           {/* Banner de cálculo sugerido en tiempo real */}
@@ -1142,7 +1108,6 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                     ? `Ej: ${cuajoSugeridoGramos}`
                     : 'Ej: 2.4'
                 }
-                hint={`Editable · Sugerido para ${totalLeche} L: ${cuajoSugeridoGramos} g`}
                 value={cantidadCuajoInput > 0 ? cantidadCuajoInput : ''}
                 disabled={Boolean(state.phase2?.cuajoAdicionado) && !editModePaso2}
                 readOnly={Boolean(state.phase2?.cuajoAdicionado) && !editModePaso2}
@@ -1158,7 +1123,6 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                 value={loteCuajoSelect}
                 options={optionsCuajo}
                 disabled={Boolean(state.phase2?.cuajoAdicionado) && !editModePaso2}
-                hint="Selecciona el lote de cuajo activo"
                 onChange={(e) => {
                   const val = e.target.value;
                   setLoteCuajoSelect(val);
@@ -1195,6 +1159,17 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
               )}
             </div>
           </div>
+
+          {/* Confirmación al final: primero se llena cantidad y lote, luego se confirma */}
+          <ConfirmButton
+            label="Ya agregué el cuajo"
+            confirmedLabel={`✓ Cuajo agregado (${state.phase2?.horaAdicionCuajo || ''})`}
+            icon="add_circle"
+            isConfirmed={Boolean(state.phase2?.cuajoAdicionado)}
+            disabled={!state.phase1.alcanzo35}
+            onConfirm={handleRecordAdicionCuajo}
+            fullWidth
+          />
 
           {/* Casilla de verificación y botón de Guardar cambios */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#D6DEEA]">

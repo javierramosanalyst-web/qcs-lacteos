@@ -224,7 +224,7 @@ export const MoldeoStage: React.FC<MoldeoStageProps> = ({
       totalGrams: gramos800,
       totalKg: kilos800,
     },
-  ];
+  ].sort((a, b) => a.gramsPerUnit - b.gramsPerUnit); // de menor a mayor: 100 → 1600 g
 
   const isCompleted =
     batch.processTimer.isCompleted || batch.status === 'COMPLETADO';
@@ -235,42 +235,9 @@ export const MoldeoStage: React.FC<MoldeoStageProps> = ({
         stageNumber={5}
         totalStages={5}
         title="Pesado, Moldeo y Rendimiento del Queso"
-        subtitle="Registra los moldes por presentación. El sistema totaliza matemáticamente los kilos producidos y calcula el rendimiento oficial."
         productName="Queso Doble Crema"
         icon="scale"
         isCompleted={isCompleted}
-        rightContent={
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-amber-700 text-[22px]">
-                scale
-              </span>
-              <div>
-                <div className="text-[10px] font-bold uppercase text-amber-800">
-                  PESO TOTAL EN MOLDES
-                </div>
-                <div className="text-xs font-black font-mono text-amber-900">
-                  {pesoTotalMoldesGramos.toLocaleString('es-CO')} g (
-                  {pesoTotalMoldesKilos.toFixed(2)} kg)
-                </div>
-              </div>
-            </div>
-
-            <div className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-emerald-700 text-[22px]">
-                inventory_2
-              </span>
-              <div>
-                <div className="text-[10px] font-bold uppercase text-emerald-800">
-                  TOTAL UNIDADES
-                </div>
-                <div className="text-xs font-black font-mono text-emerald-900">
-                  {totalUnidadesMoldes} moldes
-                </div>
-              </div>
-            </div>
-          </div>
-        }
       />
 
       {/* =========================================================================
@@ -278,7 +245,6 @@ export const MoldeoStage: React.FC<MoldeoStageProps> = ({
       ========================================================================= */}
       <Card
         title="Paso 1 · Conteo de Moldes Armados por Tamaño"
-        subtitle="Escribe cuántos moldes salieron de cada presentación. Presiona 'Confirmar Moldes' para totalizar y bloquear la edición."
         icon="grid_view"
         badge={
           moldesConfirmados
