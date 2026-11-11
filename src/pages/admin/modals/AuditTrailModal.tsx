@@ -6,14 +6,44 @@ interface AuditTrailModalProps {
   isOpen: boolean;
   onClose: () => void;
   logs: AuditLogEntry[];
+  onCorrectBatch?: (log: AuditLogEntry) => void;
 }
 
 type AuditTab = 'todos' | 'corregidos' | 'anulados';
 
 const esAnulacion = (log: AuditLogEntry) => log.action === 'ANULACION';
 
-const CardCorreccion: React.FC<{ log: AuditLogEntry }> = ({ log }) => (
-  <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-[#D6DEEA] shadow-2xs flex flex-col gap-2.5 hover:border-blue-300 transition-all">
+const DatosLote: React.FC<{ log: AuditLogEntry }> = ({ log }) => (
+  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px]">
+    <span className="flex items-center gap-1 text-gray-700 min-w-0">
+      <span className="material-symbols-outlined text-[14px] text-[#1B4E9B]">inventory_2</span>
+      <span className="font-bold break-words">{log.productName ?? 'Producto no identificado'}</span>
+    </span>
+    <span className="flex items-center gap-1 text-gray-600 min-w-0">
+      <span className="material-symbols-outlined text-[14px] text-gray-500">badge</span>
+      <span className="break-words">
+        Responsable: <strong className="text-gray-800">{log.responsibleName ?? '—'}</strong>
+      </span>
+    </span>
+  </div>
+);
+
+const BotonCorregir: React.FC<{ log: AuditLogEntry; onCorrect?: (log: AuditLogEntry) => void }> = ({ log, onCorrect }) => {
+  if (!onCorrect || !log.loteId || log.batchStatus === 'ANULADO') return null;
+  return (
+    <button
+      type="button"
+      onClick={() => onCorrect(log)}
+      className="self-start sm:self-end inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#1B4E9B] hover:bg-[#163F7D] text-white text-[11px] font-bold transition-all cursor-pointer"
+    >
+      <span className="material-symbols-outlined text-[15px]">edit</span>
+      Corregir lote
+    </button>
+  );
+};
+
+const CardCorreccion: React.FC<{ log: AuditLogEntry; onCorrect?: (log: AuditLogEntry) => void }> = ({ log, onCorrect }) => (
+  <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-[#D6DEEA] shadow-2xs flex flex-col gap-2.5 min-w-0 hover:border-blue-300 transition-all">
     <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#D6DEEA]/60">
       <div className="flex flex-wrap items-center gap-2 min-w-0">
         <span className="text-xs font-bold text-[#1B4E9B] break-all">{log.batchId}</span>
@@ -28,6 +58,8 @@ const CardCorreccion: React.FC<{ log: AuditLogEntry }> = ({ log }) => (
         <span>{log.dateStr}</span>
       </div>
     </div>
+
+    <DatosLote log={log} />
 
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
       <div className="p-2.5 rounded-xl bg-gray-50 border border-gray-200 flex flex-wrap justify-between items-center gap-1">
@@ -49,7 +81,7 @@ const CardCorreccion: React.FC<{ log: AuditLogEntry }> = ({ log }) => (
         <span className="material-symbols-outlined text-[14px]">label</span>
         <span>Motivo: {log.reasonCategory}</span>
       </div>
-      <div className="text-gray-800 italic mt-0.5">"{log.justificationText}"</div>
+      <div className="text-gray-800 italic mt-0.5 break-words">"{log.justificationText}"</div>
       <div className="text-[10px] text-gray-500 mt-1 flex flex-wrap items-center justify-between gap-1">
         <span>Autorizado por: <strong className="text-gray-700">{log.adminName}</strong></span>
         <span className="text-emerald-700 font-bold flex items-center gap-0.5">
@@ -58,11 +90,13 @@ const CardCorreccion: React.FC<{ log: AuditLogEntry }> = ({ log }) => (
         </span>
       </div>
     </div>
+
+    <BotonCorregir log={log} onCorrect={onCorrect} />
   </div>
 );
 
 const CardAnulacion: React.FC<{ log: AuditLogEntry }> = ({ log }) => (
-  <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-red-200 shadow-2xs flex flex-col gap-2.5 hover:border-red-400 transition-all">
+  <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-red-200 shadow-2xs flex flex-col gap-2.5 min-w-0 hover:border-red-400 transition-all">
     <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-red-100">
       <div className="flex flex-wrap items-center gap-2 min-w-0">
         <span className="text-xs font-bold text-[#1B4E9B] break-all">{log.batchId}</span>
@@ -79,6 +113,8 @@ const CardAnulacion: React.FC<{ log: AuditLogEntry }> = ({ log }) => (
       </div>
     </div>
 
+    <DatosLote log={log} />
+
     <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 flex flex-wrap justify-between items-center gap-1 text-xs">
       <span className="text-red-800 font-medium">{log.fieldLabel}:</span>
       <span className="font-mono font-bold text-gray-600 line-through">{log.oldValue}</span>
@@ -91,7 +127,7 @@ const CardAnulacion: React.FC<{ log: AuditLogEntry }> = ({ log }) => (
         <span className="material-symbols-outlined text-[14px]">label</span>
         <span>Motivo: {log.reasonCategory}</span>
       </div>
-      <div className="text-gray-800 italic mt-0.5">"{log.justificationText}"</div>
+      <div className="text-gray-800 italic mt-0.5 break-words">"{log.justificationText}"</div>
       <div className="text-[10px] text-gray-500 mt-1 flex flex-wrap items-center justify-between gap-1">
         <span>Anulado por: <strong className="text-gray-700">{log.adminName}</strong></span>
         <span className="text-red-700 font-bold flex items-center gap-0.5">
@@ -107,6 +143,7 @@ export const AuditTrailModal: React.FC<AuditTrailModalProps> = ({
   isOpen,
   onClose,
   logs,
+  onCorrectBatch,
 }) => {
   const [activeTab, setActiveTab] = useState<AuditTab>('todos');
 
@@ -145,7 +182,11 @@ export const AuditTrailModal: React.FC<AuditTrailModalProps> = ({
           </span>
         </div>
         {items.map((log) =>
-          tipo === 'anulados' ? <CardAnulacion key={log.id} log={log} /> : <CardCorreccion key={log.id} log={log} />
+          tipo === 'anulados' ? (
+            <CardAnulacion key={log.id} log={log} />
+          ) : (
+            <CardCorreccion key={log.id} log={log} onCorrect={onCorrectBatch} />
+          )
         )}
       </section>
     );
@@ -209,7 +250,7 @@ export const AuditTrailModal: React.FC<AuditTrailModalProps> = ({
           : activeTab === 'corregidos'
             ? corregidos.length === 0
               ? vacio('No hay lotes corregidos registrados.', 'edit_note')
-              : <div className="flex flex-col gap-3">{corregidos.map((log) => <CardCorreccion key={log.id} log={log} />)}</div>
+              : <div className="flex flex-col gap-3">{corregidos.map((log) => <CardCorreccion key={log.id} log={log} onCorrect={onCorrectBatch} />)}</div>
             : activeTab === 'anulados'
               ? anulados.length === 0
                 ? vacio('No hay lotes anulados registrados.', 'block')

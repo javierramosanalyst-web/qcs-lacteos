@@ -17,6 +17,7 @@ interface AdminBatchCorrectionModalProps {
   batch: any;
   title: string;
   adminName: string;
+  productId?: string;
   onApply: (payload: BatchCorrectionPayload) => Promise<string | null>;
 }
 
@@ -71,6 +72,91 @@ const stageRank = (label: string): number => {
   return idx === -1 ? STAGE_ORDER.length : idx;
 };
 
+type ProductScope = 'kumis' | 'yogur' | 'griego' | 'otro';
+
+const SCOPE_LABEL: Record<ProductScope, string> = {
+  kumis: 'Kumis',
+  yogur: 'Yogur',
+  griego: 'Yogur Griego',
+  otro: '',
+};
+
+const resolveScope = (productId?: string): ProductScope => {
+  if (productId === 'prod-kumis') return 'kumis';
+  if (productId === 'prod-yogur') return 'yogur';
+  if (productId === 'prod-yogur-griego') return 'griego';
+  return 'otro';
+};
+
+const KUMIS_FIELD = /(^|\.)(litrosKumis|litrosKumisDestinados|formatosKumis|kumis[A-Z][A-Za-z0-9]*)(\.|$)/;
+const GRIEGO_FIELD =
+  /(^|\.)(litrosYogurGriego|extraccionGriego|formatosSinEstevia|formatosConEstevia|variedadSinEstevia|variedadConEstevia)(\.|$)/;
+const YOGUR_SIN_AZUCAR = /(^|\.)(litrosYogurSinAzucar|variedadSinAzucar|sinAzucar_[A-Za-z0-9]+)(\.|$)/;
+const YOGUR_ESTEVIA = /(^|\.)(variedadEstevia|stevia_[A-Za-z0-9]+|botella120ml)(\.|$)/;
+const YOGUR_AZUCAR = /(^|\.)(litrosYogurConAzucar|variedadAzucar)(\.|$)/;
+const YOGUR_FORMATOS = /(^|\.)formatos\.(botella200ml|botella1000g|botella500g|vaso200g|vaso150g)(\.|$)/;
+const YOGUR_ADICIONES_EXTRA =
+  /(^|\.)(sabor|saborizanteMl|loteSaborizante|coloranteMl|loteColorante|kilosSaborizante)(\.|$)/;
+
+const yogurVariedades = (batch: any) => {
+  const adiciones = batch?.batidoYAdiciones?.adiciones ?? {};
+  const division = batch?.pasteurizacion?.divisionLeche ?? {};
+  return {
+    sinAzucar: adiciones.tipoYogur === 'sin_azucar' || Number(division.litrosYogurSinAzucar) > 0,
+    estevia: adiciones.tipoYogur === 'con_estevia' || Number(adiciones.variedadEstevia?.litrosBase) > 0,
+    azucar: adiciones.tipoYogur === 'con_azucar' || Number(division.litrosYogurConAzucar) > 0,
+  };
+};
+
+const loteIncluyeKumis = (batch: any): boolean =>
+  Boolean(batch?.pasteurizacion?.incluyeKumis) ||
+  Number(batch?.pasteurizacion?.litrosKumisDestinados) > 0 ||
+  Number(batch?.pasteurizacion?.divisionLeche?.litrosKumis) > 0;
+
+const isForeignField = (path: string, scope: ProductScope, batch: any): boolean => {
+  if (scope === 'otro') return false;
+
+  if (scope === 'kumis') {
+    return (
+      /(^|\.)(litrosYogurConAzucar|litrosYogurSinAzucar|litrosYogurGriego|litrosKumisDestinados)(\.|$)/.test(path) ||
+      GRIEGO_FIELD.test(path) ||
+      /(^|\.)formatosKumis(\.|$)/.test(path) ||
+      /(^|\.)(variedadSinAzucar|variedadEstevia|variedadNatural)(\.|$)/.test(path) ||
+      /(^|\.)(sinAzucar_[A-Za-z0-9]+|stevia_[A-Za-z0-9]+)(\.|$)/.test(path) ||
+      YOGUR_FORMATOS.test(path) ||
+      YOGUR_ADICIONES_EXTRA.test(path)
+    );
+  }
+
+  if (scope === 'yogur') {
+    if (GRIEGO_FIELD.test(path)) return true;
+    if (/(^|\.)formatosKumis(\.|$)/.test(path)) return true;
+    if (/(^|\.)formulacion(\.|$)/.test(path)) return true;
+    if (/(^|\.)temperaturaIncubacion(\.|$)/.test(path)) return true;
+    if (
+      /(^|\.)variedadNatural(\.|$)/.test(path) &&
+      Number(batch?.batidoYAdiciones?.adiciones?.variedadNatural?.litrosBase) <= 0
+    ) {
+      return true;
+    }
+    if (KUMIS_FIELD.test(path) && !loteIncluyeKumis(batch)) return true;
+    const variedades = yogurVariedades(batch);
+    if (!variedades.sinAzucar && YOGUR_SIN_AZUCAR.test(path)) return true;
+    if (!variedades.estevia && YOGUR_ESTEVIA.test(path)) return true;
+    if (!variedades.azucar && YOGUR_AZUCAR.test(path)) return true;
+    return false;
+  }
+
+  return (
+    /(^|\.)(litrosYogurConAzucar|litrosYogurSinAzucar|litrosKumis|litrosKumisDestinados)(\.|$)/.test(path) ||
+    /(^|\.)(kumis[A-Z][A-Za-z0-9]*|formatosKumis|extraccionKumis)(\.|$)/.test(path) ||
+    /(^|\.)(variedadSinAzucar|variedadAzucar|variedadEstevia|variedadNatural)(\.|$)/.test(path) ||
+    /(^|\.)(sinAzucar_[A-Za-z0-9]+|stevia_[A-Za-z0-9]+)(\.|$)/.test(path) ||
+    /(^|\.)adiciones(\.|$)/.test(path) ||
+    YOGUR_FORMATOS.test(path)
+  );
+};
+
 const flatten = (node: any, trail: string[], out: FlatField[]) => {
   if (node === null || node === undefined) return;
   if (typeof node === 'number') {
@@ -102,13 +188,16 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
   batch,
   title,
   adminName,
+  productId,
   onApply,
 }) => {
+  const scope = resolveScope(productId);
+
   const fields = useMemo(() => {
     const out: FlatField[] = [];
     flatten(batch, [], out);
-    return out;
-  }, [batch]);
+    return out.filter((f) => !isForeignField(f.path, scope, batch));
+  }, [batch, scope]);
 
   const stageGroups = useMemo(() => {
     const order: string[] = [];
@@ -233,8 +322,15 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
                 <label className="text-xs font-bold text-gray-800">
                   1. ETAPA Y VARIABLE A CORREGIR
                 </label>
-                <span className="text-[11px] font-bold text-[#1B4E9B]">
-                  {stageGroups.length} etapa(s) · {fields.length} variable(s)
+                <span className="flex flex-wrap items-center gap-2">
+                  {scope !== 'otro' && (
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-full">
+                      Solo variables de {SCOPE_LABEL[scope]}
+                    </span>
+                  )}
+                  <span className="text-[11px] font-bold text-[#1B4E9B]">
+                    {stageGroups.length} etapa(s) · {fields.length} variable(s)
+                  </span>
                 </span>
               </div>
               <div className="space-y-3">

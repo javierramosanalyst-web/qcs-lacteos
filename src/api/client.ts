@@ -440,6 +440,11 @@ export async function fetchAuditLogs(): Promise<AuditLogEntry[]> {
           ? 'ANULACION'
           : 'RECTIFICACION')) as 'RECTIFICACION' | 'ANULACION',
       batchId: r.codigo_lote ?? '—',
+      loteId: r.lote_id ?? undefined,
+      batchStatus: r.lote_estado ?? undefined,
+      productUiId: r.producto_ui_id ?? undefined,
+      productName: r.producto_nombre ?? undefined,
+      responsibleName: r.responsable_nombre ?? undefined,
       lineName: r.linea_nombre ?? '—',
       timestamp: ts,
       dateStr: new Date(ts).toLocaleString('es-CO'),
@@ -456,6 +461,26 @@ export async function fetchAuditLogs(): Promise<AuditLogEntry[]> {
     };
   });
 }
+
+export interface BatchRectificationRow {
+  id: string;
+  accion: string;
+  etapa_codigo: string | null;
+  etapa_label: string | null;
+  campo_modificado: string;
+  campo_label: string | null;
+  valor_anterior: string | null;
+  valor_nuevo: string | null;
+  unidad: string | null;
+  categoria_motivo: string | null;
+  justificacion_tecnica: string | null;
+  registrado_at: string;
+  autorizado_por_nombre: string | null;
+  autorizado_por_codigo: string | null;
+}
+
+export const fetchBatchRectifications = (batchId: string) =>
+  apiFetch<BatchRectificationRow[]>(`/batches/${encodeURIComponent(batchId)}/rectifications`);
 
 export interface BatchDetail extends BatchHistoryRow {
   producto_ui_id: string | null;
