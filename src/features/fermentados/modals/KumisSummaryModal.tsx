@@ -118,6 +118,7 @@ export const KumisSummaryModal: React.FC<KumisSummaryModalProps> = ({
       operariosIntervinientes={batch.operariosIntervinientes}
       actividadOperarios={batch.actividadOperarios}
       onFinalizeBatch={onFinalizeBatch}
+      motivoNoCierre={totalUnidades === 0 ? 'Registra al menos un envase antes de cerrar el lote.' : null}
       onChangeObservaciones={onChangeObservaciones}
       onChangeOperariosIntervinientes={onChangeOperariosIntervinientes}
       observacionesPlaceholder="Registra cualquier eventualidad, ajuste en acidez, tiempo de incubación o control de envasado..."

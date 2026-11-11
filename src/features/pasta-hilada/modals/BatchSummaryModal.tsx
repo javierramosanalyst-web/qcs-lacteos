@@ -415,6 +415,7 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
       operariosIntervinientes={batch.operariosIntervinientes}
       actividadOperarios={batch.actividadOperarios}
       onFinalizeBatch={onFinalizeBatch}
+      motivoNoCierre={totalMoldes === 0 ? 'Registra al menos un molde antes de cerrar el lote.' : null}
       onChangeObservaciones={onChangeObservaciones}
       onChangeOperariosIntervinientes={onChangeOperariosIntervinientes}
       observacionesPlaceholder="Registre observaciones, desviaciones menores, ajustes de dosificación o incidencias técnicas del proceso..."
