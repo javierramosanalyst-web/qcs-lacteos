@@ -446,11 +446,6 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
             : 'Línea de Fermentados · Kumis Tradicional'
         }
         title={isKumis ? '3. Envasar y Guardar' : '5. Guardar'}
-        subtitle={
-          isConAzucar
-            ? 'Conteo de envases por presentación comercial, balance y rendimiento del lote, y traslado final a cuarto frío.'
-            : 'Conteo de envases de la línea Sin Azúcar (Stevia), balance, rendimiento del lote y traslado final a cuarto frío.'
-        }
         standardBadge="NTC-805"
         metrics={[
           {
@@ -479,11 +474,6 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
           isConAzucar
             ? 'Conteo de Envases y Presentaciones'
             : 'Conteo de Envases y Presentaciones (Sin Azúcar / Stevia)'
-        }
-        subtitle={
-          isConAzucar
-            ? 'Ingresa la cantidad de unidades obtenidas en cada presentación comercial producida.'
-            : 'Ingresa la cantidad de unidades obtenidas en cada categoría de empaque (Natural y Stevia).'
         }
         icon="format_list_numbered"
         tone={hasInitialSaved ? 'completed' : 'default'}
@@ -606,13 +596,6 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
       <Card
         stepBadge="Paso 02"
         title="Balance del Lote y Rendimiento"
-        subtitle={
-          isKumis
-            ? 'Cálculo de rendimiento y balance calculado estrictamente sobre el volumen desviado para Kumis.'
-            : totalDesviadoSublotes > 0
-            ? `Cálculo de rendimiento sobre el volumen neto remanente (${lecheBaseLitros} L) tras desviar ${totalDesviadoSublotes} L a sub-lotes.`
-            : 'Comparación entre la leche base inicial y el volumen envasado para determinar la merma del proceso.'
-        }
         icon="scale"
         tone="default"
       >
@@ -671,7 +654,6 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
       <Card
         stepBadge="Paso 03"
         title="Entrada a Cuarto Frío"
-        subtitle="Registra el traslado de los envases terminados y sellados al cuarto frío para su estabilización."
         icon="kitchen"
         tone={isIngresadoCuartoFrio ? 'completed' : 'default'}
         statusBadge={
@@ -712,7 +694,6 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
                 <PopoverTimePicker
                   label="Hora de ingreso al cuarto frío"
                   icon="schedule"
-                  hint="Toca para desplegar selector flotante (hh:mm:ss a)"
                   value={horaManualIngreso}
                   onChange={setHoraManualIngreso}
                 />

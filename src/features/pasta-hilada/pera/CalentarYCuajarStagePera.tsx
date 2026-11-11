@@ -832,46 +832,9 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
         stageNumber={2}
         totalStages={5}
         title="Premaduración, Cuajado y Reposo hasta pH 5.8"
-        subtitle={`Calienta la leche a 40 °C, agrega el cultivo láctico, deja reposar 40 minutos, adiciona el cuajo y controla el reposo bajo suero hasta alcanzar pH 5.80 (${totalLitros} L).`}
         productName="Queso Pera"
         icon="thermostat"
         isCompleted={reposoFinalizado}
-        startTime={
-          horaInicioCalentamiento !== 'En espera'
-            ? horaInicioCalentamiento
-            : undefined
-        }
-        rightContent={
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 flex items-center gap-2 min-h-[48px]">
-              <span className="material-symbols-outlined text-[#1B4E9B] text-[20px]">
-                water_drop
-              </span>
-              <div>
-                <div className="text-[10px] text-blue-900 uppercase font-bold">
-                  DOSIS CUAJO (PERA)
-                </div>
-                <div className="text-xs font-black text-[#1B4E9B] font-mono">
-                  1.2 g / 100 L ({cuajoCalculado} g)
-                </div>
-              </div>
-            </div>
-
-            <div className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2 min-h-[48px]">
-              <span className="material-symbols-outlined text-emerald-700 text-[20px]">
-                science
-              </span>
-              <div>
-                <div className="text-[10px] text-emerald-900 uppercase font-bold">
-                  META DE REPOSO
-                </div>
-                <div className="text-xs font-black text-emerald-900 font-mono">
-                  pH 5.80
-                </div>
-              </div>
-            </div>
-          </div>
-        }
       />
 
       {/* =========================================================================
@@ -879,7 +842,6 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
       ========================================================================= */}
       <Card
         title="Calentando la leche hacia 40 grados C"
-        subtitle="Monitoreo en vivo del tiempo transcurrido desde que se inició el calentamiento de la tina. Este momento marca el inicio del cronómetro general del lote."
         icon="local_fire_department"
         badge={
           llegoA40
@@ -930,7 +892,6 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
       ========================================================================= */}
       <Card
         title="Confirmo que la leche ya llegó a 40 °C"
-        subtitle="Apenas el termómetro de la tina marque 40 °C, confirma el momento exacto para detener el cronómetro de calentamiento y registrar la duración oficial."
         icon="thermostat"
         badge={
           llegoA40
@@ -1067,7 +1028,6 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
       ========================================================================= */}
       <Card
         title="¡Ya adicioné el cultivo láctico y revolví!"
-        subtitle="Agrega el cultivo láctico disuelto con la leche a 40 °C y revuelve uniformemente. Al confirmar, arranca inmediatamente el temporizador de 40 minutos de reposo."
         icon="science"
         badge={
           cultivoAdicionado
@@ -1240,7 +1200,6 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
       ========================================================================= */}
       <Card
         title="¡Ya agregué el cuajo!"
-        subtitle={`Agrega el cuajo disuelto a los 40 °C. Para ${totalLitros} L de leche se sugieren ${cuajoCalculado} g. Al confirmar, se detiene el reloj de reposo del cultivo.`}
         icon="opacity"
         badge={
           cuajoAdicionado
@@ -1248,16 +1207,6 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
             : `Sugerido: ${cuajoCalculado} g`
         }
         variant={cuajoAdicionado ? 'success' : 'default'}
-        headerAction={
-          <ConfirmButton
-            label="Registrar: Ya agregué el cuajo"
-            confirmedLabel="✓ Cuajo agregado"
-            icon="opacity"
-            isConfirmed={cuajoAdicionado}
-            disabled={!cultivoAdicionado}
-            onConfirm={handleRecordCuajo}
-          />
-        }
       >
         <div className="flex flex-col gap-4">
           {/* Checkbox de edición manual */}
@@ -1395,6 +1344,17 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
               </div>
             </div>
           )}
+
+          {/* Confirmación al final: primero se registran los datos de la tarjeta */}
+          <ConfirmButton
+            label="Registrar: Ya agregué el cuajo"
+            confirmedLabel="✓ Cuajo agregado"
+            icon="opacity"
+            isConfirmed={cuajoAdicionado}
+            disabled={!cultivoAdicionado}
+            onConfirm={handleRecordCuajo}
+            fullWidth
+          />
         </div>
       </Card>
 
@@ -1403,7 +1363,6 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
       ========================================================================= */}
       <Card
         title="Confirmo que la leche ya cuajó"
-        subtitle="Comprueba que la cuajada tenga la consistencia adecuada y corte firme antes de pasar la lira."
         icon="egg"
         badge={
           cuajadoConfirmado
@@ -1541,7 +1500,6 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
       ========================================================================= */}
       <Card
         title="Ya corté la cuajada y ya agité suavemente"
-        subtitle="Corta la cuajada en cubos parejos y agítala despacio. Al confirmar, arranca automáticamente el reloj de reposo de la cuajada."
         icon="content_cut"
         badge={
           corteTerminado
@@ -1656,7 +1614,6 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
       ========================================================================= */}
       <Card
         title="Reposo de la cuajada"
-        subtitle="La cuajada cortada permanece en reposo bajo el suero tibio para acidificarse antes del desuerado."
         icon="speed"
         badge={
           reposoFinalizado
@@ -1723,7 +1680,6 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
       ========================================================================= */}
       <Card
         title="¡La pasta ya llegó a 5.8!"
-        subtitle="Cuando el potenciómetro o cinta marque pH 5.80 (o menos), confirma el término del reposo para detener el cronómetro y avanzar a Desuerado."
         icon="task_alt"
         badge={
           reposoFinalizado
@@ -1731,16 +1687,6 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
             : 'Esperando pH 5.80'
         }
         variant={reposoFinalizado ? 'success' : 'default'}
-        headerAction={
-          <ConfirmButton
-            label="Confirmar: ¡Llegó a pH 5.8!"
-            confirmedLabel="✓ pH 5.80 confirmado"
-            icon="task_alt"
-            isConfirmed={reposoFinalizado}
-            disabled={!corteTerminado}
-            onConfirm={handleRecordPh58}
-          />
-        }
       >
         <div className="flex flex-col gap-4">
           {/* Checkbox de edición manual */}
@@ -1855,6 +1801,17 @@ export const CalentarYCuajarStagePera: React.FC<CalentarYCuajarStagePeraProps> =
               </div>
             </div>
           )}
+
+          {/* Confirmación al final: primero se registran los datos de la tarjeta */}
+          <ConfirmButton
+            label="Confirmar: ¡Llegó a pH 5.8!"
+            confirmedLabel="✓ pH 5.80 confirmado"
+            icon="task_alt"
+            isConfirmed={reposoFinalizado}
+            disabled={!corteTerminado}
+            onConfirm={handleRecordPh58}
+            fullWidth
+          />
         </div>
       </Card>
 

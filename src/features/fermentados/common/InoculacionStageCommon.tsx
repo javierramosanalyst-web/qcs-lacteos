@@ -424,34 +424,7 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
         totalStages={isKumis ? 3 : 4}
         lineName={isYogur ? 'Línea de Fermentados · Yogur' : 'Línea de Fermentados · Kumis'}
         title={isYogur ? '2. Inoculación e Incubación (Yogur)' : '2. Inoculación e Incubación (Kumis)'}
-        subtitle={
-          isYogur
-            ? 'Adición de cultivo láctico probiótico, mezclado uniforme, reposo en incubación por 8 horas y traslado final a cuarto frío.'
-            : 'Adición de cultivo de Kumis, mezclado suave, reposo a temperatura ambiente por 12 horas y traslado a refrigeración.'
-        }
         standardBadge="NTC-805"
-        metrics={[
-          {
-            icon: 'water_drop',
-            label: 'Leche del Lote',
-            value: `${litrosLecheBase} L`,
-            tone: 'default',
-          },
-          {
-            icon: 'timer',
-            label: `Incubación (${targetHoras} h)`,
-            value: state.incubacion.iniciada
-              ? incubacionTimer.formattedElapsed
-              : `${targetHoras} Horas`,
-            tone: isIncubacionCompletada ? 'emerald' : isIncubando ? 'amber' : 'default',
-          },
-          {
-            icon: 'kitchen',
-            label: 'Cuarto Frío',
-            value: isCuartoFrioConfirmado ? 'Ingresado ✓' : 'Pendiente',
-            tone: isCuartoFrioConfirmado ? 'emerald' : 'default',
-          },
-        ]}
       />
 
       {/* ========================================================================= */}
@@ -460,11 +433,6 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
       <Card
         stepBadge="Paso 01"
         title="Verificación de la Leche en Cantinas"
-        subtitle={
-          horaLlegadaTemp
-            ? `La leche se transfirió y enfrió a las ${horaLlegadaTemp}. Verifica que las cantinas se encuentren listas en el área de siembra antes de inocular.`
-            : 'Verifica que las cantinas con leche pasteurizada se encuentren listas y desinfectadas en el área de siembra para iniciar la inoculación.'
-        }
         icon="inventory_2"
         tone={state.temperaturaConfirmada ? 'completed' : 'active'}
         statusBadge={
@@ -531,11 +499,6 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
       <Card
         stepBadge="Paso 02"
         title="¡Agregué el cultivo y ya revolví!"
-        subtitle={
-          isYogur
-            ? 'Adiciona el cultivo láctico probiótico y revuelve suavemente para repartirlo uniformemente. Al confirmar arranca la incubación de 8 horas.'
-            : 'Adiciona el cultivo láctico de Kumis y revuelve suavemente para repartirlo parejo. Al confirmar arranca la incubación de 12 horas.'
-        }
         icon="biotech"
         tone={isInoculado ? 'completed' : 'active'}
         statusBadge={
@@ -613,7 +576,6 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
               <PopoverTimePicker
                 label="Hora de Adición / Mezclado"
                 icon="schedule"
-                hint="Toca para desplegar selector flotante (hh:mm:ss a)"
                 value={horaManualMezclado}
                 onChange={setHoraManualMezclado}
               />
@@ -674,11 +636,6 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
           isYogur
             ? 'Incubación (8 Horas)'
             : 'Incubación (12 Horas)'
-        }
-        subtitle={
-          isYogur
-            ? 'Reposo e incubación de la cuajada durante 8 horas continuas. Registro exclusivo de tiempo transcurrido (sin pH ni temperatura).'
-            : 'Reposo e incubación de la cuajada durante 12 horas continuas a temperatura ambiente. Registro exclusivo de tiempo transcurrido.'
         }
         icon="hourglass_top"
         tone={isIncubacionCompletada ? 'completed' : isIncubando ? 'active' : 'default'}
@@ -787,7 +744,6 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
               <PopoverTimePicker
                 label="Hora Inicio de Incubación"
                 icon="schedule"
-                hint="Toca para desplegar selector flotante (hh:mm:ss a)"
                 value={horaManualIncubacionInicio}
                 onChange={setHoraManualIncubacionInicio}
               />
@@ -814,7 +770,6 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
               <PopoverTimePicker
                 label="Hora Fin de Incubación"
                 icon="schedule"
-                hint="Toca para desplegar selector flotante (hh:mm:ss a)"
                 value={horaManualIncubacionFin}
                 onChange={setHoraManualIncubacionFin}
               />
@@ -838,7 +793,6 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
       <Card
         stepBadge="Paso 04"
         title="Meter producto a cuarto frío"
-        subtitle="Traslada las cantinas con cuajada al cuarto frío para detener la fermentación, estabilizar la consistencia y enfriar el producto antes del batido."
         icon="kitchen"
         tone={isCuartoFrioConfirmado ? 'completed' : 'active'}
         statusBadge={
@@ -927,7 +881,6 @@ export const InoculacionStageCommon: React.FC<InoculacionStageCommonProps> = ({
               <PopoverTimePicker
                 label="Hora Entrada a Cuarto Frío"
                 icon="schedule"
-                hint="Toca para desplegar selector flotante (hh:mm:ss a)"
                 value={horaManualCuartoFrio}
                 onChange={setHoraManualCuartoFrio}
               />

@@ -750,47 +750,9 @@ export const PasteurizacionStageCommon: React.FC<
         stageNumber={1}
         totalStages={isKumis ? 3 : 4}
         title={`Pasteurización (${productName})`}
-        subtitle={
-          isKumis
-            ? 'Control térmico inquebrantable: Calentamiento a 85–90 °C, retención de 15 min, enfriamiento a 35 °C y traslado a cantinas.'
-            : 'Control térmico inquebrantable: Calentamiento a 85–90 °C, retención de 15 min, enfriamiento a 45 °C y traslado a cantinas.'
-        }
         productName={productName}
         icon="local_fire_department"
         isCompleted={isCompletedStage}
-        startTime={state.calentamiento?.horaInicio || undefined}
-        endTime={state.trasiego?.horaFin || undefined}
-        rightContent={
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-blue-700 text-[22px]">
-                water_drop
-              </span>
-              <div>
-                <div className="text-[10px] font-bold uppercase text-blue-800">
-                  LECHE EN TANQUE
-                </div>
-                <div className="text-xs font-black font-mono text-blue-950">
-                  {state.litrosLeche || 0} L
-                </div>
-              </div>
-            </div>
-
-            <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-amber-700 text-[22px]">
-                cookie
-              </span>
-              <div>
-                <div className="text-[10px] font-bold uppercase text-amber-800">
-                  FORMULACIÓN
-                </div>
-                <div className="text-xs font-black font-mono text-amber-950">
-                  {state.llevaAzucar ? 'Con Azúcar' : 'Sin Azúcar'}
-                </div>
-              </div>
-            </div>
-          </div>
-        }
       />
 
       {/* =========================================================================
@@ -798,7 +760,6 @@ export const PasteurizacionStageCommon: React.FC<
       ========================================================================= */}
       <Card
         title="Insumos Iniciales de Pasteurización"
-        subtitle="Registra los litros de leche fresca, los lotes de materia prima y selecciona si este lote lleva azúcar."
         icon="inventory_2"
         badge={
           isKumis
@@ -937,7 +898,6 @@ export const PasteurizacionStageCommon: React.FC<
       ========================================================================= */}
       <Card
         title="Calentando la leche (Objetivo: 85 - 90 °C)"
-        subtitle="Prende la caldera o tina. Este paso marca el arranque del cronómetro general del lote."
         icon="local_fire_department"
         badge={
           state.calentamiento?.completado
@@ -1030,7 +990,6 @@ export const PasteurizacionStageCommon: React.FC<
       {state.llevaAzucar && (
         <Card
           title="¡Agregué el azúcar a los 60 °C!"
-          subtitle="Cuando la leche alcance los 60 °C durante el calentamiento, agrega el azúcar pesada y disuélvela."
           icon="cookie"
           badge={
             state.azucar?.adicionado
@@ -1130,7 +1089,6 @@ export const PasteurizacionStageCommon: React.FC<
                   <PopoverTimePicker
                     label="Hora de Adición de Azúcar"
                     icon="schedule"
-                    hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                     value={horaManualAzucar}
                     onChange={setHoraManualAzucar}
                   />
@@ -1169,7 +1127,6 @@ export const PasteurizacionStageCommon: React.FC<
       ========================================================================= */}
       <Card
         title="¡La leche llegó a 85 - 90 °C!"
-        subtitle="Al confirmar, detiene el calentamiento, calcula la duración (solo lectura) e inicia la retención."
         icon="thermostat"
         badge={
           state.calentamiento?.completado
@@ -1247,7 +1204,6 @@ export const PasteurizacionStageCommon: React.FC<
                 <PopoverTimePicker
                   label="Hora de Llegada a 85–90 °C"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualPaso2}
                   onChange={setHoraManualPaso2}
                 />
@@ -1284,7 +1240,6 @@ export const PasteurizacionStageCommon: React.FC<
       ========================================================================= */}
       <Card
         title="Terminó el tiempo de retención (Min. 15 min)"
-        subtitle="El cronómetro de retención arranca tras el Paso 2. Al confirmar, bloquea la duración e inicia enfriamiento."
         icon="timer"
         badge={
           state.sostenimiento?.completado
@@ -1422,7 +1377,6 @@ export const PasteurizacionStageCommon: React.FC<
                 <PopoverTimePicker
                   label="Hora de Fin de Retención"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualPaso3}
                   onChange={setHoraManualPaso3}
                 />
@@ -1460,11 +1414,6 @@ export const PasteurizacionStageCommon: React.FC<
       <div ref={paso4Ref} id="paso-enfriamiento-35" className="scroll-mt-6">
         <Card
           title={coolingStepTitle}
-          subtitle={
-            isKumis
-              ? 'Mide el tiempo desde el fin de la retención. Al confirmar, calcula la duración hacia 35 °C e inicia el traslado a cantinas.'
-              : 'Mide el tiempo desde el fin de la retención. Al confirmar, calcula la duración e inicia el reloj de traslado.'
-          }
           icon="ac_unit"
           badge={
             state.enfriamiento?.enfriamientoCompletado
@@ -1586,7 +1535,6 @@ export const PasteurizacionStageCommon: React.FC<
                       <PopoverTimePicker
                         label={`Hora de Llegada a ${targetCoolingTempStr}`}
                         icon="schedule"
-                        hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                         value={horaManualPaso4}
                         onChange={setHoraManualPaso4}
                       />
@@ -1626,7 +1574,6 @@ export const PasteurizacionStageCommon: React.FC<
       ========================================================================= */}
       <Card
         title="¡Leche trasladada a cantinas!"
-        subtitle={`Calcula el tiempo desde que la leche llegó a ${targetCoolingTempStr} hasta que se pasó a las cantinas limpias.`}
         icon="inventory_2"
         badge={
           state.trasiego?.completado
@@ -1738,7 +1685,6 @@ export const PasteurizacionStageCommon: React.FC<
                 <PopoverTimePicker
                   label="Hora de Fin de Traslado"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualPaso5}
                   onChange={setHoraManualPaso5}
                 />

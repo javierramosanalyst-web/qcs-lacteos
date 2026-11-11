@@ -89,7 +89,6 @@ export const BatidoEnvasadoTimerCard: React.FC<BatidoEnvasadoTimerCardProps> = (
     <Card
       stepBadge={stepBadge}
       title="Batido y Envasado"
-      subtitle="Un solo cronómetro: inicia cuando empieza el batido y termina cuando se finaliza el envasado."
       icon="blender"
       tone={completado ? 'completed' : enCurso ? 'active' : 'default'}
       statusBadge={

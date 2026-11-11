@@ -288,42 +288,9 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
         stageNumber={5}
         totalStages={5}
         title="Moldeo y Rendimiento (Queso 7 Cueros)"
-        subtitle="Cuenta los moldes de Queso Siete Cueros (350 g) y Trenza (350 g), registra las quesadillas de bocadillo o arequipe (60 g) si se elaboraron hoy y revisa el rendimiento final."
         productName="Queso 7 Cueros"
         icon="scale"
         isCompleted={isCompleted}
-        rightContent={
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-amber-700 text-[22px]">
-                scale
-              </span>
-              <div>
-                <div className="text-[10px] font-bold uppercase text-amber-800">
-                  MASA TOTAL MOLDEADA
-                </div>
-                <div className="text-xs font-black font-mono text-amber-900">
-                  {totalMoldeadoGramos.toLocaleString('es-CO')} g (
-                  {totalMoldeadoKg.toFixed(2)} kg)
-                </div>
-              </div>
-            </div>
-
-            <div className="px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-emerald-700 text-[22px]">
-                inventory_2
-              </span>
-              <div>
-                <div className="text-[10px] font-bold uppercase text-emerald-800">
-                  TOTAL MOLDES
-                </div>
-                <div className="text-xs font-black font-mono text-emerald-900">
-                  {totalGeneralUnidadesMoldes} unidades
-                </div>
-              </div>
-            </div>
-          </div>
-        }
       />
 
       {/* =========================================================================
@@ -331,7 +298,6 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
       ========================================================================= */}
       <Card
         title="Paso 1 · Contar Moldes de Queso Tradicional: Siete Cueros (350 g) y Trenza (350 g)"
-        subtitle="Digita cuántos moldes armaste de Queso Siete Cueros (350 g) y de Queso Trenza (350 g). El peso total se calcula automáticamente."
         icon="inventory_2"
         badge={
           moldesConfirmados
@@ -510,7 +476,6 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
       ========================================================================= */}
       <Card
         title="Sección Opcional · Derivaciones de Pasta Resultante (Quesadillas 60 g)"
-        subtitle="Habilita únicamente si separaste una porción de la masa hilada para elaborar quesadillas de 60 g con dulce de bocadillo o arequipe."
         icon="cake"
         badge={
           isBocadilloHabilitado || isArequipeHabilitado
@@ -869,7 +834,6 @@ export const MoldeoStage7Cueros: React.FC<MoldeoStage7CuerosProps> = ({
       ========================================================================= */}
       <Card
         title="Resumen de Masa Moldeada y Rendimiento del Lote"
-        subtitle="Desglose consolidado de la masa distribuida por variante y cálculo automático de rendimiento del lote sobre la leche inicial."
         icon="analytics"
         badge={`Rendimiento: ${yieldPercentage.toFixed(2)} %`}
         variant="success"

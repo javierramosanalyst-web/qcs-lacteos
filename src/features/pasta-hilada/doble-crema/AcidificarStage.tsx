@@ -1028,7 +1028,6 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                 <PopoverTimePicker
                   label="Momento alcanzado"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={draftHoraPaso1}
                   onChange={setDraftHoraPaso1}
                 />
@@ -1137,7 +1136,6 @@ export const AcidificarStage: React.FC<AcidificarStageProps> = ({
                 <PopoverTimePicker
                   label="Hora de cuajo"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={draftHoraCuajo}
                   onChange={setDraftHoraCuajo}
                 />

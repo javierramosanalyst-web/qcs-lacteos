@@ -513,22 +513,17 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
     <div className="flex flex-col gap-6 pb-12">
       <StageHeader
         stageNumber={1}
-        stageTitle="Acidificar la Leche (Queso 7 Cueros)"
-        subtitle="Acidifica la leche fresca con ácido acético reducido al 5% hasta dejar el pH entre 5,30 y 5,35, y calienta la tina a 35 °C."
+        totalStages={5}
+        title="Acidificar la Leche"
+        productName="Queso 7 Cueros"
         icon="science"
-        processTimer={processTimer}
+        isCompleted={Boolean(state.phase1?.alcanzo35)}
         badges={
-          <>
-            <Badge variant="info" icon="water_drop">
-              Leche Fresca: {totalLeche} L
-            </Badge>
-            <Badge variant="warning" icon="science">
-              pH Meta: 5,30 – 5,35
-            </Badge>
-            <Badge variant="neutral" icon="person">
+          responsableProceso ? (
+            <Badge variant="neutral" size="sm" icon="person">
               Operario: {responsableProceso}
             </Badge>
-          </>
+          ) : undefined
         }
       />
 
@@ -537,7 +532,6 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
       ========================================================================= */}
       <Card
         title="1. Insumos y Leche Fresca (Queso 7 Cueros)"
-        subtitle="Registra los litros de leche unificados con su lote, anota el ácido acético al 5% y verifica el pH antes de calentar."
         icon="water_drop"
         variant={isSaved ? 'completed' : 'default'}
         headerRight={
@@ -990,7 +984,6 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
       ========================================================================= */}
       <Card
         title="¡La leche está calentando!! Objetivo 35 °C"
-        subtitle="Calienta la leche ya acidificada hasta llegar a 35 °C antes de pasar a la etapa de cuajado."
         icon="thermostat"
         variant={state.phase1.alcanzo35 ? 'completed' : 'active'}
         headerRight={
@@ -1089,7 +1082,6 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
                 <PopoverTimePicker
                   label="Hora en que llegó a 35 °C"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={hora35Manual}
                   onChange={setHora35Manual}
                 />

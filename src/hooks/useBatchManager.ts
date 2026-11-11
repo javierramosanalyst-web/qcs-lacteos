@@ -85,7 +85,11 @@ const createInitialParentBatch = (): ParentMilkBatch => ({
 });
 
 const totalTimeOf = (timer: ProcessTimerState): { seconds: number; hms: string } => {
-  const seconds = timer.startTimestamp
+  // Si el reloj ya se detuvo (p. ej. yogur al ingresar al cuarto frío), se respeta
+  // ese tiempo y no se recalcula hasta el momento de finalizar.
+  const seconds = timer.isCompleted
+    ? timer.elapsedSeconds
+    : timer.startTimestamp
     ? Math.max(timer.elapsedSeconds, Math.floor((Date.now() - timer.startTimestamp) / 1000))
     : timer.elapsedSeconds;
   return { seconds, hms: formatSecondsToHMS(Math.max(0, seconds)) };

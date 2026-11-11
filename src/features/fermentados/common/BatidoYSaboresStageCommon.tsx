@@ -334,38 +334,7 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
         totalStages={5}
         lineName={isYogur ? 'Línea de Fermentados · Yogur' : 'Línea de Fermentados · Kumis'}
         title="3. Receta y Sabores"
-        subtitle={
-          llevaAzucar
-            ? 'Formulación de la receta (color y sabor) y batido suave controlado para lograr la textura homogénea y cremosa.'
-            : 'Adición de stevia edulcorante y batido suave controlado para lograr la textura homogénea y cremosa.'
-        }
         standardBadge="NTC-805"
-        metrics={[
-          {
-            icon: 'water_drop',
-            label: 'Volumen del Lote',
-            value: `${litrosLecheBase} L`,
-            tone: 'emerald',
-          },
-          {
-            icon: llevaAzucar ? 'menu_book' : 'eco',
-            label: llevaAzucar ? 'Receta' : 'Stevia',
-            value: isPaso1Listo
-              ? llevaAzucar
-                ? 'Receta Lista ✓'
-                : 'Stevia Lista ✓'
-              : llevaAzucar
-              ? 'Por Definir'
-              : 'Por Agregar',
-            tone: isPaso1Listo ? 'emerald' : 'amber',
-          },
-          {
-            icon: 'blender',
-            label: 'Sabores',
-            value: llevaAzucar ? `${sabores.length} por producir` : 'Sin azúcar',
-            tone: 'default',
-          },
-        ]}
       />
 
       {/* ========================================================================= */}
@@ -375,7 +344,6 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
         <Card
           stepBadge="Paso 01"
           title="Preparación de la Receta (Color y Sabor)"
-          subtitle="Agrega todos los sabores que se producirán en este lote, con su saborizante y colorante, y confirma la receta."
           icon="menu_book"
           tone={isRecetaConfirmada ? 'completed' : 'active'}
           statusBadge={
@@ -387,23 +355,11 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
               : { label: `${sabores.length} sabor(es) por definir`, variant: 'warning' }
           }
           headerAction={
-            <div className="flex flex-wrap items-center gap-3">
-              {isRecetaConfirmada && (
-                <Button variant="outline" size="md" icon="edit" onClick={handleEditarReceta} className="font-bold">
-                  Editar
-                </Button>
-              )}
-              <Button
-                variant={isRecetaConfirmada ? 'success' : 'primary'}
-                size="md"
-                icon={isRecetaConfirmada ? 'lock' : 'check_circle'}
-                onClick={handleConfirmReceta}
-                disabled={isRecetaConfirmada}
-                className="font-bold shadow-sm"
-              >
-                {isRecetaConfirmada ? `Receta lista (${horaRecetaDisplay || 'OK'})` : '¡La receta está lista!'}
+            isRecetaConfirmada ? (
+              <Button variant="outline" size="md" icon="edit" onClick={handleEditarReceta} className="font-bold">
+                Editar
               </Button>
-            </div>
+            ) : undefined
           }
         >
           <div className="space-y-4">
@@ -499,6 +455,19 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
                 Agregar sabor
               </Button>
             )}
+
+            {/* Confirmación al final: primero se registran todos los sabores */}
+            <Button
+              variant={isRecetaConfirmada ? 'success' : 'primary'}
+              size="md"
+              icon={isRecetaConfirmada ? 'lock' : 'check_circle'}
+              onClick={handleConfirmReceta}
+              disabled={isRecetaConfirmada}
+              fullWidth
+              className="font-bold shadow-sm"
+            >
+              {isRecetaConfirmada ? `Receta lista (${horaRecetaDisplay || 'OK'})` : '¡La receta está lista!'}
+            </Button>
           </div>
         </Card>
       ) : (
@@ -506,7 +475,6 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
         <Card
           stepBadge="Paso 01"
           title="¡Adición de Stevia!"
-          subtitle="Dosifica la cantidad exacta de stevia según la formulación del lote para endulzar el producto sin azúcar."
           icon="eco"
           tone={isSteviaConfirmada ? 'completed' : 'active'}
           statusBadge={
@@ -526,23 +494,6 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
                       adiciones: { ...p.adiciones, esManualStevia: checked },
                     }));
                   }} />
-
-              {/* Botón de confirmación tipo "¡Ya agregué la stevia!" */}
-              <Button
-                variant={isSteviaConfirmada ? 'secondary' : 'primary'}
-                size="md"
-                icon="check_circle"
-                onClick={handleConfirmStevia}
-                className={
-                  isSteviaConfirmada
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold'
-                    : 'font-bold shadow-sm'
-                }
-              >
-                {isSteviaConfirmada
-                  ? `✓ ¡Ya agregué la stevia! (${horaSteviaDisplay || 'OK'})`
-                  : '¡Ya agregué la stevia!'}
-              </Button>
             </div>
           }
         >
@@ -595,7 +546,6 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
                   <PopoverTimePicker
                     label="Hora en que se agregó la stevia"
                     icon="schedule"
-                    hint="Toca para desplegar selector flotante (hh:mm:ss a)"
                     value={horaManualStevia}
                     onChange={setHoraManualStevia}
                   />
@@ -611,6 +561,24 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
                 </Button>
               </div>
             )}
+
+            {/* Confirmación al final: primero se registran cantidad y lote */}
+            <Button
+              variant={isSteviaConfirmada ? 'secondary' : 'primary'}
+              size="md"
+              icon="check_circle"
+              onClick={handleConfirmStevia}
+              fullWidth
+              className={
+                isSteviaConfirmada
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold'
+                  : 'font-bold shadow-sm'
+              }
+            >
+              {isSteviaConfirmada
+                ? `✓ ¡Ya agregué la stevia! (${horaSteviaDisplay || 'OK'})`
+                : '¡Ya agregué la stevia!'}
+            </Button>
           </div>
         </Card>
       )}

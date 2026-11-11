@@ -722,39 +722,9 @@ export const CalentarYCuajarStage7Cueros: React.FC<
         stageNumber={2}
         totalStages={5}
         title="Agregar Cuajo, Cortar y Calentar a 40 °C"
-        subtitle="Agrega el cuajo a 35 °C, espera el cuajado firme (~15 min), corta la cuajada y calienta suavemente hasta 40 °C."
         productName="Queso 7 Cueros"
         icon="thermostat"
         isCompleted={Boolean(state.temperatura40?.alcanzado)}
-        rightContent={
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-300 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-amber-700 text-[22px]">
-                water_drop
-              </span>
-              <div>
-                <div className="text-[10px] text-amber-900 uppercase font-bold">
-                  LECHE EN TINA
-                </div>
-                <div className="text-xs font-black text-amber-950 font-mono">
-                  {effectiveMilkLiters} L
-                </div>
-              </div>
-            </div>
-
-            <div className="px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 flex items-center gap-2.5 min-h-[48px]">
-              <span className="material-symbols-outlined text-[#1B4E9B] text-[22px]">
-                thermostat
-              </span>
-              <div>
-                <div className="text-[10px] text-[#434655] uppercase font-bold">
-                  META PARA DESUERAR
-                </div>
-                <div className="text-xs font-black text-[#1B4E9B]">40.0 °C</div>
-              </div>
-            </div>
-          </div>
-        }
       />
 
       {effectiveMilkLiters <= 0 && (
@@ -795,16 +765,6 @@ export const CalentarYCuajarStage7Cueros: React.FC<
         icon="vaccines"
         badge={cuajoStepRegistrado ? '✓ Cuajo Agregado' : 'Pendiente'}
         variant={cuajoStepRegistrado ? 'success' : 'default'}
-        headerAction={
-          <ConfirmButton
-            label="¡Ya agregué el cuajo!"
-            confirmedLabel="✓ Cuajo Agregado"
-            icon="vaccines"
-            isConfirmed={cuajoStepRegistrado && !manualPaso1}
-            disabled={cuajoStepRegistrado && !manualPaso1}
-            onConfirm={handleYaAdicioneCuajo}
-          />
-        }
       >
         <div className="flex flex-col gap-4">
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
@@ -941,7 +901,6 @@ export const CalentarYCuajarStage7Cueros: React.FC<
                 <PopoverTimePicker
                   label="Hora de Adición de Cuajo"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaCuajoManual}
                   onChange={setHoraCuajoManual}
                 />
@@ -975,6 +934,17 @@ export const CalentarYCuajarStage7Cueros: React.FC<
               </div>
             </div>
           )}
+
+          {/* Confirmación al final: primero se registran los datos de la tarjeta */}
+          <ConfirmButton
+            label="¡Ya agregué el cuajo!"
+            confirmedLabel="✓ Cuajo Agregado"
+            icon="vaccines"
+            isConfirmed={cuajoStepRegistrado && !manualPaso1}
+            disabled={cuajoStepRegistrado && !manualPaso1}
+            onConfirm={handleYaAdicioneCuajo}
+            fullWidth
+          />
         </div>
       </Card>
 
@@ -983,7 +953,6 @@ export const CalentarYCuajarStage7Cueros: React.FC<
       ========================================================================= */}
       <Card
         title="¡La leche ya cuajó!"
-        subtitle="Aprox. a los 15 minutos revisa la firmeza en la tina. Al confirmar, se detiene este reloj e inician simultáneamente el corte y el calentamiento a 40 °C."
         icon="egg"
         badge={
           state.cuajado?.registrado
@@ -1114,7 +1083,6 @@ export const CalentarYCuajarStage7Cueros: React.FC<
                 <PopoverTimePicker
                   label="Hora en que Cuajó"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualCuajado}
                   onChange={setHoraManualCuajado}
                 />
@@ -1163,7 +1131,6 @@ export const CalentarYCuajarStage7Cueros: React.FC<
       ========================================================================= */}
       <Card
         title="Ya terminé de cortar la cuajada!!"
-        subtitle="Corta la cuajada en cubos uniformes con la lira y confirma apenas termines, mientras la mezcla sigue calentando a 40 °C."
         icon="grid_4x4"
         badge={
           state.corte?.registrado
@@ -1277,7 +1244,6 @@ export const CalentarYCuajarStage7Cueros: React.FC<
                 <PopoverTimePicker
                   label="Hora de Corte Terminado"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManualCorte}
                   onChange={setHoraManualCorte}
                 />
@@ -1318,7 +1284,6 @@ export const CalentarYCuajarStage7Cueros: React.FC<
       ========================================================================= */}
       <Card
         title="Ya calenté la mezcla hasta llegar a 40 grados"
-        subtitle="Sube suavemente la temperatura agitando despacio, y confirma apenas el termómetro marque los 40.0 °C."
         icon="thermostat"
         badge={
           state.temperatura40?.alcanzado
@@ -1486,7 +1451,6 @@ export const CalentarYCuajarStage7Cueros: React.FC<
                 <PopoverTimePicker
                   label="Hora a la que llegó"
                   icon="schedule"
-                  hint="Toca para desplegar el selector flotante (hh:mm:ss)"
                   value={horaManual40}
                   onChange={setHoraManual40}
                 />

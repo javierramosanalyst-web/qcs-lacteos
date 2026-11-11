@@ -391,27 +391,11 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
         stageNumber={4}
         totalStages={5}
         title="Hilar con Salmuera Caliente y Salmuera Fría"
-        subtitle="Haz la prueba de hilado, deja lista la salmuera caliente (~85 °C) y la salmuera fría, y luego hila la masa."
         productName="Queso Pera"
         icon="waves"
         isCompleted={Boolean(
           state.hiladoEnPaila?.completado && salmueraFriaPreparada
         )}
-        rightContent={
-          <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-300 flex items-center gap-2.5 min-h-[48px]">
-            <span className="material-symbols-outlined text-amber-700 text-[22px]">
-              science
-            </span>
-            <div>
-              <div className="text-[10px] text-amber-900 uppercase font-bold">
-                pH MEDIDO EN ESCURRIDO
-              </div>
-              <div className="text-sm font-black text-amber-950 font-mono">
-                {phMedidoEnEscurrido.toFixed(2)} pH
-              </div>
-            </div>
-          </div>
-        }
       />
 
       {/* =========================================================================
@@ -419,9 +403,6 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
       ========================================================================= */}
       <Card
         title="Paso 1 · Hacer la Prueba de Hilado"
-        subtitle={`Con el pH de ${phMedidoEnEscurrido.toFixed(
-          2
-        )} medido en el escurrido, prueba que la cuajada estire firme y brillante sin romperse.`}
         icon="verified"
         badge={
           state.pruebaHilado.exitosa
@@ -543,7 +524,6 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
       ========================================================================= */}
       <Card
         title="Paso 2 · Salmuera Caliente (Para Hilar)"
-        subtitle="Prepara la salmuera caliente con la proporción fija: 30 L de agua + 1 kg de sal (1,000 g)."
         icon="local_fire_department"
         badge={
           salmueraLista
@@ -725,7 +705,6 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
       ========================================================================= */}
       <Card
         title="Paso 3 · Salmuera Fría (déjala lista junto a la caliente)"
-        subtitle="Prepara la salmuera fría ahora y déjala lista a un lado, junto a la caliente: 30 L de agua fría + 500 g de sal (valores fijos). Cuando la tengas lista, presiona el botón."
         icon="ac_unit"
         badge={
           salmueraFriaPreparada
@@ -895,7 +874,6 @@ export const HilarStagePera: React.FC<HilarStagePeraProps> = ({
       ========================================================================= */}
       <Card
         title="Paso 4 · Hilar y Amasar con la Salmuera a ~85 °C"
-        subtitle="Hila y amasa la pasta con la salmuera caliente hasta que quede suave y brillante. Marca el inicio y el fin."
         icon="settings_motion_mode"
         badge={
           state.hiladoEnPaila?.completado
