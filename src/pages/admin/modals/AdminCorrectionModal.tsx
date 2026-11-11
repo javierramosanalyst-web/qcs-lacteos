@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Modal } from '../../../components/ui';
 import { AuditLogEntry, BatchData } from '../../../types';
 import { getCurrentTimeString } from '../../../utils/timer';
@@ -181,6 +181,19 @@ export const AdminCorrectionModal: React.FC<AdminCorrectionModalProps> = ({
   const currentField = EDITABLE_FIELDS.find((f) => f.key === selectedKey) || EDITABLE_FIELDS[0];
   const currentValue = currentField.getValue(batch);
 
+  const stageGroups = useMemo(() => {
+    const order: string[] = [];
+    const map = new Map<string, EditableField[]>();
+    EDITABLE_FIELDS.forEach((f) => {
+      if (!map.has(f.stageLabel)) {
+        map.set(f.stageLabel, []);
+        order.push(f.stageLabel);
+      }
+      map.get(f.stageLabel)!.push(f);
+    });
+    return order.map((label, idx) => ({ label, index: idx + 1, items: map.get(label)! }));
+  }, []);
+
   const [newValueInput, setNewValueInput] = useState<string>(() => currentValue.toString());
   const [reasonCategory, setReasonCategory] = useState<string>(REASON_CATEGORIES[0]);
   const [justification, setJustification] = useState<string>('');
@@ -272,24 +285,62 @@ export const AdminCorrectionModal: React.FC<AdminCorrectionModalProps> = ({
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           {/* Step 1: Select Variable */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-bold text-gray-800 flex items-center justify-between">
-              <span>1. SELECCIONA LA VARIABLE DEL PROCESO A CORREGIR</span>
-              <span className="text-[11px] text-[#1B4E9B] font-semibold">
-                Etapa: {currentField.stageLabel}
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="text-xs font-bold text-gray-800">
+                1. ETAPA Y VARIABLE DEL PROCESO A CORREGIR
+              </label>
+              <span className="text-[11px] font-bold text-[#1B4E9B]">
+                {stageGroups.length} etapa(s) · {EDITABLE_FIELDS.length} variable(s)
               </span>
-            </label>
-            <select
-              value={selectedKey}
-              onChange={(e) => handleSelectField(e.target.value)}
-              className="w-full p-3 rounded-xl bg-[#FFFFFF] border border-[#D6DEEA] text-sm font-bold text-[#191c1e] outline-none focus:border-red-600 focus:ring-2 focus:ring-red-100"
-            >
-              {EDITABLE_FIELDS.map((field) => (
-                <option key={field.key} value={field.key}>
-                  [{field.stageLabel}] {field.label} ({field.unit})
-                </option>
+            </div>
+            <div className="space-y-3">
+              {stageGroups.map((stage) => (
+                <div key={stage.label} className="p-3 sm:p-4 bg-white rounded-2xl border border-[#D6DEEA]">
+                  <h4 className="font-black text-gray-900 text-sm mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-[#1B4E9B] text-white text-[11px] font-black flex items-center justify-center shrink-0">
+                        {stage.index}
+                      </span>
+                      <span>{stage.label}</span>
+                    </span>
+                    <span className="text-[10px] font-bold uppercase text-gray-500">
+                      {stage.items.length} variable(s)
+                    </span>
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {stage.items.map((field) => {
+                      const selected = selectedKey === field.key;
+                      return (
+                        <button
+                          key={field.key}
+                          type="button"
+                          onClick={() => handleSelectField(field.key)}
+                          aria-pressed={selected}
+                          className={`text-left rounded-xl px-2.5 py-2 border transition-all cursor-pointer ${
+                            selected
+                              ? 'border-red-500 bg-red-50 ring-1 ring-red-200'
+                              : 'border-[#E6EBF3] bg-white hover:bg-gray-50'
+                          }`}
+                        >
+                          <span className="block text-[10px] uppercase font-bold text-gray-500 leading-tight">
+                            {field.label}
+                          </span>
+                          <span
+                            className={`block text-sm font-black font-mono ${
+                              selected ? 'text-red-800' : 'text-gray-800'
+                            }`}
+                          >
+                            {field.getValue(batch)}
+                            <span className="text-[10px] font-bold ml-1">{field.unit}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               ))}
-            </select>
+            </div>
           </div>
 
           {/* Comparison Cards */}

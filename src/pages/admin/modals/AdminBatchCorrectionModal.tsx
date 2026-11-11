@@ -41,8 +41,35 @@ const REASON_CATEGORIES = [
 const humanize = (key: string): string =>
   key
     .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
     .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
     .replace(/^\w/, (c) => c.toUpperCase());
+
+const STAGE_ORDER = [
+  'acidificar',
+  'calentar y cuajar',
+  'desuerar',
+  'hilar',
+  'moldear',
+  'pasteurizacion',
+  'inoculacion',
+  'maduracion frio',
+  'batido y adiciones',
+  'envasado',
+];
+
+const stageRank = (label: string): number => {
+  const norm = label
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const idx = STAGE_ORDER.findIndex((s) => norm === s || norm.startsWith(s));
+  return idx === -1 ? STAGE_ORDER.length : idx;
+};
 
 const flatten = (node: any, trail: string[], out: FlatField[]) => {
   if (node === null || node === undefined) return;
@@ -82,6 +109,22 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
     flatten(batch, [], out);
     return out;
   }, [batch]);
+
+  const stageGroups = useMemo(() => {
+    const order: string[] = [];
+    const map = new Map<string, FlatField[]>();
+    fields.forEach((f) => {
+      if (!map.has(f.stageLabel)) {
+        map.set(f.stageLabel, []);
+        order.push(f.stageLabel);
+      }
+      map.get(f.stageLabel)!.push(f);
+    });
+    return order
+      .map((label, idx) => ({ label, index: idx + 1, items: map.get(label)! }))
+      .sort((a, b) => stageRank(a.label) - stageRank(b.label))
+      .map((g, idx) => ({ ...g, index: idx + 1 }));
+  }, [fields]);
 
   const [selectedPath, setSelectedPath] = useState('');
   const [newValueInput, setNewValueInput] = useState('');
@@ -166,24 +209,69 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
           </div>
         ) : (
           <>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-bold text-gray-800">1. VARIABLE A CORREGIR</label>
-              <select
-                value={current?.path ?? ''}
-                onChange={(e) => handleSelect(e.target.value)}
-                className="w-full p-3 rounded-xl bg-white border border-[#D6DEEA] text-sm font-bold text-[#191c1e] outline-none focus:border-red-600 focus:ring-2 focus:ring-red-100"
-              >
-                {fields.map((f) => (
-                  <option key={f.path} value={f.path}>
-                    [{f.stageLabel}] {f.label}
-                  </option>
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-xs font-bold text-gray-800">
+                  1. ETAPA Y VARIABLE A CORREGIR
+                </label>
+                <span className="text-[11px] font-bold text-[#1B4E9B]">
+                  {stageGroups.length} etapa(s) · {fields.length} variable(s)
+                </span>
+              </div>
+              <div className="space-y-3">
+                {stageGroups.map((stage) => (
+                  <div key={stage.label} className="p-3 sm:p-4 bg-white rounded-2xl border border-[#D6DEEA]">
+                    <h4 className="font-black text-gray-900 text-sm mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <span className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-[#1B4E9B] text-white text-[11px] font-black flex items-center justify-center shrink-0">
+                          {stage.index}
+                        </span>
+                        <span>{stage.label}</span>
+                      </span>
+                      <span className="text-[10px] font-bold uppercase text-gray-500">
+                        {stage.items.length} variable(s)
+                      </span>
+                    </h4>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {stage.items.map((f) => {
+                        const selected = current?.path === f.path;
+                        return (
+                          <button
+                            key={f.path}
+                            type="button"
+                            onClick={() => handleSelect(f.path)}
+                            aria-pressed={selected}
+                            className={`text-left rounded-xl px-2.5 py-2 border transition-all cursor-pointer ${
+                              selected
+                                ? 'border-red-500 bg-red-50 ring-1 ring-red-200'
+                                : 'border-[#E6EBF3] bg-white hover:bg-gray-50'
+                            }`}
+                          >
+                            <span className="block text-[10px] uppercase font-bold text-gray-500 leading-tight">
+                              {f.label}
+                            </span>
+                            <span
+                              className={`block text-sm font-black font-mono ${
+                                selected ? 'text-red-800' : 'text-gray-800'
+                              }`}
+                            >
+                              {f.value}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 ))}
-              </select>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div className="p-4 rounded-2xl bg-gray-50 border border-gray-300 flex flex-col justify-between">
                 <span className="text-[10px] uppercase font-bold text-gray-500">Valor actual registrado</span>
+                <span className="text-[11px] font-bold text-gray-700 mt-0.5">
+                  {current ? `${current.stageLabel} › ${current.label}` : '—'}
+                </span>
                 <span className="mt-2 text-3xl font-black font-mono text-gray-700">{current?.value}</span>
               </div>
               <div className="p-4 rounded-2xl bg-red-50 border border-red-300 flex flex-col justify-between">
