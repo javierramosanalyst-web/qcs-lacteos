@@ -440,6 +440,11 @@ export async function fetchAuditLogs(): Promise<AuditLogEntry[]> {
           ? 'ANULACION'
           : 'RECTIFICACION')) as 'RECTIFICACION' | 'ANULACION',
       batchId: r.codigo_lote ?? '—',
+      loteId: r.lote_id ?? undefined,
+      batchStatus: r.lote_estado ?? undefined,
+      productUiId: r.producto_ui_id ?? undefined,
+      productName: r.producto_nombre ?? undefined,
+      responsibleName: r.responsable_nombre ?? undefined,
       lineName: r.linea_nombre ?? '—',
       timestamp: ts,
       dateStr: new Date(ts).toLocaleString('es-CO'),

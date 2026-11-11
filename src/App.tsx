@@ -600,7 +600,7 @@ export default function App() {
     }
   };
 
-  const loadViewerDetail = async (row: BatchHistoryRow): Promise<BatchDetail | null> => {
+  const loadViewerDetail = async (row: { id: string }): Promise<BatchDetail | null> => {
     try {
       const detail = await fetchBatchDetail(row.id);
       if (!detail.estado_ui?.batch) {
@@ -621,6 +621,15 @@ export default function App() {
 
   const handleCorrectBatchDetail = async (row: BatchHistoryRow) => {
     if (await loadViewerDetail(row)) setViewerCorrectOpen(true);
+  };
+
+  const handleCorrectFromAudit = async (log: AuditLogEntry) => {
+    if (!log.loteId) {
+      showToast('Este registro no tiene un lote asociado para corregir.', 'warning');
+      return;
+    }
+    setAuditTrailModalOpen(false);
+    if (await loadViewerDetail({ id: log.loteId })) setViewerCorrectOpen(true);
   };
 
   const handleAnnulBatch = async (row: BatchHistoryRow, justification: string): Promise<string | null> => {
@@ -997,6 +1006,7 @@ export default function App() {
         isOpen={auditTrailModalOpen}
         onClose={() => setAuditTrailModalOpen(false)}
         logs={auditLogs}
+        onCorrectBatch={handleCorrectFromAudit}
       />
 
       {loteCerrado && (

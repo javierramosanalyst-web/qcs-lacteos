@@ -725,11 +725,18 @@ export async function listAuditLogs(_req: Request, res: Response): Promise<void>
               ar.valor_anterior, ar.valor_nuevo, ar.unidad, ar.categoria_motivo, ar.justificacion_tecnica,
               ar.registrado_at, u.nombre_completo AS autorizado_por_nombre,
               COALESCE(lp.codigo_lote, pa.codigo_lote) AS codigo_lote,
+              COALESCE(lp.id, pa.id) AS lote_id,
+              lp.estado AS lote_estado,
+              lp.producto_ui_id AS producto_ui_id,
+              p.nombre AS producto_nombre,
+              r.nombre_completo AS responsable_nombre,
               l.nombre AS linea_nombre
        FROM auditoria_rectificaciones ar
        JOIN usuarios u ON u.id = ar.autorizado_por_id
        LEFT JOIN lotes_produccion lp ON lp.id = ar.lote_id
        LEFT JOIN lotes_padre pa ON pa.id = ar.lote_padre_id
+       LEFT JOIN productos p ON p.id = lp.producto_id
+       LEFT JOIN usuarios r ON r.id = COALESCE(lp.responsable_id, pa.responsable_id)
        LEFT JOIN lineas_produccion l ON l.id = COALESCE(lp.linea_id, pa.linea_id)
        ORDER BY ar.registrado_at DESC
        LIMIT 500;`

@@ -63,6 +63,11 @@ export interface AuditLogEntry {
   id: string;
   action?: 'RECTIFICACION' | 'ANULACION';
   batchId: string;
+  loteId?: string;
+  batchStatus?: string;
+  productUiId?: string;
+  productName?: string;
+  responsibleName?: string;
   lineName: string;
   timestamp: number;
   dateStr: string;
