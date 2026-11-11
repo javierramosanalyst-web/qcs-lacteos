@@ -61,6 +61,7 @@ export interface ProductionLine {
 
 export interface AuditLogEntry {
   id: string;
+  action?: 'RECTIFICACION' | 'ANULACION';
   batchId: string;
   lineName: string;
   timestamp: number;

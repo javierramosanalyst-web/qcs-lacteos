@@ -721,7 +721,7 @@ export async function rectifyBatchField(req: Request, res: Response): Promise<vo
 export async function listAuditLogs(_req: Request, res: Response): Promise<void> {
   try {
     const { rows } = await pool.query(
-      `SELECT ar.id, ar.etapa_codigo, ar.etapa_label, ar.campo_modificado, ar.campo_label,
+      `SELECT ar.id, ar.accion, ar.etapa_codigo, ar.etapa_label, ar.campo_modificado, ar.campo_label,
               ar.valor_anterior, ar.valor_nuevo, ar.unidad, ar.categoria_motivo, ar.justificacion_tecnica,
               ar.registrado_at, u.nombre_completo AS autorizado_por_nombre,
               COALESCE(lp.codigo_lote, pa.codigo_lote) AS codigo_lote,

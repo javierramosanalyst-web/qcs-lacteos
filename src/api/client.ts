@@ -435,6 +435,10 @@ export async function fetchAuditLogs(): Promise<AuditLogEntry[]> {
     const ts = new Date(r.registrado_at).getTime();
     return {
       id: r.id,
+      action: (r.accion ??
+        (r.campo_modificado === 'estado' && String(r.valor_nuevo).toUpperCase() === 'ANULADO'
+          ? 'ANULACION'
+          : 'RECTIFICACION')) as 'RECTIFICACION' | 'ANULACION',
       batchId: r.codigo_lote ?? '—',
       lineName: r.linea_nombre ?? '—',
       timestamp: ts,
