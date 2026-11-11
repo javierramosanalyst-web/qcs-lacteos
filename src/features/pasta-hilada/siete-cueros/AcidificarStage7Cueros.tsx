@@ -125,7 +125,7 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
       : undefined
   );
   const [manualPh, setManualPh] = useState<boolean>(
-    !state.insumos.saved || !state.insumos.phRangoConfirmado
+    Boolean(state.insumos.saved) && !state.insumos.phRangoConfirmado
   );
   const [confirmacionPhRango, setConfirmacionPhRango] = useState<boolean>(
     Boolean(state.insumos.phRangoConfirmado || state.insumos.saved)
@@ -843,8 +843,8 @@ export const AcidificarStage7Cueros: React.FC<AcidificarStage7CuerosProps> = ({
           {/* Checkbox Estándar Global: Habilitar edición manual */}
           <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-300 flex flex-wrap items-center justify-between gap-2 min-h-[48px]">
             <ManualEditToggle manual={Boolean(manualPh)} onChange={(checked: boolean) => !isSaved && setManualPh(checked)} />
-            <Badge variant={manualPh ? 'warning' : 'neutral'} size="sm">
-              {manualPh ? 'Modo Manual Activo' : 'Confirmado'}
+            <Badge variant={manualPh ? 'warning' : confirmacionPhRango ? 'neutral' : 'info'} size="sm">
+              {manualPh ? 'Modo Manual Activo' : confirmacionPhRango ? 'Confirmado' : 'Pendiente'}
             </Badge>
           </div>
 
