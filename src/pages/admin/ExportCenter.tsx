@@ -367,9 +367,22 @@ interface LotPickerProps {
   disabled?: boolean;
 }
 
+/** Normaliza texto para buscar sin exigir tildes ni la grafía exacta (yogurt → yogur, kumys → kumis). */
+const norm = (s: string): string =>
+  s
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/yogh?urts?/g, 'yogur')
+    .replace(/kumys|kumis/g, 'kumis')
+    .replace(/[^a-z0-9/ ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [producto, setProducto] = useState('');
   const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -390,22 +403,31 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
 
   const selected = rows.find((r) => r.id === value) ?? null;
 
+  const productos = useMemo(() => {
+    const map = new Map<string, number>();
+    rows.forEach((r) => map.set(r.producto_nombre, (map.get(r.producto_nombre) ?? 0) + 1));
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es'));
+  }, [rows]);
+
   const groups = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const tokens = norm(query).split(' ').filter(Boolean);
     const filtered = rows
       .filter((r) => {
-        if (!q) return true;
-        const hay = [
-          r.codigo_lote,
-          r.producto_nombre,
-          r.responsable_nombre,
-          ESTADO_LABEL[r.estado] ?? r.estado,
-          fmtDate(r.iniciado_at),
-          fmtTime(r.iniciado_at),
-        ]
-          .join(' ')
-          .toLowerCase();
-        return hay.includes(q);
+        if (producto && r.producto_nombre !== producto) return false;
+        if (tokens.length === 0) return true;
+        const hay = norm(
+          [
+            r.codigo_lote,
+            r.producto_nombre,
+            r.producto_codigo,
+            r.linea_nombre,
+            r.responsable_nombre,
+            ESTADO_LABEL[r.estado] ?? r.estado,
+            fmtDate(r.iniciado_at),
+            fmtTime(r.iniciado_at),
+          ].join(' '),
+        );
+        return tokens.every((t) => hay.includes(t));
       })
       .sort((a, b) => (toDate(b.iniciado_at)?.getTime() ?? 0) - (toDate(a.iniciado_at)?.getTime() ?? 0));
     const map = new Map<string, BatchHistoryRow[]>();
@@ -415,7 +437,7 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
       else map.set(r.producto_nombre, [r]);
     });
     return [...map.entries()];
-  }, [rows, query]);
+  }, [rows, query, producto]);
 
   const total = groups.reduce((n, [, list]) => n + list.length, 0);
 
@@ -423,6 +445,7 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
     onChange(id);
     setOpen(false);
     setQuery('');
+    setProducto('');
   };
 
   return (
@@ -452,16 +475,30 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
 
       {open && (
         <div className="absolute z-30 mt-1 w-full rounded-xl border border-[#D6DEEA] bg-white shadow-xl overflow-hidden">
-          <div className="p-2 border-b border-[#E7ECF3]">
+          <div className="p-2 border-b border-[#E7ECF3] flex flex-col gap-2">
+            <label className="flex flex-col gap-1">
+              <span className="px-1 text-[10px] font-bold uppercase tracking-wide text-gray-500">Producto de la línea</span>
+              <select
+                value={producto}
+                onChange={(e) => setProducto(e.target.value)}
+                className="w-full h-9 px-2 rounded-lg bg-white border border-[#D6DEEA] text-xs font-bold text-gray-800 outline-none focus:border-[#1B4E9B] cursor-pointer"
+              >
+                <option value="">Todos los productos ({rows.length})</option>
+                {productos.map(([nombre, n]) => (
+                  <option key={nombre} value={nombre}>
+                    {nombre} ({n})
+                  </option>
+                ))}
+              </select>
+            </label>
             <input
-              autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Escribe código, producto, fecha (dd/mm/aaaa) o responsable"
+              placeholder="O escribe código, fecha (dd/mm/aaaa) o responsable"
               className="w-full h-9 px-3 rounded-lg bg-[#F7F9FC] border border-[#D6DEEA] text-xs font-semibold text-gray-800 outline-none focus:border-[#1B4E9B]"
             />
-            <div className="mt-1 px-1 text-[10px] font-bold text-gray-500">
-              {total} lote(s) · ordenados del más reciente al más antiguo
+            <div className="px-1 text-[10px] font-bold text-gray-500">
+              {total} lote(s){producto ? ` de ${producto}` : ''} · ordenados del más reciente al más antiguo
             </div>
           </div>
           <div className="max-h-72 overflow-y-auto">
