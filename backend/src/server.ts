@@ -14,6 +14,7 @@ import saborYogurRoutes from './routes/saborYogurRoutes';
 import workspaceRoutes from './routes/workspaceRoutes';
 import { ensureSchema } from './schema';
 import { purgeExpiredInsumoLotes } from './controllers/insumoLoteController';
+import { purgeStaleUnstartedDrafts } from './controllers/workspaceController';
 import path from 'path';
 import fs from 'fs';
 
@@ -107,6 +108,11 @@ ensureSchema()
     const purge = () => purgeExpiredInsumoLotes().catch((err) => console.error('[server] Limpieza de papelera:', err.message));
     void purge();
     setInterval(purge, 24 * 60 * 60 * 1000).unref();
+    // Borradores sin lote abandonados (> 8 h sin cambios): revisión cada 30 minutos.
+    const purgeDrafts = () =>
+      purgeStaleUnstartedDrafts().catch((err) => console.error('[server] Limpieza de borradores:', err.message));
+    void purgeDrafts();
+    setInterval(purgeDrafts, 30 * 60 * 1000).unref();
   })
   .catch((err) => console.error('[server] No se pudo verificar el esquema:', err.message));
 
