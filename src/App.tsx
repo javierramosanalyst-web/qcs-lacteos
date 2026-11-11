@@ -25,7 +25,6 @@ import {
   clearSessionHint,
   deactivateLineRequest,
   deactivateUserRequest,
-  discardDraftRequest,
   fetchAuditLogs,
   fetchBatchDetail,
   fetchBatchHistory,
@@ -536,19 +535,6 @@ export default function App() {
     setCurrentView('batch_process');
   };
 
-  const handleDiscardDraft = async (productId: string) => {
-    try {
-      await discardDraftRequest(productId);
-      setOpenDrafts((prev) => prev.filter((d) => d.producto_ui_id !== productId));
-      showToast('✓ Borrador descartado. El producto quedó libre para un nuevo lote.', 'success');
-    } catch (err) {
-      showToast(
-        `No se pudo descartar el borrador: ${err instanceof Error ? err.message : 'error desconocido'}`,
-        'warning'
-      );
-    }
-  };
-
   const handleApplyCorrection = async (
     updatedBatch: BatchData,
     logEntry: AuditLogEntry
@@ -792,8 +778,6 @@ export default function App() {
           onViewBatchDetail={handleViewBatchDetail}
           onCorrectBatchDetail={handleCorrectBatchDetail}
           onAnnulBatch={handleAnnulBatch}
-          openDrafts={openDrafts}
-          onDiscardDraft={handleDiscardDraft}
         />
       )}
 
