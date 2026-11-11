@@ -1,6 +1,6 @@
 import { normalizeBatchTraceability } from '../services/traceability';
 import { Request, Response } from 'express';
-import { PoolClient } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { pool } from '../db';
 
 const STAGE_STATES = ['pendiente', 'en_proceso', 'completada'];
@@ -24,6 +24,30 @@ function lineForbidden(req: Request, res: Response, lineId: string): boolean {
   return false;
 }
 
+/**
+ * Borradores sin lote (el operario escribió datos pero nunca arrancó el proceso):
+ * si llevan más de este tiempo sin tocarse se eliminan solos, para que no queden
+ * productos "medio iniciados". Los borradores CON lote nunca se tocan aquí:
+ * esos solo los puede anular un administrador.
+ */
+export const HORAS_EXPIRACION_BORRADOR_SIN_LOTE = 8;
+
+export async function purgeStaleUnstartedDrafts(db: Pool | PoolClient = pool): Promise<number> {
+  const result = await db.query(
+    `DELETE FROM borradores_lote
+      WHERE lote_id IS NULL
+        AND updated_at < NOW() - make_interval(hours => $1::int);`,
+    [HORAS_EXPIRACION_BORRADOR_SIN_LOTE]
+  );
+  const eliminados = result.rowCount ?? 0;
+  if (eliminados > 0) {
+    console.log(
+      `[workspace] ${eliminados} borrador(es) sin lote eliminados por inactividad (> ${HORAS_EXPIRACION_BORRADOR_SIN_LOTE} h).`
+    );
+  }
+  return eliminados;
+}
+
 /** GET /api/workspace/:lineCode */
 export async function getWorkspace(req: Request, res: Response): Promise<void> {
   const client = await pool.connect();
@@ -34,6 +58,7 @@ export async function getWorkspace(req: Request, res: Response): Promise<void> {
       return;
     }
     if (lineForbidden(req, res, line.id)) return;
+    await purgeStaleUnstartedDrafts(client);
     const ws = await client.query(
       `SELECT estado, version FROM espacio_trabajo_linea WHERE linea_id = $1;`,
       [line.id]
@@ -444,6 +469,7 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
 /** GET /api/workspace/drafts  Lista de lotes en proceso (un borrador abierto por producto) */
 export async function listOpenDrafts(_req: Request, res: Response): Promise<void> {
   try {
+    await purgeStaleUnstartedDrafts();
     const { rows } = await pool.query(
       `SELECT b.producto_ui_id, b.etapa_actual, b.updated_at, b.linea_id,
               lp.codigo_lote,
