@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AuditLogEntry, ProductDefinition, ProductionLine, UserProfile } from '../../types';
 import { BatchHistoryRow, fetchAuditLogs, fetchBatchDetail, fetchBatchHistory, lineUiId } from '../../api/client';
 import { CellValue, ExportColumn, ExportSheet, buildCsv, exportCsv, exportXlsx, exportZip } from '../../utils/exporters';
@@ -358,6 +358,146 @@ const productionOutcome = (
 const stamp = () => {
   const d = new Date();
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+interface LotPickerProps {
+  rows: BatchHistoryRow[];
+  value: string;
+  onChange: (id: string) => void;
+  disabled?: boolean;
+}
+
+const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }) => {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const selected = rows.find((r) => r.id === value) ?? null;
+
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = rows
+      .filter((r) => {
+        if (!q) return true;
+        const hay = [
+          r.codigo_lote,
+          r.producto_nombre,
+          r.responsable_nombre,
+          ESTADO_LABEL[r.estado] ?? r.estado,
+          fmtDate(r.iniciado_at),
+          fmtTime(r.iniciado_at),
+        ]
+          .join(' ')
+          .toLowerCase();
+        return hay.includes(q);
+      })
+      .sort((a, b) => (toDate(b.iniciado_at)?.getTime() ?? 0) - (toDate(a.iniciado_at)?.getTime() ?? 0));
+    const map = new Map<string, BatchHistoryRow[]>();
+    filtered.forEach((r) => {
+      const list = map.get(r.producto_nombre);
+      if (list) list.push(r);
+      else map.set(r.producto_nombre, [r]);
+    });
+    return [...map.entries()];
+  }, [rows, query]);
+
+  const total = groups.reduce((n, [, list]) => n + list.length, 0);
+
+  const pick = (id: string) => {
+    onChange(id);
+    setOpen(false);
+    setQuery('');
+  };
+
+  return (
+    <div ref={boxRef} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
+        className={`w-full min-h-10 px-3 py-2 rounded-xl bg-white border text-left flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${open ? 'border-[#1B4E9B] ring-2 ring-[#1B4E9B]/15' : 'border-[#D6DEEA]'}`}
+      >
+        <span className="material-symbols-outlined text-[18px] text-[#1B4E9B] shrink-0">search</span>
+        <span className="flex-1 min-w-0">
+          {selected ? (
+            <span className="flex flex-col">
+              <span className="text-xs font-bold text-gray-900 break-all">{selected.codigo_lote}</span>
+              <span className="text-[11px] text-gray-500 break-words">
+                {selected.producto_nombre} · {fmtDate(selected.iniciado_at)} {fmtTime(selected.iniciado_at)} ·{' '}
+                {ESTADO_LABEL[selected.estado] ?? selected.estado}
+              </span>
+            </span>
+          ) : (
+            <span className="text-xs font-semibold text-gray-500">Buscar lote por código, producto, fecha o responsable…</span>
+          )}
+        </span>
+        <span className="material-symbols-outlined text-[18px] text-gray-400 shrink-0">{open ? 'expand_less' : 'expand_more'}</span>
+      </button>
+
+      {open && (
+        <div className="absolute z-30 mt-1 w-full rounded-xl border border-[#D6DEEA] bg-white shadow-xl overflow-hidden">
+          <div className="p-2 border-b border-[#E7ECF3]">
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Escribe código, producto, fecha (dd/mm/aaaa) o responsable"
+              className="w-full h-9 px-3 rounded-lg bg-[#F7F9FC] border border-[#D6DEEA] text-xs font-semibold text-gray-800 outline-none focus:border-[#1B4E9B]"
+            />
+            <div className="mt-1 px-1 text-[10px] font-bold text-gray-500">
+              {total} lote(s) · ordenados del más reciente al más antiguo
+            </div>
+          </div>
+          <div className="max-h-72 overflow-y-auto">
+            {groups.length === 0 && <div className="px-3 py-4 text-xs text-gray-500">Ningún lote coincide con la búsqueda.</div>}
+            {groups.map(([producto, list]) => (
+              <div key={producto}>
+                <div className="sticky top-0 px-3 py-1.5 bg-[#F2F4F7] text-[10px] font-bold uppercase tracking-wide text-[#1B4E9B]">
+                  {producto} · {list.length}
+                </div>
+                {list.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => pick(r.id)}
+                    className={`w-full px-3 py-2 text-left flex items-start gap-2 hover:bg-[#F2F7FF] cursor-pointer ${r.id === value ? 'bg-[#EAF2FF]' : ''}`}
+                  >
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-xs font-bold text-gray-900 break-all">{r.codigo_lote}</span>
+                      <span className="block text-[11px] text-gray-500 break-words">
+                        {fmtDate(r.iniciado_at)} {fmtTime(r.iniciado_at)} · {r.responsable_nombre}
+                      </span>
+                    </span>
+                    <span
+                      className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-bold ${r.estado === 'ANULADO' ? 'bg-red-50 text-red-700' : r.estado === 'EN_PROCESO' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}
+                    >
+                      {ESTADO_LABEL[r.estado] ?? r.estado}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 };
 
 export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, users }) => {
@@ -1071,14 +1211,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
           <h3 className="text-sm font-bold text-gray-900">Ficha completa de un solo lote</h3>
         </div>
         <p className="text-[11px] text-gray-500">Resumen, todas las variables registradas y correcciones de un lote específico.</p>
-        <select value={fichaLote} onChange={(e) => setFichaLote(e.target.value)} className={inputCls}>
-          <option value="">Selecciona un lote...</option>
-          {history.map((h) => (
-            <option key={h.id} value={h.id}>
-              {h.codigo_lote} · {h.producto_nombre} · {ESTADO_LABEL[h.estado] ?? h.estado}
-            </option>
-          ))}
-        </select>
+        <LotPicker rows={history} value={fichaLote} onChange={setFichaLote} disabled={disabled} />
         <div className="flex gap-2">
           <button
             onClick={() => void exportFicha('csv')}
