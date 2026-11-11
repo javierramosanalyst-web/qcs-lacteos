@@ -462,6 +462,26 @@ export async function fetchAuditLogs(): Promise<AuditLogEntry[]> {
   });
 }
 
+export interface BatchRectificationRow {
+  id: string;
+  accion: string;
+  etapa_codigo: string | null;
+  etapa_label: string | null;
+  campo_modificado: string;
+  campo_label: string | null;
+  valor_anterior: string | null;
+  valor_nuevo: string | null;
+  unidad: string | null;
+  categoria_motivo: string | null;
+  justificacion_tecnica: string | null;
+  registrado_at: string;
+  autorizado_por_nombre: string | null;
+  autorizado_por_codigo: string | null;
+}
+
+export const fetchBatchRectifications = (batchId: string) =>
+  apiFetch<BatchRectificationRow[]>(`/batches/${encodeURIComponent(batchId)}/rectifications`);
+
 export interface BatchDetail extends BatchHistoryRow {
   producto_ui_id: string | null;
   estado_ui: { batch?: any; stage?: string } | null;

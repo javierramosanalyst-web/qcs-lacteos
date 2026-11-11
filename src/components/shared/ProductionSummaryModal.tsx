@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal } from '../ui';
 import { ActividadOperario, UserProfile } from '../../types';
 import { codigoDeOperario, operarioLabel } from '../../utils/operariosActividad';
+import { BatchRectificationRow, fetchBatchRectifications } from '../../api/client';
 
 export interface EtapaResumenItem {
   label: string;
@@ -164,6 +165,25 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
     );
   const [operariosList, setOperariosList] = useState<string[]>(inicialOperarios);
   const [showConfirmAlert, setShowConfirmAlert] = useState<boolean>(false);
+  const [rectificaciones, setRectificaciones] = useState<BatchRectificationRow[]>([]);
+
+  useEffect(() => {
+    if (!isOpen || !batchId) {
+      setRectificaciones([]);
+      return;
+    }
+    let cancelado = false;
+    fetchBatchRectifications(batchId)
+      .then((rows) => {
+        if (!cancelado) setRectificaciones(Array.isArray(rows) ? rows : []);
+      })
+      .catch(() => {
+        if (!cancelado) setRectificaciones([]);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [isOpen, batchId]);
 
   useEffect(() => {
     if (isOpen) {
@@ -209,6 +229,39 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
       : d.toLocaleString('es-CO', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   };
 
+  const normClave = (valor: string) =>
+    valor
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
+
+  const rectificacionesPorCampo = useMemo(() => {
+    const mapa = new Map<string, BatchRectificationRow>();
+    for (const r of rectificaciones) {
+      const etiqueta = (r.campo_label || r.campo_modificado || '').split('›').pop() || '';
+      const clave = normClave(etiqueta);
+      if (!clave) continue;
+      const previa = mapa.get(clave);
+      if (!previa || new Date(r.registrado_at).getTime() > new Date(previa.registrado_at).getTime()) {
+        mapa.set(clave, r);
+      }
+    }
+    return mapa;
+  }, [rectificaciones]);
+
+  const rectificacionDeItem = (itemLabel: string): BatchRectificationRow | undefined => {
+    const clave = normClave(itemLabel);
+    if (!clave) return undefined;
+    const directa = rectificacionesPorCampo.get(clave);
+    if (directa) return directa;
+    for (const [campo, rect] of rectificacionesPorCampo) {
+      if (campo.length >= 4 && (campo.includes(clave) || clave.includes(campo))) return rect;
+    }
+    return undefined;
+  };
+
   if (!isOpen) return null;
 
   const actualizarOperarios = (updated: string[]) => {
@@ -245,6 +298,61 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
       activeTab === tab ? 'border-[#1B4E9B] text-[#1B4E9B]' : 'border-transparent text-gray-500 hover:text-gray-800'
     }`;
 
+  const bloqueCorrecciones =
+    rectificaciones.length > 0 ? (
+      <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-black text-amber-900 uppercase tracking-wide flex items-center gap-2">
+            <span className="material-symbols-outlined text-amber-700 text-[20px]">history</span>
+            <span>Correcciones auditadas de este lote ({rectificaciones.length})</span>
+          </h3>
+          <span className="px-2 py-0.5 bg-white text-emerald-800 border border-emerald-300 rounded-full text-[10px] font-black uppercase">
+            Certificado BPM
+          </span>
+        </div>
+        <p className="text-[11px] text-amber-800 mt-1">
+          El valor original queda tachado y el valor vigente es el rectificado.
+        </p>
+        <ul className="mt-3 space-y-2">
+          {rectificaciones.map((r) => (
+            <li key={r.id} className="bg-white rounded-xl border border-amber-200 p-3">
+              <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase text-amber-800">
+                <span>{r.etapa_label || r.etapa_codigo || 'Lote'}</span>
+                <span className="text-gray-300">•</span>
+                <span className="text-gray-700 normal-case">{r.campo_label || r.campo_modificado}</span>
+                <span className="ml-auto text-gray-500 normal-case font-semibold">
+                  {formatMoment(r.registrado_at)}
+                </span>
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+                <s className="text-rose-700 font-bold">
+                  {r.valor_anterior ?? '—'}
+                  {r.unidad ? ` ${r.unidad}` : ''}
+                </s>
+                <span className="material-symbols-outlined text-[14px] text-gray-400">arrow_forward</span>
+                <strong className="text-emerald-800 font-black">
+                  {r.valor_nuevo ?? '—'}
+                  {r.unidad ? ` ${r.unidad}` : ''}
+                </strong>
+                <span className="px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[9px] font-black uppercase">
+                  Corregido
+                </span>
+              </div>
+              {r.categoria_motivo && <p className="text-[11px] text-gray-600 mt-1">{r.categoria_motivo}</p>}
+              {r.justificacion_tecnica && (
+                <p className="text-[11px] text-gray-500 italic mt-0.5 wrap-break-word">
+                  "{r.justificacion_tecnica}"
+                </p>
+              )}
+              <p className="text-[10px] text-gray-500 mt-1">
+                Autorizado por: <strong className="text-gray-700">{r.autorizado_por_nombre || '—'}</strong>
+              </p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    ) : null;
+
   return (
     <>
       <Modal
@@ -265,6 +373,11 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
             <span className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[10px] font-bold">
               {productBadge}
             </span>
+            {rectificaciones.length > 0 && (
+              <span className="px-2 py-0.5 bg-rose-100 text-rose-900 border border-rose-300 rounded-full text-[10px] font-black">
+                {rectificaciones.length} corrección(es)
+              </span>
+            )}
           </div>
         }
         tabs={
@@ -308,10 +421,16 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
         }
       >
         <div className="space-y-6">
-          {activeTab === 'resumen' && <div className="space-y-6">{resumen}</div>}
+          {activeTab === 'resumen' && (
+            <div className="space-y-6">
+              {bloqueCorrecciones}
+              {resumen}
+            </div>
+          )}
 
           {activeTab === 'detalle' && (
             <div className="space-y-4">
+              {bloqueCorrecciones}
               {etapas.map((etapa) => (
                 <div key={etapa.titulo} className="p-4 bg-white rounded-2xl border border-[#D6DEEA]">
                   <h4 className="font-black text-gray-900 text-sm mb-2 flex items-center justify-between gap-3">
@@ -319,11 +438,28 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
                     <span className="text-xs text-emerald-700 font-bold shrink-0">✓ Completada</span>
                   </h4>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-gray-600">
-                    {etapa.items.map((item) => (
-                      <div key={item.label}>
-                        {item.label}: <strong>{item.value}</strong>
-                      </div>
-                    ))}
+                    {etapa.items.map((item) => {
+                      const rect = rectificacionDeItem(item.label);
+                      return (
+                        <div key={item.label}>
+                          {item.label}:{' '}
+                          {rect ? (
+                            <span className="inline-flex flex-wrap items-baseline gap-1">
+                              <s className="text-rose-700">{item.value}</s>
+                              <strong className="text-emerald-800">
+                                {rect.valor_nuevo}
+                                {rect.unidad ? ` ${rect.unidad}` : ''}
+                              </strong>
+                              <span className="px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-900 text-[9px] font-black uppercase">
+                                Corregido
+                              </span>
+                            </span>
+                          ) : (
+                            <strong>{item.value}</strong>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
