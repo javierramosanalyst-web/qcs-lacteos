@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal } from '../../../components/ui';
 import { LineType, ProductDefinition, ProductionLine } from '../../../types';
-import { createLineRequest, productCodeFromUiId, updateLineRequest } from '../../../api/client';
+import { updateLineRequest, productCodeFromUiId } from '../../../api/client';
 
 interface AdminLineModalProps {
   isOpen: boolean;
@@ -36,36 +36,22 @@ export const AdminLineModal: React.FC<AdminLineModalProps> = ({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const defaultsFor = (type: LineType) => products.filter((p) => p.lineType === type).map((p) => p.id);
-
   useEffect(() => {
-    if (!isOpen) return;
-    if (editingLine) {
-      setLineType(editingLine.lineType);
-      setName(editingLine.name);
-      setCode(editingLine.code);
-      setCapacity(String(editingLine.capacityLiters));
-      setStatus(editingLine.status);
-      setSelectedProductIds(editingLine.allowedProductIds);
-    } else {
-      setLineType('pasta_hilada');
-      setName('');
-      setCode(LINE_TYPES[0].defaultCode);
-      setCapacity('1200');
-      setStatus('disponible');
-      setSelectedProductIds(defaultsFor('pasta_hilada'));
-    }
+    if (!isOpen || !editingLine) return;
+    setLineType(editingLine.lineType);
+    setName(editingLine.name);
+    setCode(editingLine.code);
+    setCapacity(String(editingLine.capacityLiters));
+    setStatus(editingLine.status);
+    setSelectedProductIds(editingLine.allowedProductIds);
     setError('');
   }, [isOpen, editingLine]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !editingLine) return null;
 
   const handleLineTypeChange = (type: LineType) => {
     if (isEdit) return;
-    const matched = LINE_TYPES.find((t) => t.id === type)!;
     setLineType(type);
-    setCode(matched.defaultCode);
-    setSelectedProductIds(defaultsFor(type));
     setError('');
   };
 
@@ -109,8 +95,7 @@ export const AdminLineModal: React.FC<AdminLineModalProps> = ({
         productos: selectedProductIds.map(productCodeFromUiId),
       };
       if (isEdit) await updateLineRequest(editingLine!.code, payload);
-      else await createLineRequest(payload);
-      onSaved(payload.nombre, !isEdit);
+      onSaved(payload.nombre, false);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la línea.');
@@ -125,7 +110,7 @@ export const AdminLineModal: React.FC<AdminLineModalProps> = ({
       onClose={onClose}
       maxWidth="lg"
       icon="precision_manufacturing"
-      title={isEdit ? `Editar Línea · ${editingLine!.code}` : 'Crear Línea de Producción'}
+      title={`Editar Línea · ${editingLine.code}`}
       subtitle="Pasta Hilada o Fermentados"
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -257,7 +242,7 @@ export const AdminLineModal: React.FC<AdminLineModalProps> = ({
             disabled={saving}
             className="px-5 py-2.5 rounded-xl bg-[#1B4E9B] hover:bg-[#143A73] disabled:opacity-60 text-white text-xs font-bold shadow-xs transition-all cursor-pointer active:scale-95"
           >
-            {saving ? 'Guardando...' : isEdit ? 'Guardar Cambios' : 'Crear Línea'}
+            {saving ? 'Guardando...' : 'Guardar Cambios'}
           </button>
         </div>
       </form>

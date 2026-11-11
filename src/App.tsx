@@ -6,6 +6,7 @@ import { AdminGlobalDashboard } from './pages/admin/AdminGlobalDashboard';
 import { AdminCorrectionModal } from './pages/admin/modals/AdminCorrectionModal';
 import { AdminBatchCorrectionModal, BatchCorrectionPayload } from './pages/admin/modals/AdminBatchCorrectionModal';
 import { AdminLineModal } from './pages/admin/modals/AdminLineModal';
+import { AdminLineActivationModal } from './pages/admin/modals/AdminLineActivationModal';
 import { AdminUserModal } from './pages/admin/modals/AdminUserModal';
 import { AuditTrailModal } from './pages/admin/modals/AuditTrailModal';
 import { OperatorLineSelector } from './pages/operator/OperatorLineSelector';
@@ -155,6 +156,7 @@ export default function App() {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerCorrectOpen, setViewerCorrectOpen] = useState(false);
   const [createLineModalOpen, setCreateLineModalOpen] = useState(false);
+  const [lineActivationModalOpen, setLineActivationModalOpen] = useState(false);
   const [createUserModalOpen, setCreateUserModalOpen] = useState(false);
   const [auditTrailModalOpen, setAuditTrailModalOpen] = useState(false);
 
@@ -753,10 +755,7 @@ export default function App() {
               .then(setOpenDrafts)
               .catch(() => undefined);
           }}
-          onCreateLine={() => {
-            setEditingLine(null);
-            setCreateLineModalOpen(true);
-          }}
+          onManageLineActivation={() => setLineActivationModalOpen(true)}
           onEditLine={(line) => {
             setEditingLine(line);
             setCreateLineModalOpen(true);
@@ -968,6 +967,14 @@ export default function App() {
         batch={batch}
         adminName={activeUser.name}
         onApplyCorrection={handleApplyCorrection}
+      />
+
+      <AdminLineActivationModal
+        isOpen={lineActivationModalOpen}
+        onClose={() => setLineActivationModalOpen(false)}
+        lines={lines}
+        products={products}
+        onSaved={() => void loadCatalogs(userRole, true)}
       />
 
       <AdminLineModal

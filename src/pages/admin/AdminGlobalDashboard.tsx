@@ -22,7 +22,7 @@ interface AdminGlobalDashboardProps {
   history: BatchHistoryRow[];
   loading: boolean;
   onRefresh: () => void;
-  onCreateLine: () => void;
+  onManageLineActivation: () => void;
   onEditLine: (line: ProductionLine) => void;
   onDeactivateLine: (line: ProductionLine) => void;
   onCreateUser: () => void;
@@ -112,7 +112,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
   history,
   loading,
   onRefresh,
-  onCreateLine,
+  onManageLineActivation,
   onEditLine,
   onDeactivateLine,
   onCreateUser,
@@ -324,11 +324,11 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
             <span>Actualizar</span>
           </button>
           <button
-            onClick={onCreateLine}
+            onClick={onManageLineActivation}
             className="px-4 py-2.5 rounded-xl bg-white text-[#1B4E9B] hover:bg-[#F2F4F7] font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-95"
           >
-            <span className="material-symbols-outlined text-[18px]">add_box</span>
-            <span>Nueva Línea</span>
+            <span className="material-symbols-outlined text-[18px]">toggle_on</span>
+            <span>Activar o Desactivar Línea</span>
           </button>
           <button
             onClick={onCreateUser}
