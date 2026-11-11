@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AuditLogEntry, ProductDefinition, ProductionLine, UserProfile } from '../../types';
 import { BatchHistoryRow, fetchAuditLogs, fetchBatchDetail, fetchBatchHistory, lineUiId } from '../../api/client';
-import { CellValue, ExportSheet, buildCsv, exportCsv, exportXlsx, exportZip } from '../../utils/exporters';
+import { CellValue, ExportColumn, ExportSheet, buildCsv, exportCsv, exportXlsx, exportZip } from '../../utils/exporters';
 
 interface ExportCenterProps {
   lines: ProductionLine[];
@@ -19,6 +19,23 @@ const ESTADO_LABEL: Record<string, string> = {
 };
 
 const SHIFT_ROLE: Record<string, string> = { administrador: 'Administrador', operador: 'Operador' };
+
+const FILE_SLUG: Record<DatasetKey, string> = {
+  historial: 'Historial_Lotes',
+  produccion: 'Resumen_Producto',
+  variables: 'Variables_Proceso',
+  auditoria: 'Auditoria',
+  anulados: 'Lotes_Anulados',
+  usuarios: 'Usuarios',
+  lineas: 'Lineas_Productos',
+};
+
+const PREFIX = {
+  historial: '[HISTORIAL]',
+  auditoria: '[AUDITORÍA]',
+  anulado: '[ANULADO]',
+  producto: '[PRODUCTO]',
+} as const;
 
 const card = 'bg-white rounded-2xl border border-[#D6DEEA] shadow-xs';
 
@@ -324,6 +341,78 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
     return { historial, produccion, auditoria, anulados, usuarios, lineas: lineasSheet } as Record<Exclude<DatasetKey, 'variables'>, ExportSheet>;
   }, [filteredLots, filteredAudit, users, lines, products]);
 
+  const consolidated = useMemo<ExportSheet | null>(() => {
+    if (sheets.historial.rows.length === 0) return null;
+
+    const auditByLot = new Map<string, Record<string, CellValue>[]>();
+    sheets.auditoria.rows.forEach((r) => {
+      const key = String(r.lote ?? '');
+      auditByLot.set(key, [...(auditByLot.get(key) ?? []), r]);
+    });
+    const anuladoByLot = new Map(sheets.anulados.rows.map((r) => [String(r.lote ?? ''), r]));
+    const productoByName = new Map(sheets.produccion.rows.map((r) => [String(r.producto ?? ''), r]));
+
+    const columns: ExportColumn[] = [
+      ...sheets.historial.columns.map((c) => ({ key: `h_${c.key}`, label: `${PREFIX.historial} ${c.label}`, width: c.width })),
+      { key: 'a_total', label: `${PREFIX.auditoria} Correcciones` },
+      { key: 'a_fecha', label: `${PREFIX.auditoria} Última corrección` },
+      { key: 'a_etapa', label: `${PREFIX.auditoria} Etapa` },
+      { key: 'a_variable', label: `${PREFIX.auditoria} Variable` },
+      { key: 'a_anterior', label: `${PREFIX.auditoria} Valor anterior` },
+      { key: 'a_nuevo', label: `${PREFIX.auditoria} Valor nuevo` },
+      { key: 'a_causal', label: `${PREFIX.auditoria} Causal` },
+      { key: 'a_just', label: `${PREFIX.auditoria} Justificación`, width: 60 },
+      { key: 'a_admin', label: `${PREFIX.auditoria} Autorizado por` },
+      { key: 'n_por', label: `${PREFIX.anulado} Anulado por` },
+      { key: 'n_fecha', label: `${PREFIX.anulado} Fecha de anulación` },
+      { key: 'n_motivo', label: `${PREFIX.anulado} Motivo`, width: 60 },
+      { key: 'p_total', label: `${PREFIX.producto} Lotes del producto` },
+      { key: 'p_completados', label: `${PREFIX.producto} Completados` },
+      { key: 'p_proceso', label: `${PREFIX.producto} En proceso` },
+      { key: 'p_anulados', label: `${PREFIX.producto} Anulados` },
+      { key: 'p_leche', label: `${PREFIX.producto} Leche procesada (L)` },
+      { key: 'p_promedio', label: `${PREFIX.producto} Duración promedio (min)` },
+    ];
+
+    const rows = sheets.historial.rows.map((h) => {
+      const lote = String(h.lote ?? '');
+      const correcciones = (auditByLot.get(lote) ?? []).slice().sort((a, b) => {
+        const ta = new Date(String(a.fecha ?? '')).getTime();
+        const tb = new Date(String(b.fecha ?? '')).getTime();
+        return (Number.isFinite(ta) ? ta : 0) - (Number.isFinite(tb) ? tb : 0);
+      });
+      const ultima = correcciones[correcciones.length - 1];
+      const anulado = anuladoByLot.get(lote);
+      const producto = productoByName.get(String(h.producto ?? ''));
+
+      const row: Record<string, CellValue> = {};
+      sheets.historial.columns.forEach((c) => {
+        row[`h_${c.key}`] = h[c.key];
+      });
+      row.a_total = correcciones.length;
+      row.a_fecha = ultima?.fecha ?? '';
+      row.a_etapa = ultima?.etapa ?? '';
+      row.a_variable = ultima?.variable ?? '';
+      row.a_anterior = ultima?.anterior ?? '';
+      row.a_nuevo = ultima?.nuevo ?? '';
+      row.a_causal = ultima?.causal ?? '';
+      row.a_just = ultima?.just ?? '';
+      row.a_admin = ultima?.admin ?? '';
+      row.n_por = anulado?.por ?? '';
+      row.n_fecha = anulado?.fecha ?? '';
+      row.n_motivo = anulado?.motivo ?? '';
+      row.p_total = producto?.total ?? null;
+      row.p_completados = producto?.completados ?? null;
+      row.p_proceso = producto?.proceso ?? null;
+      row.p_anulados = producto?.anulados ?? null;
+      row.p_leche = producto?.leche ?? null;
+      row.p_promedio = producto?.promedio ?? null;
+      return row;
+    });
+
+    return { name: 'Datos Consolidados', columns, rows };
+  }, [sheets]);
+
   const buildVariablesSheet = async (lots: BatchHistoryRow[]): Promise<ExportSheet> => {
     const rows: Record<string, CellValue>[] = [];
     for (let i = 0; i < lots.length; i += 1) {
@@ -386,14 +475,17 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
     if (keys.length === 0) return;
     setBusy('Preparando archivo...');
     try {
-      const built: ExportSheet[] = [];
-      for (const k of keys) built.push(await getSheet(k));
+      const built: { key: DatasetKey; sheet: ExportSheet }[] = [];
+      for (const k of keys) built.push({ key: k, sheet: await getSheet(k) });
       const base = `QCS_${stamp()}`;
       if (format === 'csv') {
-        if (built.length === 1) exportCsv(built[0], `${built[0].name.replace(/\s+/g, '_')}_${stamp()}`);
+        if (built.length === 1) exportCsv(built[0].sheet, `${FILE_SLUG[built[0].key]}_${stamp()}`);
         else
           exportZip(
-            built.map((sh, i) => ({ name: `${String(i + 1).padStart(2, '0')}_${sh.name.replace(/\s+/g, '_')}.csv`, content: buildCsv(sh) })),
+            built.map(({ key, sheet }) => ({
+              name: `${String(ORDER.indexOf(key) + 1).padStart(2, '0')}_${FILE_SLUG[key]}.csv`,
+              content: buildCsv(sheet),
+            })),
             base
           );
       } else {
@@ -405,17 +497,21 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
             { key: 'filas', label: 'Filas' },
           ],
           rows: [
-            ...built.map((sh, i) => ({
-              hoja: sh.name,
-              contenido: DATASETS.find((d) => d.title === sh.name || d.key === keys[i])?.desc ?? '',
-              filas: sh.rows.length,
+            { hoja: 'Datos Consolidados', contenido: 'Una fila por lote: historial unido con auditoría, anulación y resumen del producto. Los encabezados llevan el prefijo [HISTORIAL], [AUDITORÍA], [ANULADO] o [PRODUCTO] según su origen.', filas: consolidated?.rows.length ?? 0 },
+            ...built.map(({ key, sheet }) => ({
+              hoja: sheet.name,
+              contenido: DATASETS.find((d) => d.key === key)?.desc ?? '',
+              filas: sheet.rows.length,
             })),
             { hoja: 'Filtros aplicados', contenido: filterSummary(), filas: null },
             { hoja: 'Generado', contenido: new Date().toLocaleString('es-CO'), filas: null },
-            { hoja: 'Relación entre hojas', contenido: 'La columna "Lote" enlaza Historial, Variables de proceso, Auditoría y Lotes anulados.', filas: null },
+            { hoja: 'Relación entre hojas', contenido: 'La columna "Lote" enlaza Historial, Variables de proceso, Auditoría y Lotes anulados. En Datos Consolidados cada lote aparece una sola vez; si no tiene auditoría o no fue anulado, esas celdas quedan vacías.', filas: null },
           ],
         };
-        exportXlsx([indice, ...built], base);
+        const sheetsOut: ExportSheet[] = [indice];
+        if (consolidated) sheetsOut.push(consolidated);
+        built.forEach(({ sheet }) => sheetsOut.push(sheet));
+        exportXlsx(sheetsOut, base);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo generar el archivo.');
@@ -621,8 +717,8 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
             : `Seleccionado: ${selectedList.map((k) => DATASETS.find((d) => d.key === k)?.title).join(', ')}.`}
         </p>
         <p className="text-[11px] text-gray-500">
-          <strong>Excel:</strong> un solo archivo con una hoja por cada conjunto, más una hoja "Índice" con los filtros aplicados. <strong>CSV:</strong>{' '}
-          {selectedList.length > 1 ? 'un archivo ZIP con un CSV por conjunto, numerados en orden.' : 'un archivo CSV.'} En todos, la columna "Lote" enlaza las hojas entre sí.
+          <strong>Excel:</strong> hoja "Índice" con los filtros aplicados, hoja "Datos Consolidados" con una fila por lote (historial + auditoría + anulación + resumen del producto, con prefijos en los encabezados y filtros activos) y luego una hoja por cada conjunto. <strong>CSV:</strong>{' '}
+          {selectedList.length > 1 ? 'un archivo ZIP con un CSV por conjunto, numerados en orden (01_Historial_Lotes.csv, 02_Resumen_Producto.csv, 03_Auditoria.csv...).' : 'un archivo CSV.'} En todos, la columna "Lote" enlaza las hojas entre sí.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <button
