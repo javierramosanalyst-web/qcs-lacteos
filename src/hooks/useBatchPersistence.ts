@@ -479,6 +479,10 @@ export function useBatchPersistence({
             `El lote ${err.body?.codigo_lote ?? ''} ya fue cerrado en otra sesión. No se guardaron más cambios.`,
             'warning'
           );
+        } else if (err.status === 422 && err.body?.error === 'SIN_UNIDADES') {
+          // El backend no deja cerrar un lote sin envases / moldes: se avisa y no se reintenta.
+          setSyncStatus('error');
+          showToast(err.body?.message ?? 'No se puede cerrar el lote sin envases o moldes registrados.', 'warning');
         } else if (err.status === 409 && err.body?.current) {
           const cur = err.body.current;
           const estado = cur.estado?.batch ? cur.estado : { batch: cur.estado };

@@ -209,6 +209,7 @@ export const YogurSummaryModal: React.FC<YogurSummaryModalProps> = ({
       operariosIntervinientes={batch.operariosIntervinientes}
       actividadOperarios={batch.actividadOperarios}
       onFinalizeBatch={onFinalizeBatch}
+      motivoNoCierre={totalUnidades === 0 ? 'Registra al menos un envase antes de cerrar el lote.' : null}
       onChangeObservaciones={onChangeObservaciones}
       onChangeOperariosIntervinientes={onChangeOperariosIntervinientes}
       observacionesPlaceholder="Registre cualquier novedad observada en pasteurización, incubación, receta o envasado..."
