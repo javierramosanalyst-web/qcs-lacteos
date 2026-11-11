@@ -966,6 +966,7 @@ export default function App() {
         batch={viewerDetail?.estado_ui?.batch ?? {}}
         title={viewerDetail ? `Lote ${viewerDetail.codigo_lote} · ${viewerDetail.producto_nombre}` : ''}
         adminName={activeUser.name}
+        productId={viewerDetail?.producto_ui_id}
         onApply={handleApplyViewerCorrection}
       />
 
