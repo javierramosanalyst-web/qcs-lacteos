@@ -1118,17 +1118,52 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
           { campo: 'Motivo de anulación', valor: lot.anulacion_justificacion ?? '' },
         ],
       };
-      const auditLot: ExportSheet = { ...sheets.auditoria, name: 'Correcciones', rows: sheets.auditoria.rows.filter((r) => r.lote === lot.codigo_lote) };
+      const sinDato = lot.estado === 'ANULADO' ? 'No aplica (anulado)' : lot.estado === 'EN_PROCESO' ? 'En proceso' : 'Sin registro';
+      const noAnulado = lot.estado === 'ANULADO' ? '' : 'No aplica (lote no anulado)';
+      resumen.rows = resumen.rows.map((r) => {
+        if (r.campo === 'Kg producidos' || r.campo === 'Unidades producidas' || r.campo === 'Rendimiento (%)') return { ...r, valor: r.valor ?? sinDato };
+        if (String(r.campo).includes('anulación') || r.campo === 'Anulado por') return { ...r, valor: r.valor || noAnulado || '—' };
+        if (r.campo === 'Fecha de fin' || r.campo === 'Hora de fin' || String(r.campo).startsWith('Duración total'))
+          return { ...r, valor: r.valor === null || r.valor === '' || r.valor === undefined ? (lot.estado === 'ANULADO' ? 'No finalizó (anulado)' : 'En proceso') : r.valor };
+        return { ...r, valor: r.valor ?? '—' };
+      });
+      resumen.rows.splice(
+        10,
+        0,
+        { campo: 'Sabores usados en el lote', valor: lot.sabores || 'No aplica' },
+        { campo: 'Presentaciones distintas producidas', valor: lot.estado === 'ANULADO' ? 'No aplica (anulado)' : (lot.detalle_produccion ?? []).length }
+      );
+      const detalle = lot.estado === 'ANULADO' ? [] : lot.detalle_produccion ?? [];
+      const presLot: ExportSheet = {
+        ...sheets.presentaciones,
+        rows: detalle.length
+          ? detalle.map((d) => ({
+              lote: lot.codigo_lote, linea: lot.linea_nombre, producto: lot.producto_nombre, estado: ESTADO_LABEL[lot.estado] ?? lot.estado,
+              fecha: fmtDate(lot.finalizado_at ?? lot.iniciado_at), tipo: d.categoria, presentacion: d.presentacion, unidades: d.unidades,
+              tamano: d.tamano, total: d.total, medida: d.medida === 'kg' ? 'kg' : 'litros', sabores: lot.sabores || '—',
+            }))
+          : [{ lote: lot.codigo_lote, linea: lot.linea_nombre, producto: lot.producto_nombre, estado: ESTADO_LABEL[lot.estado] ?? lot.estado, fecha: fmtDate(lot.iniciado_at), tipo: sinDato, presentacion: sinDato, unidades: sinDato, tamano: sinDato, total: sinDato, medida: sinDato, sabores: lot.sabores || '—' }],
+      };
+      const corr = sheets.auditoria.rows.filter((r) => r.lote === lot.codigo_lote);
+      const auditLot: ExportSheet = {
+        ...sheets.auditoria,
+        name: 'Correcciones',
+        rows: corr.length
+          ? corr
+          : [{ lote: lot.codigo_lote, ...Object.fromEntries(sheets.auditoria.columns.filter((c) => c.key !== 'lote').map((c, i) => [c.key, i === 0 ? 'Sin correcciones registradas' : '—'])) }],
+      };
       const name = `Ficha_${lot.codigo_lote}`;
-      if (format === 'csv') exportCsv(variables, name);
-      else {
-        const presLot: ExportSheet = { ...sheets.presentaciones, rows: lot.estado === 'ANULADO' ? [] : (lot.detalle_produccion ?? []).map((d) => ({
-          lote: lot.codigo_lote, linea: lot.linea_nombre, producto: lot.producto_nombre, estado: ESTADO_LABEL[lot.estado] ?? lot.estado,
-          fecha: fmtDate(lot.finalizado_at ?? lot.iniciado_at), tipo: d.categoria, presentacion: d.presentacion, unidades: d.unidades,
-          tamano: d.tamano, total: d.total, medida: d.medida === 'kg' ? 'kg' : 'litros', sabores: lot.sabores || '—',
-        })) };
-        exportXlsx([resumen, ...(presLot.rows.length ? [presLot] : []), variables, auditLot], name);
-      }
+      if (format === 'csv')
+        exportZip(
+          [
+            { name: `01_Resumen_${lot.codigo_lote}.csv`, content: buildCsv(resumen) },
+            { name: `02_Produccion_Presentacion_${lot.codigo_lote}.csv`, content: buildCsv(presLot) },
+            { name: `03_Variables_${lot.codigo_lote}.csv`, content: buildCsv(variables) },
+            { name: `04_Correcciones_${lot.codigo_lote}.csv`, content: buildCsv(auditLot) },
+          ],
+          name
+        );
+      else exportXlsx([resumen, presLot, variables, auditLot], name);
     } finally {
       setBusy('');
     }
