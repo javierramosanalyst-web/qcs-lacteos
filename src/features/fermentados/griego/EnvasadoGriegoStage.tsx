@@ -146,6 +146,10 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
   };
 
   const handleGuardarConteo = () => {
+    if (totalUnidades === 0) {
+      showToast('Registra al menos un recipiente antes de guardar el conteo.', 'warning');
+      return;
+    }
     onChangeSaved((prev) => ({
       ...prev,
       conteoConfirmado: true,
@@ -481,7 +485,7 @@ export const EnvasadoGriegoStage: React.FC<EnvasadoGriegoStageProps> = ({
             size="md"
             icon={state.conteoConfirmado ? 'check_circle' : 'save'}
             onClick={handleGuardarConteo}
-            disabled={Boolean(state.conteoConfirmado)}
+            disabled={Boolean(state.conteoConfirmado) || totalUnidades === 0}
             className="font-bold shadow-md w-full sm:w-auto disabled:opacity-100"
           >
             {state.conteoConfirmado ? 'Conteo Guardado' : 'Guardar Conteo de Envases'}

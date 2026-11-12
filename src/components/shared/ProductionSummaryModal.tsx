@@ -88,6 +88,8 @@ interface ProductionSummaryModalProps {
   operariosIntervinientes?: string[];
   actividadOperarios?: ActividadOperario[];
   onFinalizeBatch?: () => void;
+  /** Si trae un texto, el lote NO se puede cerrar (p. ej. 0 envases / moldes) y se muestra el motivo. */
+  motivoNoCierre?: string | null;
   onChangeObservaciones?: (observaciones: string) => void;
   onChangeOperariosIntervinientes?: (operarios: string[]) => void;
   resumen: React.ReactNode;
@@ -111,6 +113,7 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
   operariosIntervinientes,
   actividadOperarios,
   onFinalizeBatch,
+  motivoNoCierre = null,
   onChangeObservaciones,
   onChangeOperariosIntervinientes,
   resumen,
@@ -286,6 +289,10 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
   const handleSaveObservaciones = () => onChangeObservaciones?.(localObservaciones);
 
   const handleConfirmFinalize = () => {
+    if (motivoNoCierre) {
+      setShowConfirmAlert(false);
+      return;
+    }
     handleSaveObservaciones();
     onChangeOperariosIntervinientes?.(operariosList);
     setShowConfirmAlert(false);
@@ -407,10 +414,18 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
                 <span className="material-symbols-outlined text-[16px]">close</span>
                 <span>Cerrar Resumen</span>
               </button>
+              {onFinalizeBatch && status !== 'COMPLETADO' && motivoNoCierre && (
+                <span className="text-xs font-bold text-amber-700 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[16px]">info</span>
+                  {motivoNoCierre}
+                </span>
+              )}
               {onFinalizeBatch && status !== 'COMPLETADO' && (
                 <button
                   onClick={() => setShowConfirmAlert(true)}
-                  className="h-10 px-5 bg-[#5FAF32] hover:bg-[#4E9628] text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 flex items-center gap-1.5"
+                  disabled={Boolean(motivoNoCierre)}
+                  title={motivoNoCierre ?? undefined}
+                  className="h-10 px-5 bg-[#5FAF32] hover:bg-[#4E9628] text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer active:scale-95 flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#5FAF32] disabled:active:scale-100"
                 >
                   <span className="material-symbols-outlined text-[17px]">task_alt</span>
                   <span>Confirmar Proceso Terminado</span>

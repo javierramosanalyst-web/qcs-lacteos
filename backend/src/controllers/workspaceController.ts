@@ -48,6 +48,24 @@ export async function purgeStaleUnstartedDrafts(db: Pool | PoolClient = pool): P
   return eliminados;
 }
 
+/**
+ * ¿El lote es un Yogur que desvió toda su leche a sub-lotes (Kumis / Griego)?
+ * Se reconoce por el registro de extracción marcado como desvío total, o por el
+ * propio estado del lote (0 L remanentes y litros extraídos) cuando el sub-lote
+ * todavía no ha alcanzado a guardarse.
+ */
+async function esDesvioTotal(client: PoolClient, loteId: string, estado: unknown, volumen: number): Promise<boolean> {
+  const ext = await client.query(
+    `SELECT 1 FROM lote_extracciones_sublote WHERE lote_origen_id = $1 AND es_desvio_total LIMIT 1;`,
+    [loteId]
+  );
+  if (ext.rows.length > 0) return true;
+  const past = (estado as any)?.batch?.pasteurizacion;
+  const extraidos =
+    (Number(past?.extraccionKumis?.litrosExtraidos) || 0) + (Number(past?.extraccionGriego?.litrosExtraidos) || 0);
+  return !(volumen > 0) && extraidos > 0;
+}
+
 /** GET /api/workspace/:lineCode */
 export async function getWorkspace(req: Request, res: Response): Promise<void> {
   const client = await pool.connect();
@@ -422,6 +440,20 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
     }
 
     if (completed && loteId) {
+      // No se cierra un lote sin envases / moldes registrados. Única excepción: el Yogur
+      // que desvió TODA su leche a Kumis o Griego (queda en 0 L y se cierra solo).
+      const unidades = await client.query(
+        `SELECT COALESCE(SUM(unidades_conteo), 0)::int AS n FROM lote_presentaciones_envasado WHERE lote_id = $1;`,
+        [loteId]
+      );
+      if (Number(unidades.rows[0]?.n ?? 0) <= 0 && !(await esDesvioTotal(client, loteId, estado, Number(volumen)))) {
+        await client.query('ROLLBACK');
+        res.status(422).json({
+          error: 'SIN_UNIDADES',
+          message: 'No se puede cerrar el lote: registra al menos un envase o molde.',
+        });
+        return;
+      }
       await client.query(
         `UPDATE lotes_produccion SET
            estado = 'COMPLETADO',

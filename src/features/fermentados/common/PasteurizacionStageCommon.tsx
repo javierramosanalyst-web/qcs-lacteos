@@ -363,6 +363,7 @@ export const PasteurizacionStageCommon: React.FC<
   const handleStartCalentamiento = () => {
     const faltantes: string[] = [];
     if (!state.loteLeche) faltantes.push('lote de leche fresca');
+    if (!(Number(state.litrosLeche) > 0)) faltantes.push('litros de leche fresca (mayor a 0 L)');
     if (!state.loteCultivoLacticoPastur) faltantes.push('lote de cultivo láctico');
     if (isYogur && !azucarFijado) faltantes.push('si lleva azúcar (Sí o No)');
     if (faltantes.length > 0) {
