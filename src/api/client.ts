@@ -404,6 +404,15 @@ export interface BatchHistoryRow {
   kg_producidos?: number | null;
   unidades_producidas?: number | null;
   rendimiento_pct?: number | null;
+  detalle_produccion?: {
+    categoria: string;
+    presentacion: string;
+    unidades: number;
+    tamano: number;
+    medida: 'L' | 'kg';
+    total: number;
+  }[];
+  sabores?: string;
   anulacion_justificacion?: string | null;
   anulado_at?: string | null;
   anulado_por?: string | null;

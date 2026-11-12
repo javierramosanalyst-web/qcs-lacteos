@@ -9,7 +9,7 @@ interface ExportCenterProps {
   users: UserProfile[];
 }
 
-type DatasetKey = 'historial' | 'produccion' | 'variables' | 'auditoria' | 'anulados' | 'usuarios' | 'lineas';
+type DatasetKey = 'historial' | 'produccion' | 'variables' | 'auditoria' | 'anulados' | 'usuarios' | 'lineas' | 'presentaciones' | 'totales';
 
 const ESTADO_LABEL: Record<string, string> = {
   EN_PROCESO: 'En proceso',
@@ -28,6 +28,8 @@ const FILE_SLUG: Record<DatasetKey, string> = {
   anulados: 'Lotes_Anulados',
   usuarios: 'Usuarios',
   lineas: 'Lineas_Productos',
+  presentaciones: 'Produccion_Presentacion',
+  totales: 'Totales_Presentacion',
 };
 
 const PREFIX = {
@@ -550,7 +552,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
   const [productFilter, setProductFilter] = useState('todos');
   const [responsableFilter, setResponsableFilter] = useState('todos');
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<Set<DatasetKey>>(new Set(['historial', 'produccion', 'auditoria', 'anulados']));
+  const [selected, setSelected] = useState<Set<DatasetKey>>(new Set(['historial', 'produccion', 'presentaciones', 'totales', 'auditoria', 'anulados']));
   const [fichaLote, setFichaLote] = useState('');
 
   const load = async () => {
@@ -827,7 +829,69 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
       }),
     };
 
-    return { historial, produccion, auditoria, anulados, usuarios, lineas: lineasSheet } as Record<Exclude<DatasetKey, 'variables'>, ExportSheet>;
+    const detalleRows = filteredLots
+      .filter((h) => h.estado !== 'ANULADO')
+      .flatMap((h) =>
+        (h.detalle_produccion ?? []).map((d) => ({
+          lote: h.codigo_lote,
+          linea: h.linea_nombre,
+          producto: h.producto_nombre,
+          estado: ESTADO_LABEL[h.estado] ?? h.estado,
+          fecha: fmtDate(h.finalizado_at ?? h.iniciado_at),
+          tipo: d.categoria,
+          presentacion: d.presentacion,
+          unidades: d.unidades,
+          tamano: d.tamano,
+          total: d.total,
+          medida: d.medida === 'kg' ? 'kg' : 'litros',
+          sabores: h.sabores || '—',
+        }))
+      );
+    const presentaciones: ExportSheet = {
+      name: 'Producción por presentación',
+      columns: [
+        { key: 'lote', label: 'Lote' },
+        { key: 'linea', label: 'Línea' },
+        { key: 'producto', label: 'Producto' },
+        { key: 'estado', label: 'Estado del lote' },
+        { key: 'fecha', label: 'Fecha' },
+        { key: 'tipo', label: 'Tipo (con azúcar, sin azúcar, estevia, molde...)', width: 30 },
+        { key: 'presentacion', label: 'Presentación', width: 32 },
+        { key: 'unidades', label: 'Unidades producidas' },
+        { key: 'tamano', label: 'Contenido por unidad (kg o L)' },
+        { key: 'total', label: 'Total (kg o L)' },
+        { key: 'medida', label: 'Medida del total' },
+        { key: 'sabores', label: 'Sabores del lote', width: 30 },
+      ],
+      rows: detalleRows,
+    };
+    const acum = new Map<string, { linea: string; producto: string; tipo: string; presentacion: string; lotes: Set<string>; unidades: number; total: number; medida: string }>();
+    detalleRows.forEach((r) => {
+      const k = `${r.linea}|${r.producto}|${r.tipo}|${r.presentacion}`;
+      const a = acum.get(k) ?? { linea: r.linea, producto: r.producto, tipo: r.tipo, presentacion: r.presentacion, lotes: new Set<string>(), unidades: 0, total: 0, medida: r.medida };
+      a.lotes.add(r.lote);
+      a.unidades += r.unidades;
+      a.total += r.total;
+      acum.set(k, a);
+    });
+    const totales: ExportSheet = {
+      name: 'Totales por presentación',
+      columns: [
+        { key: 'linea', label: 'Línea' },
+        { key: 'producto', label: 'Producto' },
+        { key: 'tipo', label: 'Tipo (con azúcar, sin azúcar, estevia, molde...)', width: 30 },
+        { key: 'presentacion', label: 'Presentación', width: 32 },
+        { key: 'lotes', label: 'Lotes' },
+        { key: 'unidades', label: 'Unidades producidas' },
+        { key: 'total', label: 'Total (kg o L)' },
+        { key: 'medida', label: 'Medida del total' },
+      ],
+      rows: Array.from(acum.values())
+        .sort((x, y) => x.linea.localeCompare(y.linea) || x.producto.localeCompare(y.producto) || x.tipo.localeCompare(y.tipo) || x.presentacion.localeCompare(y.presentacion))
+        .map((a) => ({ linea: a.linea, producto: a.producto, tipo: a.tipo, presentacion: a.presentacion, lotes: a.lotes.size, unidades: a.unidades, total: Math.round(a.total * 1000) / 1000, medida: a.medida })),
+    };
+
+    return { historial, produccion, presentaciones, totales, auditoria, anulados, usuarios, lineas: lineasSheet } as Record<Exclude<DatasetKey, 'variables'>, ExportSheet>;
   }, [filteredLots, filteredAudit, users, lines, products]);
 
   const consolidated = useMemo<ExportSheet | null>(() => {
@@ -954,7 +1018,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
   const getSheet = async (key: DatasetKey): Promise<ExportSheet> =>
     key === 'variables' ? buildVariablesSheet(filteredLots.filter((l) => l.estado !== 'ANULADO')) : sheets[key];
 
-  const ORDER: DatasetKey[] = ['historial', 'produccion', 'variables', 'auditoria', 'anulados', 'usuarios', 'lineas'];
+  const ORDER: DatasetKey[] = ['historial', 'produccion', 'presentaciones', 'totales', 'variables', 'auditoria', 'anulados', 'usuarios', 'lineas'];
 
   const filterSummary = (): string => {
     const parts: string[] = [];
@@ -1057,7 +1121,14 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
       const auditLot: ExportSheet = { ...sheets.auditoria, name: 'Correcciones', rows: sheets.auditoria.rows.filter((r) => r.lote === lot.codigo_lote) };
       const name = `Ficha_${lot.codigo_lote}`;
       if (format === 'csv') exportCsv(variables, name);
-      else exportXlsx([resumen, variables, auditLot], name);
+      else {
+        const presLot: ExportSheet = { ...sheets.presentaciones, rows: lot.estado === 'ANULADO' ? [] : (lot.detalle_produccion ?? []).map((d) => ({
+          lote: lot.codigo_lote, linea: lot.linea_nombre, producto: lot.producto_nombre, estado: ESTADO_LABEL[lot.estado] ?? lot.estado,
+          fecha: fmtDate(lot.finalizado_at ?? lot.iniciado_at), tipo: d.categoria, presentacion: d.presentacion, unidades: d.unidades,
+          tamano: d.tamano, total: d.total, medida: d.medida === 'kg' ? 'kg' : 'litros', sabores: lot.sabores || '—',
+        })) };
+        exportXlsx([resumen, ...(presLot.rows.length ? [presLot] : []), variables, auditLot], name);
+      }
     } finally {
       setBusy('');
     }
@@ -1066,6 +1137,8 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
   const DATASETS: { key: DatasetKey; title: string; desc: string; icon: string; count: number | string }[] = [
     { key: 'historial', title: 'Historial de lotes', desc: 'Lote, producto, responsable, estado, leche, fechas y duración.', icon: 'inventory_2', count: sheets.historial.rows.length },
     { key: 'produccion', title: 'Resumen por producto', desc: 'Lotes, completados, anulados, litros y duración promedio por producto.', icon: 'bar_chart', count: sheets.produccion.rows.length },
+    { key: 'presentaciones', title: 'Producción por presentación', desc: 'Por lote: unidades de cada presentación (con azúcar, sin azúcar, con estevia, moldes, 7 Cueros, Pera...) con su peso o litros.', icon: 'category', count: sheets.presentaciones.rows.length },
+    { key: 'totales', title: 'Totales por presentación', desc: 'Suma de unidades y kg/litros por línea, producto, tipo y presentación.', icon: 'functions', count: sheets.totales.rows.length },
     { key: 'variables', title: 'Variables de proceso', desc: 'Cada dato registrado por el operario en cada fase (temperaturas, pH, insumos, lotes, tiempos).', icon: 'science', count: `${filteredLots.filter((l) => l.estado !== 'ANULADO').length} lotes` },
     { key: 'auditoria', title: 'Auditoría de correcciones', desc: 'Rectificaciones y anulaciones con valor anterior, nuevo, causal y justificación.', icon: 'verified', count: sheets.auditoria.rows.length },
     { key: 'anulados', title: 'Lotes anulados', desc: 'Lotes cancelados, quién los anuló, cuándo y por qué.', icon: 'block', count: sheets.anulados.rows.length },

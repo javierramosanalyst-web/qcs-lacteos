@@ -631,6 +631,103 @@ const moldeUnitKg = (key: string): number => {
   return 0;
 };
 
+export interface DetalleProduccion {
+  categoria: string;
+  presentacion: string;
+  unidades: number;
+  tamano: number;
+  medida: 'L' | 'kg';
+  total: number;
+}
+
+const MOLDE_LABELS: Record<string, string> = {
+  moldesPeraGrande: 'Queso Pera grande',
+  moldesPeraPequeno: 'Queso Pera pequeño',
+  moldesTrenza: 'Trenza',
+  moldes7Cueros: 'Queso 7 Cueros',
+  moldesQuesadillaArequipe: 'Quesadilla con arequipe',
+  moldesQuesadillaBocadillo: 'Quesadilla con bocadillo',
+  moldes: 'Molde de queso',
+};
+
+const splitSize = (key: string): { name: string; size: number; unit: string } | null => {
+  const m = /^(.*?)(\d+(?:[.,]\d+)?)\s*(ml|kg|g|l)$/i.exec(key);
+  if (!m) return null;
+  return { name: m[1], size: Number(m[2].replace(',', '.')), unit: m[3].toLowerCase() };
+};
+
+const humanizeKey = (s: string) =>
+  s.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase()).trim();
+
+const productionDetail = (estadoUi: any): DetalleProduccion[] => {
+  const batch = estadoUi?.batch ?? estadoUi;
+  const out: DetalleProduccion[] = [];
+  if (!batch || typeof batch !== 'object') return out;
+
+  const moldes = batch.moldesDesglose ?? {};
+  let hayQuesadilla = false;
+  Object.entries(moldes as Record<string, unknown>).forEach(([k, v]) => {
+    if (!/^moldes/i.test(k)) return;
+    const n = Number(v) || 0;
+    const sp = splitSize(k);
+    if (n <= 0 || !sp) return;
+    const kg = sp.unit === 'kg' ? sp.size : sp.unit === 'g' ? sp.size / 1000 : 0;
+    if (kg <= 0) return;
+    if (/Quesadilla/i.test(k)) hayQuesadilla = true;
+    const nombre = MOLDE_LABELS[sp.name] ?? humanizeKey(sp.name.replace(/^moldes/i, 'Molde '));
+    out.push({
+      categoria: 'Queso en molde',
+      presentacion: `${nombre} ${sp.size} ${sp.unit === 'kg' ? 'kg' : 'g'}`,
+      unidades: n,
+      tamano: kg,
+      medida: 'kg',
+      total: Math.round(n * kg * 1000) / 1000,
+    });
+  });
+  if (!hayQuesadilla) {
+    const der = (batch.derivaciones7Cueros ?? {}) as Record<string, any>;
+    [['arequipe', 'Quesadilla con arequipe'], ['bocadillo', 'Quesadilla con bocadillo']].forEach(([k, label]) => {
+      const n = Number(der[k]?.moldes60g) || 0;
+      if (n > 0) out.push({ categoria: 'Queso en molde', presentacion: `${label} 60 g`, unidades: n, tamano: 0.06, medida: 'kg', total: Math.round(n * 0.06 * 1000) / 1000 });
+    });
+  }
+
+  const envasado = batch.envasado ?? {};
+  Object.entries(envasado as Record<string, unknown>).forEach(([groupKey, group]) => {
+    if (!/^formatos/i.test(groupKey) || !group || typeof group !== 'object') return;
+    const groupVariant = /ConEstevia$/i.test(groupKey) ? 'Con estevia' : /SinEstevia$/i.test(groupKey) ? 'Sin estevia' : null;
+    Object.entries(group as Record<string, unknown>).forEach(([k, v]) => {
+      const n = Number(v) || 0;
+      if (n <= 0) return;
+      let variante = groupVariant;
+      let base = k;
+      if (/^sinAzucar_/.test(k)) { variante = 'Sin azúcar'; base = k.slice(10); }
+      else if (/^stevia_/.test(k)) { variante = 'Con estevia'; base = k.slice(7); }
+      else if (!variante) variante = /Kumis$/.test(groupKey) ? 'Tradicional' : 'Con azúcar';
+      const sp = splitSize(base);
+      if (!sp) return;
+      const esPeso = sp.unit === 'g' || sp.unit === 'kg';
+      const tamano = sp.unit === 'ml' || sp.unit === 'g' ? sp.size / 1000 : sp.size;
+      out.push({
+        categoria: variante,
+        presentacion: `${humanizeKey(sp.name)} ${sp.size} ${sp.unit === 'l' ? 'L' : sp.unit}`,
+        unidades: n,
+        tamano,
+        medida: esPeso ? 'kg' : 'L',
+        total: Math.round(n * tamano * 1000) / 1000,
+      });
+    });
+  });
+  return out;
+};
+
+const productionFlavors = (estadoUi: any): string => {
+  const batch = estadoUi?.batch ?? estadoUi;
+  const lista = batch?.batidoYAdiciones?.adiciones?.sabores;
+  if (!Array.isArray(lista)) return '';
+  return Array.from(new Set(lista.map((s: any) => String(s?.sabor ?? '').trim()).filter(Boolean))).join(', ');
+};
+
 const productionOutcome = (estadoUi: any, lecheLitros: number | null) => {
   // Los quesos (pasta hilada) guardan el estado bajo `.batch`; los fermentados lo guardan en la raíz.
   const batch = estadoUi?.batch ?? estadoUi;
@@ -652,9 +749,10 @@ const productionOutcome = (estadoUi: any, lecheLitros: number | null) => {
     moldesUn += n;
   });
   // Derivaciones de 7 Cueros (arequipe / bocadillo), cada molde de 60 g.
+  const yaContadas = Object.keys(moldes as Record<string, unknown>).some((k) => /Quesadilla/i.test(k) && Number((moldes as any)[k]) > 0);
   Object.values((batch.derivaciones7Cueros ?? {}) as Record<string, any>).forEach((d) => {
     const n = Number(d?.moldes60g) || 0;
-    if (n > 0) {
+    if (n > 0 && !yaContadas) {
       moldesKg += n * 0.06;
       moldesUn += n;
     }
@@ -719,7 +817,12 @@ export async function getBatchHistory(req: Request, res: Response): Promise<void
     res.json(
       rows.map((r: any) => {
         const { estado_ui, ...rest } = r;
-        return { ...rest, ...productionOutcome(estado_ui, Number(r.volumen_leche_base_litros) || null) };
+        return {
+          ...rest,
+          ...productionOutcome(estado_ui, Number(r.volumen_leche_base_litros) || null),
+          detalle_produccion: productionDetail(estado_ui),
+          sabores: productionFlavors(estado_ui),
+        };
       })
     );
   } catch (error) {
