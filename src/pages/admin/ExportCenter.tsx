@@ -653,26 +653,37 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
         { key: 'minutos', label: 'Duración (min)' },
         { key: 'rect', label: 'Rectificaciones' },
       ],
-      rows: filteredLots.map((h) => ({
-        lote: h.codigo_lote,
-        producto: h.producto_nombre,
-        codigo: h.producto_codigo,
-        linea: h.linea_nombre,
-        responsable: h.responsable_nombre,
-        estado: ESTADO_LABEL[h.estado] ?? h.estado,
-        etapa: h.estado === 'EN_PROCESO' ? humanize(h.etapa_actual_codigo ?? '') : '',
-        leche: toNumber(h.volumen_leche_base_litros),
-        kg: h.kg_producidos ?? null,
-        unidades: h.unidades_producidas ?? null,
-        rend: h.rendimiento_pct ?? null,
-        fechaInicio: fmtDate(h.iniciado_at),
-        horaInicio: fmtTime(h.iniciado_at),
-        fechaFin: fmtDate(h.finalizado_at),
-        horaFin: fmtTime(h.finalizado_at),
-        duracion: fmtDuration(h.duracion_total_segundos),
-        minutos: h.duracion_total_segundos ? Math.round(h.duracion_total_segundos / 60) : null,
-        rect: h.rectificaciones,
-      })),
+      rows: filteredLots.map((h) => {
+        // Etiquetas claras según el estado, para que ninguna celda quede en blanco sin explicación.
+        const sinFin = h.estado === 'ANULADO' ? 'No finalizó (anulado)' : h.estado === 'EN_PROCESO' ? 'En proceso' : '';
+        const sinProd = h.estado === 'ANULADO' ? 'No aplica (anulado)' : h.estado === 'EN_PROCESO' ? 'En proceso' : 'Sin registro';
+        const etapa =
+          h.estado === 'EN_PROCESO'
+            ? humanize(h.etapa_actual_codigo ?? '') || 'En proceso'
+            : h.estado === 'ANULADO'
+            ? 'Anulado antes de terminar'
+            : 'Proceso terminado';
+        return {
+          lote: h.codigo_lote,
+          producto: h.producto_nombre,
+          codigo: h.producto_codigo,
+          linea: h.linea_nombre,
+          responsable: h.responsable_nombre,
+          estado: ESTADO_LABEL[h.estado] ?? h.estado,
+          etapa,
+          leche: toNumber(h.volumen_leche_base_litros) ?? sinProd,
+          kg: h.kg_producidos ?? sinProd,
+          unidades: h.unidades_producidas ?? sinProd,
+          rend: h.rendimiento_pct ?? sinProd,
+          fechaInicio: fmtDate(h.iniciado_at),
+          horaInicio: fmtTime(h.iniciado_at),
+          fechaFin: fmtDate(h.finalizado_at) || sinFin,
+          horaFin: fmtTime(h.finalizado_at) || sinFin,
+          duracion: fmtDuration(h.duracion_total_segundos) || sinFin,
+          minutos: h.duracion_total_segundos ? Math.round(h.duracion_total_segundos / 60) : sinFin,
+          rect: h.rectificaciones,
+        };
+      }),
     };
 
     const byProduct = new Map<string, BatchHistoryRow[]>();
@@ -740,8 +751,8 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
         admin: a.adminName,
         etapa: a.stageLabel,
         variable: a.fieldLabel,
-        anterior: a.oldValue,
-        nuevo: a.newValue,
+        anterior: ESTADO_LABEL[String(a.oldValue)] ?? a.oldValue,
+        nuevo: ESTADO_LABEL[String(a.newValue)] ?? a.newValue,
         unidad: a.unit ?? '',
         causal: a.reasonCategory,
         just: a.justificationText,
@@ -889,6 +900,11 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
       row.p_anulados = producto?.anulados ?? null;
       row.p_leche = producto?.leche ?? null;
       row.p_promedio = producto?.promedio ?? null;
+      // Ninguna celda queda en blanco: lo que no aplica a este lote se marca con un guion.
+      Object.keys(row).forEach((k) => {
+        const v = row[k];
+        if (v === '' || v === null || v === undefined) row[k] = '—';
+      });
       return row;
     });
 
@@ -978,7 +994,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
             { key: 'filas', label: 'Filas' },
           ],
           rows: [
-            { hoja: 'Datos Consolidados', contenido: 'Una fila por lote: historial unido con auditoría, anulación y resumen del producto. Los encabezados llevan el prefijo [HISTORIAL], [AUDITORÍA], [ANULADO] o [PRODUCTO] según su origen.', filas: consolidated?.rows.length ?? 0 },
+            { hoja: 'Datos Consolidados', contenido: 'Una fila por lote: historial unido con auditoría, anulación y resumen del producto. Los encabezados llevan el prefijo [HISTORIAL], [AUDITORÍA], [ANULADO] o [PRODUCTO] según su origen. Un guion (—) significa que ese dato no aplica al lote (sin correcciones, no anulado o sin producción registrada).', filas: consolidated?.rows.length ?? 0 },
             ...built.map(({ key, sheet }) => ({
               hoja: sheet.name,
               contenido: DATASETS.find((d) => d.key === key)?.desc ?? '',
@@ -986,7 +1002,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
             })),
             { hoja: 'Filtros aplicados', contenido: filterSummary(), filas: null },
             { hoja: 'Generado', contenido: new Date().toLocaleString('es-CO'), filas: null },
-            { hoja: 'Relación entre hojas', contenido: 'La columna "Lote" enlaza Historial, Variables de proceso, Auditoría y Lotes anulados. En Datos Consolidados cada lote aparece una sola vez; si no tiene auditoría o no fue anulado, esas celdas quedan vacías.', filas: null },
+            { hoja: 'Relación entre hojas', contenido: 'La columna "Lote" enlaza Historial, Variables de proceso, Auditoría y Lotes anulados. En Datos Consolidados cada lote aparece una sola vez; si no tiene auditoría o no fue anulado, esas celdas muestran un guion (—).', filas: null },
           ],
         };
         const sheetsOut: ExportSheet[] = [indice];

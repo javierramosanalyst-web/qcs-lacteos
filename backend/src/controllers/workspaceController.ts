@@ -622,25 +622,50 @@ const formatLiters = (key: string): number => {
   return n;
 };
 
+/** Peso unitario (kg) a partir del nombre de la clave del molde, p. ej. "moldes400g" -> 0.4, "moldesTrenza350g" -> 0.35. */
+const moldeUnitKg = (key: string): number => {
+  const kg = /(\d+(?:[.,]\d+)?)\s*kg$/i.exec(key);
+  if (kg) return Number(kg[1].replace(',', '.'));
+  const g = /(\d+(?:[.,]\d+)?)\s*g$/i.exec(key);
+  if (g) return Number(g[1].replace(',', '.')) / 1000;
+  return 0;
+};
+
 const productionOutcome = (estadoUi: any, lecheLitros: number | null) => {
-  const batch = estadoUi?.batch;
-  if (!batch) return { kg_producidos: null, unidades_producidas: null, rendimiento_pct: null };
+  // Los quesos (pasta hilada) guardan el estado bajo `.batch`; los fermentados lo guardan en la raíz.
+  const batch = estadoUi?.batch ?? estadoUi;
+  if (!batch || typeof batch !== 'object') {
+    return { kg_producidos: null, unidades_producidas: null, rendimiento_pct: null };
+  }
   const leche = lecheLitros && lecheLitros > 0 ? lecheLitros : null;
 
+  // --- Quesos: suma de todos los tipos de molde (100g..1600g, trenza, 7 cueros, pera, quesadillas) ---
   const moldes = batch.moldesDesglose ?? {};
-  const moldesQueso =
-    (Number(moldes.moldes100g) || 0) * 0.1 +
-    (Number(moldes.moldes200g) || 0) * 0.2 +
-    (Number(moldes.moldes400g) || 0) * 0.4 +
-    (Number(moldes.moldes800g) || 0) * 0.8 +
-    (Number(moldes.moldes1600g) || 0) * 1.6;
-  const kgQueso =
+  let moldesKg = 0;
+  let moldesUn = 0;
+  Object.entries(moldes as Record<string, unknown>).forEach(([k, v]) => {
+    if (!/^moldes/i.test(k)) return;
+    const n = Number(v) || 0;
+    const w = moldeUnitKg(k);
+    if (n <= 0 || w <= 0) return;
+    moldesKg += n * w;
+    moldesUn += n;
+  });
+  // Derivaciones de 7 Cueros (arequipe / bocadillo), cada molde de 60 g.
+  Object.values((batch.derivaciones7Cueros ?? {}) as Record<string, any>).forEach((d) => {
+    const n = Number(d?.moldes60g) || 0;
+    if (n > 0) {
+      moldesKg += n * 0.06;
+      moldesUn += n;
+    }
+  });
+  const pesoExplicito =
     Number(batch.hilar?.pesoTotalQueso) ||
     Number(moldes.pesoTotalCalculadoKg) ||
     Number(moldes.pesadoTotalHiladoKg) ||
-    moldesQueso ||
     0;
-  const unidadesQueso = Number(batch.hilar?.numeroMoldes) || 0;
+  const kgQueso = pesoExplicito > 0 ? pesoExplicito : moldesKg;
+  const unidadesQueso = Number(batch.hilar?.numeroMoldes) || moldesUn;
 
   const envasado = batch.envasado ?? {};
   let unidadesEnv = 0;
