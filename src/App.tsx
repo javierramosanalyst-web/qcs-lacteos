@@ -456,7 +456,7 @@ export default function App() {
     } else {
       if (user.assignedLineId) setSelectedLineId(user.assignedLineId);
       setCurrentView('operator_line_select');
-      showToast(`¡Bienvenido ${user.name}! Turno ${user.shift || 'Jornada Continua'}.`, 'success');
+      showToast(`¡Bienvenido ${user.name}!`, 'success');
     }
   };
 

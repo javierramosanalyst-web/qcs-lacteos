@@ -942,7 +942,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                         {u.name} {isSelf && <span className="text-[10px] text-gray-500">(tú)</span>}
                       </div>
                       <div className="text-[10px] text-gray-500 truncate">
-                        {u.code} · {u.role === 'administrador' ? 'Administrador' : 'Operador'} · {u.shift} · {lineName(u.assignedLineId)}
+                        {u.code} · {u.role === 'administrador' ? 'Administrador' : 'Operador'} · {lineName(u.assignedLineId)}
                       </div>
                     </div>
                   </div>

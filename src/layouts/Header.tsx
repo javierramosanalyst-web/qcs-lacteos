@@ -149,7 +149,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="hidden xl:flex flex-col text-right">
             <span className="text-xs font-bold text-[#143A73] leading-tight">{currentUser.name}</span>
             <span className="text-[10px] text-gray-500 font-medium leading-tight">
-              {currentUser.code} · Turno {currentUser.shift}
+              {currentUser.code}
             </span>
           </div>
           <button

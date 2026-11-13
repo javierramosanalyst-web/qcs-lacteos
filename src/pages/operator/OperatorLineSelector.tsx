@@ -102,7 +102,7 @@ export const OperatorLineSelector: React.FC<OperatorLineSelectorProps> = ({
             Selección de Líneas de Producción
           </h1>
           <p className="text-[11px] sm:text-sm text-[#434655] mt-1 leading-snug">
-            Operario conectado: <strong className="text-gray-900">{currentUser.name}</strong> ({currentUser.code}) · Turno: <strong>{currentUser.shift}</strong>
+            Operario conectado: <strong className="text-gray-900">{currentUser.name}</strong> ({currentUser.code})
           </p>
         </div>
 
