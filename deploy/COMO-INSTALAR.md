@@ -14,6 +14,22 @@ nombre de la empresa, sin barra de direcciones. Hay dos maneras:
 - Si la IP del servidor cambia (por ejemplo al desplegar en la planta), abre el `.bat` con el Bloc de notas y cambia solo la línea `set "URL=http://192.168.18.10:3000"`.
 - Si prefieren un nombre en vez de IP (`http://lacteoscolombia.local:3000`), en cada PC se agrega una línea al archivo `C:\Windows\System32\drivers\etc\hosts` (requiere abrir el Bloc de notas como administrador): `192.168.18.10   lacteoscolombia.local`. Es opcional; el acceso directo funciona igual con la IP.
 
+## Servidor Ubuntu sin interfaz (la planta): todo por terminal
+
+Los `.bat` son solo para Windows. En el servidor Ubuntu, dentro de la carpeta del proyecto:
+
+```bash
+npm run build
+bash deploy/generar-certificado-https.sh            # detecta la IP sola; o: ... 192.168.18.10
+sudo setcap 'cap_net_bind_service=+ep' "$(readlink -f "$(command -v node)")"
+sudo ufw allow 443/tcp                              # solo si usas el firewall ufw
+echo "COOKIE_SECURE=true" >> backend/.env
+```
+
+Reinicia el backend como lo ejecuten allá (por ejemplo `pm2 restart all` o `sudo systemctl restart <servicio>`). Debe imprimir `HTTPS activo en el puerto 443`.
+Para el celular Android, copia `backend/certs/lacteos-ca.crt` a tu PC con `scp USUARIO@IP:/ruta/backend/certs/lacteos-ca.crt .` y envíalo al celular. Los pasos en el celular están más abajo.
+Si prefieren no usar `setcap`, agreguen `HTTPS_PORT=8443` en `backend/.env` y entren por `https://IP:8443`.
+
 ## HTTPS (obligatorio para instalar en Android y para quitar "No seguro")
 
 Chrome en Android solo instala la app sin barra cuando la página va por HTTPS.
@@ -43,9 +59,3 @@ iPhone ya funciona sin esto, porque Safari permite "Agregar a pantalla de inicio
 2. Menú ⋮ → **"Instalar aplicación"** / **"Agregar a pantalla de inicio"**.
 3. El ícono **Lácteos Colombia** queda en el celular y al abrirlo entra a pantalla completa, sin barra de direcciones.
 
-## Sobre el aviso "No seguro"
-
-Ese texto lo muestra Chrome para cualquier sitio sin certificado HTTPS. En una
-red interna de la planta no viaja por internet, así que no representa el riesgo
-que avisa. Quitarlo exige instalar un certificado en el servidor y en cada
-equipo; si la empresa lo pide, se hace después con su dominio interno.
