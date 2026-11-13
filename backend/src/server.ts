@@ -17,6 +17,7 @@ import { purgeExpiredInsumoLotes } from './controllers/insumoLoteController';
 import { purgeStaleUnstartedDrafts } from './controllers/workspaceController';
 import path from 'path';
 import fs from 'fs';
+import http from 'http';
 import https from 'https';
 
 const app = express();
@@ -114,6 +115,20 @@ if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
     .createServer({ cert: fs.readFileSync(certFile), key: fs.readFileSync(keyFile) }, app)
     .on('error', (err) => console.error(`[server] No se pudo abrir HTTPS en el puerto ${HTTPS_PORT}:`, err.message))
     .listen(HTTPS_PORT, '0.0.0.0', () => console.log(`[server] HTTPS activo en el puerto ${HTTPS_PORT}`));
+
+  // Quien escriba el nombre sin https:// (puerto 80) pasa solo a la versión segura.
+  const HTTP_REDIRECT_PORT = Number(process.env.HTTP_REDIRECT_PORT ?? 80);
+  if (HTTP_REDIRECT_PORT > 0) {
+    const publicPort = process.env.HTTPS_PUBLIC_PORT ?? (HTTPS_PORT === 443 ? '' : String(HTTPS_PORT));
+    http
+      .createServer((req, res) => {
+        const host = String(req.headers.host ?? '').replace(/:\d+$/, '');
+        res.writeHead(301, { Location: `https://${host}${publicPort ? `:${publicPort}` : ''}${req.url ?? '/'}` });
+        res.end();
+      })
+      .on('error', (err) => console.error(`[server] No se pudo abrir la redirección en el puerto ${HTTP_REDIRECT_PORT}:`, err.message))
+      .listen(HTTP_REDIRECT_PORT, '0.0.0.0', () => console.log(`[server] Redirección http -> https en el puerto ${HTTP_REDIRECT_PORT}`));
+  }
 }
 
 ensureSchema()

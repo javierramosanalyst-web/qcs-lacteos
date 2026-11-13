@@ -10,6 +10,7 @@ command -v openssl >/dev/null || { echo "Falta openssl: sudo apt install -y open
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIR="$ROOT/backend/certs"
+NOMBRE="${NOMBRE_SERVIDOR:-lacteoscolombia}"
 IP="${1:-$(hostname -I | awk '{print $1}')}"
 [ -n "$IP" ] || { echo "No se pudo detectar la IP. Pásala como argumento."; exit 1; }
 
@@ -17,7 +18,7 @@ mkdir -p "$DIR"
 cd "$DIR"
 
 cat > ext.cnf <<EOF
-subjectAltName=IP:$IP,DNS:lacteoscolombia.local,DNS:localhost
+subjectAltName=IP:$IP,DNS:${NOMBRE}.local,DNS:${NOMBRE},DNS:localhost
 basicConstraints=CA:FALSE
 keyUsage=digitalSignature,keyEncipherment
 extendedKeyUsage=serverAuth

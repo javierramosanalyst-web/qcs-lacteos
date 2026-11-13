@@ -14,6 +14,24 @@ nombre de la empresa, sin barra de direcciones. Hay dos maneras:
 - Si la IP del servidor cambia (por ejemplo al desplegar en la planta), abre el `.bat` con el Bloc de notas y cambia solo la línea `set "URL=http://192.168.18.10:3000"`.
 - Si prefieren un nombre en vez de IP (`http://lacteoscolombia.local:3000`), en cada PC se agrega una línea al archivo `C:\Windows\System32\drivers\etc\hosts` (requiere abrir el Bloc de notas como administrador): `192.168.18.10   lacteoscolombia.local`. Es opcional; el acceso directo funciona igual con la IP.
 
+## Nombre en vez de IP: `https://lacteoscolombia.local`
+
+En el servidor Ubuntu (una sola vez, dentro de la carpeta del proyecto):
+
+```bash
+git pull && npm run build
+sudo bash deploy/configurar-nombre-servidor.sh
+```
+
+Ese script le pone el nombre `lacteoscolombia` al equipo, instala el servicio que lo anuncia en la red (avahi/mDNS), permite los puertos 80 y 443, genera el certificado con ese nombre y activa `COOKIE_SECURE`. Después reinicia el backend. Desde ese momento:
+
+- Se entra por **`https://lacteoscolombia.local`**, sin IP y sin `:3000`. Si alguien escribe `http://` o usa el puerto 80, pasa solo a https.
+- **iPad/iPhone y Mac** entienden `.local` sin configurar nada. **PC con Windows 10/11** normalmente también.
+- **Android:** `.local` depende de la versión del sistema y del navegador, y no está garantizado. La solución segura para todos los equipos es crear el nombre una vez en el router de la planta (sección "DNS del router" del administrador de red: nombre `lacteoscolombia.local` apuntando a la IP del servidor). Así funciona en tablets y PC sin tocar cada equipo.
+- Reserva en el router una **IP fija** para el servidor, para que el nombre siempre apunte al mismo equipo.
+- Una vez instalada como app (Android con certificado, iPad con "Agregar a pantalla de inicio"), **no se ve ninguna dirección**: abre como "Lácteos Colombia".
+- Ingeniero con PC: `deploy\Instalar-Lacteos-Colombia.bat` crea el acceso directo "Lacteos Colombia" que abre sin barra de direcciones.
+
 ## Servidor Ubuntu sin interfaz (la planta): todo por terminal
 
 Los `.bat` son solo para Windows. En el servidor Ubuntu, dentro de la carpeta del proyecto:
