@@ -46,6 +46,14 @@ app.use(
   })
 );
 app.disable('x-powered-by');
+// Detrás de un proxy (nginx, IIS, Cloudflare...) todas las peticiones llegan con la IP del proxy.
+// TRUST_PROXY=loopback (nginx en el mismo PC) hace que Express use la IP real del equipo (X-Forwarded-For); así el límite
+// de intentos de login por equipo no bloquea a toda la planta. Sin la variable, nada cambia.
+const trustProxy = (process.env.TRUST_PROXY ?? '').trim();
+if (trustProxy) {
+  app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+  console.log(`[server] trust proxy = ${trustProxy}`);
+}
 app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
