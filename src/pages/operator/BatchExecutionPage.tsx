@@ -184,7 +184,7 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
             </span>
             <span className="min-w-0 break-words">
               Modo Supervisor Activo · Revisando lote en vivo (
-              {activeHeaderBatch.productName} · {activeHeaderBatch.id})
+              {activeHeaderBatch.productName} · {activeHeaderBatch.loteDia || activeHeaderBatch.id})
             </span>
           </div>
           <button
@@ -207,7 +207,7 @@ export const BatchExecutionPage: React.FC<BatchExecutionPageProps> = ({
               lock
             </span>
             <span className="min-w-0 break-words">
-              🔒 Lote Cerrado y Auditado - Modo de Solo Lectura ({activeHeaderBatch.productName} · {activeHeaderBatch.id})
+              🔒 Lote Cerrado y Auditado - Modo de Solo Lectura ({activeHeaderBatch.productName} · {activeHeaderBatch.loteDia || activeHeaderBatch.id})
             </span>
           </div>
           <button

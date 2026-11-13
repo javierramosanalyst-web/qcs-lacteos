@@ -205,6 +205,8 @@ export interface EnvasadoYAlmacenamientoYogurGriegoState {
 
 export interface YogurGriegoBatchData {
   id: string; // 'Lote YGR-01'
+  /** Lote visible por día en letras (DD+M+AA), asignado por el servidor. `id` sigue siendo el código interno. */
+  loteDia?: string;
   productName: string; // 'Yogur Griego'
   productId: string; // 'prod-yogur-griego'
   lineId: string; // 'line-fermentacion'

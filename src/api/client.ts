@@ -314,6 +314,7 @@ export interface DraftRow {
   version: number;
   lote_id: string | null;
   codigo_lote: string | null;
+  lote_dia?: string | null;
   lote_estado: string | null;
 }
 
@@ -349,7 +350,7 @@ export interface DraftPayload {
 }
 
 export const saveDraftRequest = (productUiId: string, payload: DraftPayload) =>
-  apiFetch<{ version: number; lote_id: string | null; codigo_lote: string | null; completed?: boolean }>(
+  apiFetch<{ version: number; lote_id: string | null; codigo_lote: string | null; lote_dia?: string | null; completed?: boolean }>(
     `/workspace/drafts/${encodeURIComponent(productUiId)}`,
     { method: 'PUT', body: JSON.stringify(payload) }
   );
@@ -358,6 +359,7 @@ export interface DraftStatus {
   estado: 'EN_PROCESO' | 'COMPLETADO' | 'ANULADO' | 'SIN_LOTE';
   lote_id: string | null;
   codigo_lote: string | null;
+  lote_dia?: string | null;
   etapa_actual: string | null;
   finalizado_por: string | null;
   finalizado_por_codigo?: string | null;
@@ -373,6 +375,7 @@ export interface OpenDraftRow {
   updated_at: string;
   linea_id: string | null;
   codigo_lote: string | null;
+  lote_dia?: string | null;
   operador: string | null;
   operador_codigo: string | null;
   vigente: boolean;
@@ -389,6 +392,8 @@ export const discardDraftRequest = (productUiId: string) =>
 export interface BatchHistoryRow {
   id: string;
   codigo_lote: string;
+  /** Lote visible por día en letras (DD+M+AA). Puede faltar en lotes muy antiguos. */
+  lote_dia?: string | null;
   estado: string;
   etapa_actual_codigo: string | null;
   volumen_leche_base_litros: string | number | null;
@@ -452,6 +457,7 @@ export async function fetchAuditLogs(): Promise<AuditLogEntry[]> {
           ? 'ANULACION'
           : 'RECTIFICACION')) as 'RECTIFICACION' | 'ANULACION',
       batchId: r.codigo_lote ?? '—',
+      loteDia: r.lote_dia ?? undefined,
       loteId: r.lote_id ?? undefined,
       batchStatus: r.lote_estado ?? undefined,
       productUiId: r.producto_ui_id ?? undefined,

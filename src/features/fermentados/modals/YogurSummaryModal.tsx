@@ -6,6 +6,7 @@ import {
   ProductionSummaryModal,
   SummaryMetricsRow,
 } from '../../../components/shared/ProductionSummaryModal';
+import { loteVisible } from '../../../utils/lote';
 
 interface YogurSummaryModalProps {
   batch: YogurBatchData;
@@ -198,6 +199,7 @@ export const YogurSummaryModal: React.FC<YogurSummaryModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       batchId={batch.id}
+      loteVisible={loteVisible(batch)}
       productName={batch.productName || 'Yogur Entero Probiótico'}
       productBadge={llevaAzucar ? 'Yogur con Azúcar' : 'Yogur sin Azúcar'}
       standard={batch.standard || 'NTC-805'}

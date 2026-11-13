@@ -63,6 +63,8 @@ export interface AuditLogEntry {
   id: string;
   action?: 'RECTIFICACION' | 'ANULACION';
   batchId: string;
+  /** Lote visible por día en letras; batchId sigue siendo el código interno. */
+  loteDia?: string;
   loteId?: string;
   batchStatus?: string;
   productUiId?: string;
@@ -480,6 +482,8 @@ export interface Derivaciones7CuerosState {
 
 export interface BatchData {
   id: string;
+  /** Lote visible por día en letras (DD+M+AA), asignado por el servidor. `id` sigue siendo el código interno. */
+  loteDia?: string;
   productName: string;
   productId: string;
   lineId: string;

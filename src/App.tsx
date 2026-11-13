@@ -56,6 +56,7 @@ import {
   UserRole,
 } from './types';
 import { setInsumoLotes, setSaboresYogur, useInsumoLotesVersion } from './data/insumoLotes';
+import { loteDeFila, loteVisible } from './utils/lote';
 
 const ACTIVITY_KEY = 'qcs_last_activity';
 const IDLE_LIMIT_MS = 15 * 60 * 1000;
@@ -406,7 +407,7 @@ export default function App() {
         delete loteEnProcesoRef.current[activeProductId];
         setLoteCerrado({
           estado: estado.estado,
-          codigo: estado.codigo_lote,
+          codigo: estado.lote_dia || estado.codigo_lote,
           por: estado.finalizado_por,
         });
       } catch {
@@ -638,7 +639,7 @@ export default function App() {
     } catch (err) {
       return err instanceof Error ? err.message : 'No se pudo anular el lote.';
     }
-    showToast(`Lote ${row.codigo_lote} anulado.`, 'success');
+    showToast(`Lote ${loteDeFila(row)} anulado.`, 'success');
     await loadCatalogs(userRole, true);
     return null;
   };
@@ -795,6 +796,7 @@ export default function App() {
           products={products}
           currentUser={activeUser}
           activeBatchId={activeHeaderBatch.id}
+          activeLoteVisible={loteVisible(activeHeaderBatch)}
           activeBatchStatus={activeHeaderBatch.status}
           openDrafts={openDrafts}
           onSelectLine={handleSelectLine}
@@ -930,7 +932,7 @@ export default function App() {
         <YogurSummaryModal
           isOpen={viewerOpen}
           onClose={() => setViewerOpen(false)}
-          batch={{ ...viewerDetail.estado_ui.batch, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
+          batch={{ ...viewerDetail.estado_ui.batch, loteDia: viewerDetail.lote_dia ?? viewerDetail.estado_ui.batch.loteDia, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
           users={users}
         />
       )}
@@ -938,7 +940,7 @@ export default function App() {
         <KumisSummaryModal
           isOpen={viewerOpen}
           onClose={() => setViewerOpen(false)}
-          batch={{ ...viewerDetail.estado_ui.batch, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
+          batch={{ ...viewerDetail.estado_ui.batch, loteDia: viewerDetail.lote_dia ?? viewerDetail.estado_ui.batch.loteDia, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
           users={users}
         />
       )}
@@ -946,7 +948,7 @@ export default function App() {
         <YogurGriegoSummaryModal
           isOpen={viewerOpen}
           onClose={() => setViewerOpen(false)}
-          batch={{ ...viewerDetail.estado_ui.batch, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
+          batch={{ ...viewerDetail.estado_ui.batch, loteDia: viewerDetail.lote_dia ?? viewerDetail.estado_ui.batch.loteDia, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
           users={users}
         />
       )}
@@ -955,7 +957,7 @@ export default function App() {
           <BatchSummaryModal
             isOpen={viewerOpen}
             onClose={() => setViewerOpen(false)}
-            batch={{ ...viewerDetail.estado_ui.batch, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
+            batch={{ ...viewerDetail.estado_ui.batch, loteDia: viewerDetail.lote_dia ?? viewerDetail.estado_ui.batch.loteDia, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
             users={users}
           />
         )}
@@ -964,7 +966,7 @@ export default function App() {
         isOpen={viewerCorrectOpen}
         onClose={() => setViewerCorrectOpen(false)}
         batch={viewerDetail?.estado_ui?.batch ?? {}}
-        title={viewerDetail ? `Lote ${viewerDetail.codigo_lote} · ${viewerDetail.producto_nombre}` : ''}
+        title={viewerDetail ? `Lote ${loteDeFila(viewerDetail)} · ${viewerDetail.producto_nombre}` : ''}
         adminName={activeUser.name}
         productId={viewerDetail?.producto_ui_id}
         onApply={handleApplyViewerCorrection}

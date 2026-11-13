@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AuditLogEntry, ProductDefinition, ProductionLine, UserProfile } from '../../types';
 import { BatchHistoryRow, fetchAuditLogs, fetchBatchDetail, fetchBatchHistory, lineUiId } from '../../api/client';
 import { CellValue, ExportColumn, ExportSheet, buildCsv, exportCsv, exportXlsx, exportZip } from '../../utils/exporters';
+import { loteDeFila } from '../../utils/lote';
 
 interface ExportCenterProps {
   lines: ProductionLine[];
@@ -419,6 +420,7 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
         if (tokens.length === 0) return true;
         const hay = norm(
           [
+            r.lote_dia ?? '',
             r.codigo_lote,
             r.producto_nombre,
             r.producto_codigo,
@@ -462,14 +464,14 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
         <span className="flex-1 min-w-0">
           {selected ? (
             <span className="flex flex-col">
-              <span className="text-xs font-bold text-gray-900 break-all">{selected.codigo_lote}</span>
+              <span className="text-xs font-bold text-gray-900 break-all">{loteDeFila(selected)}</span>
               <span className="text-[11px] text-gray-500 break-words">
                 {selected.producto_nombre} · {fmtDate(selected.iniciado_at)} {fmtTime(selected.iniciado_at)} ·{' '}
                 {ESTADO_LABEL[selected.estado] ?? selected.estado}
               </span>
             </span>
           ) : (
-            <span className="text-xs font-semibold text-gray-500">Buscar lote por código, producto, fecha o responsable…</span>
+            <span className="text-xs font-semibold text-gray-500">Buscar lote (ej. ABJBF), producto, fecha o responsable…</span>
           )}
         </span>
         <span className="material-symbols-outlined text-[18px] text-gray-400 shrink-0">{open ? 'expand_less' : 'expand_more'}</span>
@@ -496,7 +498,7 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="O escribe código, fecha (dd/mm/aaaa) o responsable"
+              placeholder="O escribe el lote (ej. ABJBF), fecha (dd/mm/aaaa) o responsable"
               className="w-full h-9 px-3 rounded-lg bg-[#F7F9FC] border border-[#D6DEEA] text-xs font-semibold text-gray-800 outline-none focus:border-[#1B4E9B]"
             />
             <div className="px-1 text-[10px] font-bold text-gray-500">
@@ -518,7 +520,7 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
                     className={`w-full px-3 py-2 text-left flex items-start gap-2 hover:bg-[#F2F7FF] cursor-pointer ${r.id === value ? 'bg-[#EAF2FF]' : ''}`}
                   >
                     <span className="flex-1 min-w-0">
-                      <span className="block text-xs font-bold text-gray-900 break-all">{r.codigo_lote}</span>
+                      <span className="block text-xs font-bold text-gray-900 break-all">{loteDeFila(r)}</span>
                       <span className="block text-[11px] text-gray-500 break-words">
                         {fmtDate(r.iniciado_at)} {fmtTime(r.iniciado_at)} · {r.responsable_nombre}
                       </span>
@@ -597,14 +599,15 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
           (estadoFilter === 'todos' || h.estado === estadoFilter) &&
           (productFilter === 'todos' || h.producto_nombre === productFilter) &&
           (responsableFilter === 'todos' || h.responsable_nombre === responsableFilter) &&
-          (!q || h.codigo_lote.toLowerCase().includes(q))
+          (!q || h.codigo_lote.toLowerCase().includes(q) || (h.lote_dia ?? '').toLowerCase().includes(q))
       )
       .sort((a, b) => new Date(a.iniciado_at).getTime() - new Date(b.iniciado_at).getTime());
   }, [history, from, to, lineFilter, estadoFilter, productFilter, responsableFilter, search]);
 
   const filteredAudit = useMemo(() => {
-    const codes = new Set(filteredLots.map((h) => h.codigo_lote));
-    return audit.filter((a) => !hasFilters || codes.has(a.batchId));
+    // Se cruza por el id del lote: las letras del día se repiten entre lotes y no sirven de llave.
+    const ids = new Set(filteredLots.map((h) => h.id));
+    return audit.filter((a) => !hasFilters || ids.has(a.loteId ?? ''));
   }, [audit, filteredLots, hasFilters]);
 
   const setPreset = (days: number | 'mes' | 'todo') => {
@@ -666,7 +669,8 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
             ? 'Anulado antes de terminar'
             : 'Proceso terminado';
         return {
-          lote: h.codigo_lote,
+          _id: h.id, // llave interna para cruzar hojas (no se exporta)
+          lote: loteDeFila(h),
           producto: h.producto_nombre,
           codigo: h.producto_codigo,
           linea: h.linea_nombre,
@@ -735,6 +739,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
         { key: 'fecha', label: 'Fecha' },
         { key: 'hora', label: 'Hora' },
         { key: 'lote', label: 'Lote' },
+        { key: 'producto', label: 'Producto' },
         { key: 'linea', label: 'Línea' },
         { key: 'admin', label: 'Autorizado por' },
         { key: 'etapa', label: 'Etapa' },
@@ -748,7 +753,9 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
       rows: filteredAudit.map((a) => ({
         fecha: fmtDate(a.timestamp),
         hora: fmtTime(a.timestamp),
-        lote: a.batchId,
+        _id: a.loteId ?? '', // llave interna para cruzar hojas (no se exporta)
+        lote: a.loteDia || a.batchId,
+        producto: a.productName || '—',
         linea: a.lineName,
         admin: a.adminName,
         etapa: a.stageLabel,
@@ -778,7 +785,8 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
       rows: filteredLots
         .filter((h) => h.estado === 'ANULADO')
         .map((h) => ({
-          lote: h.codigo_lote,
+          _id: h.id, // llave interna para cruzar hojas (no se exporta)
+          lote: loteDeFila(h),
           producto: h.producto_nombre,
           linea: h.linea_nombre,
           responsable: h.responsable_nombre,
@@ -833,7 +841,8 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
       .filter((h) => h.estado !== 'ANULADO')
       .flatMap((h) =>
         (h.detalle_produccion ?? []).map((d) => ({
-          lote: h.codigo_lote,
+          _id: h.id, // llave interna (no se exporta)
+          lote: loteDeFila(h),
           linea: h.linea_nombre,
           producto: h.producto_nombre,
           estado: ESTADO_LABEL[h.estado] ?? h.estado,
@@ -869,7 +878,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
     detalleRows.forEach((r) => {
       const k = `${r.linea}|${r.producto}|${r.tipo}|${r.presentacion}`;
       const a = acum.get(k) ?? { linea: r.linea, producto: r.producto, tipo: r.tipo, presentacion: r.presentacion, lotes: new Set<string>(), unidades: 0, total: 0, medida: r.medida };
-      a.lotes.add(r.lote);
+      a.lotes.add(r._id); // por id: dos lotes del mismo día comparten las letras
       a.unidades += r.unidades;
       a.total += r.total;
       acum.set(k, a);
@@ -898,11 +907,12 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
     if (sheets.historial.rows.length === 0) return null;
 
     const auditByLot = new Map<string, Record<string, CellValue>[]>();
+    // Se une por el id del lote (_id): las letras del día se repiten entre lotes.
     sheets.auditoria.rows.forEach((r) => {
-      const key = String(r.lote ?? '');
+      const key = String(r._id ?? '');
       auditByLot.set(key, [...(auditByLot.get(key) ?? []), r]);
     });
-    const anuladoByLot = new Map(sheets.anulados.rows.map((r) => [String(r.lote ?? ''), r]));
+    const anuladoByLot = new Map(sheets.anulados.rows.map((r) => [String(r._id ?? ''), r]));
     const productoByName = new Map(sheets.produccion.rows.map((r) => [String(r.producto ?? ''), r]));
 
     const columns: ExportColumn[] = [
@@ -930,7 +940,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
     ];
 
     const rows = sheets.historial.rows.map((h) => {
-      const lote = String(h.lote ?? '');
+      const lote = String(h._id ?? '');
       const correcciones = (auditByLot.get(lote) ?? []).slice().sort((a, b) => {
         const ta = new Date(String(a.fecha ?? '')).getTime();
         const tb = new Date(String(b.fecha ?? '')).getTime();
@@ -985,7 +995,8 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
         const out = collectVariables(detail.estado_ui?.batch);
         out.forEach((o) =>
           rows.push({
-            lote: lot.codigo_lote,
+            _id: lot.id,
+            lote: loteDeFila(lot),
             producto: lot.producto_nombre,
             linea: lot.linea_nombre,
             estado: ESTADO_LABEL[lot.estado] ?? lot.estado,
@@ -996,7 +1007,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
           })
         );
       } catch {
-        rows.push({ lote: lot.codigo_lote, producto: lot.producto_nombre, linea: lot.linea_nombre, estado: lot.estado, etapa: 'Error', variable: 'No se pudo leer el lote', valor: '', unidad: '' });
+        rows.push({ _id: lot.id, lote: loteDeFila(lot), producto: lot.producto_nombre, linea: lot.linea_nombre, estado: lot.estado, etapa: 'Error', variable: 'No se pudo leer el lote', valor: '', unidad: '' });
       }
     }
     return {
@@ -1066,7 +1077,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
             })),
             { hoja: 'Filtros aplicados', contenido: filterSummary(), filas: null },
             { hoja: 'Generado', contenido: new Date().toLocaleString('es-CO'), filas: null },
-            { hoja: 'Relación entre hojas', contenido: 'La columna "Lote" enlaza Historial, Variables de proceso, Auditoría y Lotes anulados. En Datos Consolidados cada lote aparece una sola vez; si no tiene auditoría o no fue anulado, esas celdas muestran un guion (—).', filas: null },
+            { hoja: 'Relación entre hojas', contenido: 'La columna "Lote" es el lote del día en letras (día, mes y año de inicio): todos los productos que arrancaron ese día comparten el mismo lote, y se distinguen por la columna "Producto". Historial, Variables de proceso, Auditoría y Lotes anulados se relacionan por Lote y Producto. En Datos Consolidados cada lote de producto aparece una sola vez; si no tiene auditoría o no fue anulado, esas celdas muestran un guion (—).', filas: null },
           ],
         };
         const sheetsOut: ExportSheet[] = [indice];
@@ -1094,7 +1105,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
           { key: 'valor', label: 'Valor', width: 50 },
         ],
         rows: [
-          { campo: 'Código del lote', valor: lot.codigo_lote },
+          { campo: 'Código del lote', valor: loteDeFila(lot) },
           { campo: 'Producto', valor: lot.producto_nombre },
           { campo: 'Código del producto', valor: lot.producto_codigo },
           { campo: 'Línea de producción', valor: lot.linea_nombre },
@@ -1138,28 +1149,30 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
         ...sheets.presentaciones,
         rows: detalle.length
           ? detalle.map((d) => ({
-              lote: lot.codigo_lote, linea: lot.linea_nombre, producto: lot.producto_nombre, estado: ESTADO_LABEL[lot.estado] ?? lot.estado,
+              _id: lot.id, lote: loteDeFila(lot), linea: lot.linea_nombre, producto: lot.producto_nombre, estado: ESTADO_LABEL[lot.estado] ?? lot.estado,
               fecha: fmtDate(lot.finalizado_at ?? lot.iniciado_at), tipo: d.categoria, presentacion: d.presentacion, unidades: d.unidades,
               tamano: d.tamano, total: d.total, medida: d.medida === 'kg' ? 'kg' : 'litros', sabores: lot.sabores || '—',
             }))
-          : [{ lote: lot.codigo_lote, linea: lot.linea_nombre, producto: lot.producto_nombre, estado: ESTADO_LABEL[lot.estado] ?? lot.estado, fecha: fmtDate(lot.iniciado_at), tipo: sinDato, presentacion: sinDato, unidades: sinDato, tamano: sinDato, total: sinDato, medida: sinDato, sabores: lot.sabores || '—' }],
+          : [{ _id: lot.id, lote: loteDeFila(lot), linea: lot.linea_nombre, producto: lot.producto_nombre, estado: ESTADO_LABEL[lot.estado] ?? lot.estado, fecha: fmtDate(lot.iniciado_at), tipo: sinDato, presentacion: sinDato, unidades: sinDato, tamano: sinDato, total: sinDato, medida: sinDato, sabores: lot.sabores || '—' }],
       };
-      const corr = sheets.auditoria.rows.filter((r) => r.lote === lot.codigo_lote);
+      const corr = sheets.auditoria.rows.filter((r) => r._id === lot.id);
       const auditLot: ExportSheet = {
         ...sheets.auditoria,
         name: 'Correcciones',
         rows: corr.length
           ? corr
-          : [{ lote: lot.codigo_lote, ...Object.fromEntries(sheets.auditoria.columns.filter((c) => c.key !== 'lote').map((c, i) => [c.key, i === 0 ? 'Sin correcciones registradas' : '—'])) }],
+          : [{ ...Object.fromEntries(sheets.auditoria.columns.filter((c) => c.key !== 'lote').map((c, i) => [c.key, i === 0 ? 'Sin correcciones registradas' : '—'])), lote: loteDeFila(lot), producto: lot.producto_nombre }],
       };
-      const name = `Ficha_${lot.codigo_lote}`;
+      // Las letras del día se repiten entre productos: el nombre del archivo lleva también el producto.
+      const etiqueta = `${loteDeFila(lot)}_${lot.producto_codigo}`;
+      const name = `Ficha_${etiqueta}`;
       if (format === 'csv')
         exportZip(
           [
-            { name: `01_Resumen_${lot.codigo_lote}.csv`, content: buildCsv(resumen) },
-            { name: `02_Produccion_Presentacion_${lot.codigo_lote}.csv`, content: buildCsv(presLot) },
-            { name: `03_Variables_${lot.codigo_lote}.csv`, content: buildCsv(variables) },
-            { name: `04_Correcciones_${lot.codigo_lote}.csv`, content: buildCsv(auditLot) },
+            { name: `01_Resumen_${etiqueta}.csv`, content: buildCsv(resumen) },
+            { name: `02_Produccion_Presentacion_${etiqueta}.csv`, content: buildCsv(presLot) },
+            { name: `03_Variables_${etiqueta}.csv`, content: buildCsv(variables) },
+            { name: `04_Correcciones_${etiqueta}.csv`, content: buildCsv(auditLot) },
           ],
           name
         );
@@ -1277,7 +1290,7 @@ export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, use
           </label>
           <label className="flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500 col-span-2">
             Buscar por código de lote
-            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Ej: KUM-102" className={inputCls} />
+            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Ej: ABJBF" className={inputCls} />
           </label>
         </div>
 

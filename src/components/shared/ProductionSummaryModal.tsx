@@ -77,6 +77,8 @@ interface ProductionSummaryModalProps {
   isOpen: boolean;
   onClose: () => void;
   batchId: string;
+  /** Lote que se muestra (letras del día). batchId sigue siendo el código interno para consultas. */
+  loteVisible?: string;
   productName: string;
   productBadge: string;
   standard: string;
@@ -102,6 +104,7 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
   isOpen,
   onClose,
   batchId,
+  loteVisible,
   productName,
   productBadge,
   standard,
@@ -288,6 +291,8 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
 
   const handleSaveObservaciones = () => onChangeObservaciones?.(localObservaciones);
 
+  const loteMostrado = loteVisible || batchId;
+
   const handleConfirmFinalize = () => {
     if (motivoNoCierre) {
       setShowConfirmAlert(false);
@@ -372,7 +377,7 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
         badge={
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="px-2.5 py-0.5 bg-cyan-100 text-cyan-900 border border-cyan-300 rounded-full text-[11px] font-black uppercase">
-              {batchId}
+              {loteMostrado}
             </span>
             <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-full text-[10px] font-bold">
               {standard}
@@ -403,7 +408,7 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
         footer={
           <div className="w-full flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-gray-500">
-              Lote: <strong className="text-gray-800">{batchId}</strong> · Responsable:{' '}
+              Lote: <strong className="text-gray-800">{loteMostrado}</strong> · Responsable:{' '}
               <strong className="text-gray-800">{responsable}</strong>
             </div>
             <div className="flex items-center gap-2.5 ml-auto">
@@ -605,7 +610,7 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
                 <div>
                   <h4 className="text-xs font-bold text-emerald-950">Constancia Digital del Lote · Verificación en Pantalla</h4>
                   <p className="text-[11px] text-emerald-800 mt-0.5 leading-relaxed">
-                    {constanciaTexto} <strong>{batchId}</strong> quedan guardados directamente en la bitácora digital de planta.
+                    {constanciaTexto} <strong>{loteMostrado}</strong> quedan guardados directamente en la bitácora digital de planta.
                   </p>
                 </div>
               </div>
@@ -634,7 +639,7 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
             <div className="p-3.5 rounded-xl bg-gray-50 border border-gray-200 flex flex-col gap-1.5 text-xs text-gray-600">
               <div className="flex justify-between items-center">
                 <span className="font-bold">Lote:</span>
-                <span className="font-mono font-black text-gray-900">{batchId}</span>
+                <span className="font-mono font-black text-gray-900">{loteMostrado}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="font-bold">Producto:</span>

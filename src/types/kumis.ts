@@ -280,6 +280,8 @@ export interface EnvasadoYAlmacenamientoKumisState {
 
 export interface KumisBatchData {
   id: string; // 'Lote KUM-01'
+  /** Lote visible por día en letras (DD+M+AA), asignado por el servidor. `id` sigue siendo el código interno. */
+  loteDia?: string;
   productName: string; // 'Kumis Tradicional Fermentado'
   productId: string; // 'prod-kumis'
   lineId: string; // 'line-fermentacion'

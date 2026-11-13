@@ -12,6 +12,7 @@ import {
 } from '../../api/client';
 import { InsumosManager } from './InsumosManager';
 import { ExportCenter } from './ExportCenter';
+import { loteDeFila } from '../../utils/lote';
 
 interface AdminGlobalDashboardProps {
   lines: ProductionLine[];
@@ -202,13 +203,18 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
   const clearColFilters = () => setColFilters({});
 
   // Opciones de los desplegables de Lote, Producto y Responsable
-  const loteOptions = useMemo(
-    () =>
-      [...new Set(activeHistory.map((h) => h.codigo_lote).filter(Boolean))].sort((a, b) =>
-        a.localeCompare(b, 'es', { numeric: true }),
-      ),
-    [activeHistory],
-  );
+  // Lote visible por día: al elegir uno salen todos los productos que arrancaron ese día.
+  // Se ordenan del día más reciente al más antiguo.
+  const loteOptions = useMemo(() => {
+    const fechaPorLote = new Map<string, number>();
+    activeHistory.forEach((h) => {
+      const lote = loteDeFila(h);
+      if (!lote) return;
+      const t = h.iniciado_at ? new Date(h.iniciado_at).getTime() : 0;
+      fechaPorLote.set(lote, Math.max(fechaPorLote.get(lote) ?? 0, t));
+    });
+    return [...fechaPorLote.entries()].sort((a, b) => b[1] - a[1]).map(([lote]) => lote);
+  }, [activeHistory]);
   const productoOptions = useMemo(
     () =>
       [...new Set(activeHistory.map((h) => h.producto_nombre).filter(Boolean))].sort((a, b) =>
@@ -235,7 +241,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
 
   const visibleHistory = useMemo(() => {
     const rows = filteredHistory.filter((h) => {
-      if (colFilters.lote && h.codigo_lote !== colFilters.lote) return false;
+      if (colFilters.lote && loteDeFila(h) !== colFilters.lote) return false;
       if (colFilters.producto && h.producto_nombre !== colFilters.producto) return false;
       if (colFilters.responsable && h.responsable_nombre !== colFilters.responsable) return false;
       if (colFilters.leche) {
@@ -261,6 +267,8 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
           return h.duracion_total_segundos ?? -1;
         case 'estado':
           return h.estado;
+        case 'codigo_lote':
+          return normText(loteDeFila(h));
         default:
           return normText(h[sortKey]);
       }
@@ -432,7 +440,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                         className="text-left p-2.5 rounded-xl bg-[#1B4E9B]/5 border border-[#1B4E9B]/20 hover:bg-[#1B4E9B]/10 text-xs flex items-center justify-between gap-2 cursor-pointer"
                       >
                         <span>
-                          <span className="font-mono font-bold text-[#1B4E9B]">{h.codigo_lote}</span>
+                          <span className="font-mono font-bold text-[#1B4E9B]">{loteDeFila(h)}</span>
                           <span className="text-gray-600"> · {h.producto_nombre}</span>
                         </span>
                         <span className="text-[10px] text-gray-500">{h.responsable_nombre}</span>
@@ -628,7 +636,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
               return (
                 <div key={h.id} className="rounded-xl border border-[#D6DEEA] bg-white p-3 flex flex-col gap-2">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="font-mono font-bold text-[11px] text-[#1B4E9B] break-all">{h.codigo_lote}</span>
+                    <span className="font-mono font-bold text-[11px] text-[#1B4E9B] break-all">{loteDeFila(h)}</span>
                     <span
                       className={`shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold border ${
                         h.estado === 'COMPLETADO'
@@ -844,7 +852,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                   const isCheese = products.find((p) => p.id === productUiId)?.lineType === 'pasta_hilada';
                   return (
                     <tr key={h.id} className="border-b border-[#F2F4F7] hover:bg-[#F2F4F7]/60">
-                      <td className="py-2 pr-3 font-mono font-bold text-[#1B4E9B] whitespace-nowrap">{h.codigo_lote}</td>
+                      <td className="py-2 pr-3 font-mono font-bold text-[#1B4E9B] whitespace-nowrap">{loteDeFila(h)}</td>
                       <td className="py-2 pr-3">{h.producto_nombre}</td>
                       <td className="py-2 pr-3">{h.responsable_nombre}</td>
                       <td className="py-2 pr-3 text-right font-mono">{Number(h.volumen_leche_base_litros || 0).toLocaleString('es-CO')}</td>
@@ -1027,7 +1035,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
               <tbody>
                 {annulled.map((h) => (
                   <tr key={h.id} className="border-b border-[#F2F4F7] align-top">
-                    <td className="py-2 pr-3 font-mono font-bold text-gray-700 whitespace-nowrap">{h.codigo_lote}</td>
+                    <td className="py-2 pr-3 font-mono font-bold text-gray-700 whitespace-nowrap">{loteDeFila(h)}</td>
                     <td className="py-2 pr-3">{h.producto_nombre}</td>
                     <td className="py-2 pr-3">{h.responsable_nombre}</td>
                     <td className="py-2 pr-3">{h.anulado_por ?? '—'}</td>
@@ -1051,7 +1059,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
       {annulTarget && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5 flex flex-col gap-3">
-            <h3 className="text-base font-bold text-gray-900">Anular lote {annulTarget.codigo_lote}</h3>
+            <h3 className="text-base font-bold text-gray-900">Anular lote {loteDeFila(annulTarget)}</h3>
             <p className="text-xs text-gray-600">
               El proceso se cancela, sale del historial activo y queda registrado de forma permanente con su motivo.
             </p>

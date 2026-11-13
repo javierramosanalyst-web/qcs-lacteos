@@ -7,6 +7,8 @@ interface OperatorLineSelectorProps {
   products?: ProductDefinition[];
   currentUser: UserProfile;
   activeBatchId?: string | null;
+  /** Lote que se muestra (letras del día); activeBatchId sigue siendo el código interno. */
+  activeLoteVisible?: string | null;
   activeBatchStatus?: string;
   openDrafts?: OpenDraftRow[];
   onSelectLine: (lineId: string) => void;
@@ -20,6 +22,7 @@ export const OperatorLineSelector: React.FC<OperatorLineSelectorProps> = ({
   products = [],
   currentUser,
   activeBatchId,
+  activeLoteVisible,
   activeBatchStatus,
   openDrafts = [],
   onSelectLine,
@@ -109,7 +112,7 @@ export const OperatorLineSelector: React.FC<OperatorLineSelectorProps> = ({
             className="w-full md:w-auto px-4 sm:px-5 py-3 rounded-2xl bg-slate-700 hover:bg-slate-800 text-white font-bold text-[11px] sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer shrink-0 active:scale-95"
           >
             <span className="material-symbols-outlined text-[20px]">visibility</span>
-            <span className="truncate">Ver Resumen ({activeBatchId} · Cerrado)</span>
+            <span className="truncate">Ver Resumen ({activeLoteVisible || activeBatchId} · Cerrado)</span>
           </button>
         )}
       </div>
@@ -255,7 +258,7 @@ export const OperatorLineSelector: React.FC<OperatorLineSelectorProps> = ({
                             {nombreProducto(d.producto_ui_id)}
                           </span>
                           <span className="text-[10px] font-mono text-gray-600 block truncate">
-                            {d.codigo_lote || 'Sin código'} · {d.etapa_actual}
+                            {d.lote_dia || d.codigo_lote || 'Sin código'} · {d.etapa_actual}
                             {d.operador ? ` · ${d.operador}` : ''}
                           </span>
                           <span className="text-[9px] text-gray-500 block truncate">
@@ -282,7 +285,7 @@ export const OperatorLineSelector: React.FC<OperatorLineSelectorProps> = ({
                         : 'bg-blue-100/60 border-blue-200 text-[#1B4E9B]'
                     }`}
                   >
-                    <span className="min-w-0 break-all">Lote: {activeBatchId}</span>
+                    <span className="min-w-0 break-all">Lote: {activeLoteVisible || activeBatchId}</span>
                     <span className="text-[10px] uppercase font-mono whitespace-nowrap">
                       {activeBatchStatus === 'COMPLETADO' ? '✓ Cerrado' : 'En curso'}
                     </span>

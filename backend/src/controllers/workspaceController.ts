@@ -83,7 +83,7 @@ export async function getWorkspace(req: Request, res: Response): Promise<void> {
     );
     const drafts = await client.query(
       `SELECT b.producto_ui_id, b.estado, b.etapa_actual, b.version, b.lote_id,
-              lp.codigo_lote, lp.estado AS lote_estado
+              lp.codigo_lote, lp.lote_dia, lp.estado AS lote_estado
        FROM borradores_lote b
        LEFT JOIN lotes_produccion lp ON lp.id = b.lote_id
        WHERE b.linea_id = $1;`,
@@ -157,26 +157,26 @@ async function createProductionBatch(
     variante: string | null;
     estadoUi: unknown;
   }
-): Promise<{ id: string; codigo_lote: string }> {
+): Promise<{ id: string; codigo_lote: string; lote_dia: string | null }> {
   // Kumis / Griego nacen de un Yogur: se enlaza con el lote de Yogur de origen
   // (lote_origen_id) y con su leche (lote_padre_id), y se deja el desvío en el historial.
   const origenUi = (params.estadoUi as any)?.batch?.origenYogur ?? (params.estadoUi as any)?.origenYogur ?? null;
-  let origen: { id: string; lote_padre_id: string | null; estado: string } | null = null;
+  let origen: { id: string; lote_padre_id: string | null; estado: string; lote_dia: string | null } | null = null;
   if (origenUi && typeof origenUi === 'object') {
     const byCode = origenUi.yogurId
       ? await client.query(
-          `SELECT id, lote_padre_id, estado FROM lotes_produccion WHERE codigo_lote = $1 AND producto_ui_id = 'prod-yogur' LIMIT 1;`,
+          `SELECT id, lote_padre_id, estado, lote_dia FROM lotes_produccion WHERE codigo_lote = $1 AND producto_ui_id = 'prod-yogur' LIMIT 1;`,
           [String(origenUi.yogurId)]
         )
       : { rows: [] as any[] };
     const found = byCode.rows[0]
       ?? (await client.query(
-            `SELECT id, lote_padre_id, estado FROM lotes_produccion
+            `SELECT id, lote_padre_id, estado, lote_dia FROM lotes_produccion
               WHERE producto_ui_id = 'prod-yogur' AND linea_id = $1
               ORDER BY iniciado_at DESC NULLS LAST LIMIT 1;`,
             [params.lineId]
           )).rows[0];
-    if (found) origen = { id: found.id, lote_padre_id: found.lote_padre_id ?? null, estado: String(found.estado) };
+    if (found) origen = { id: found.id, lote_padre_id: found.lote_padre_id ?? null, estado: String(found.estado), lote_dia: found.lote_dia ?? null };
   }
 
   const prod = await client.query(
@@ -208,9 +208,9 @@ async function createProductionBatch(
     `INSERT INTO lotes_produccion (
        codigo_lote, producto_id, linea_id, responsable_id, norma_tecnica_aplicada, receta_snapshot,
        variante_fermentado, volumen_leche_base_litros, lleva_azucar, estado, etapa_actual_codigo,
-       estado_ui, producto_ui_id, lote_origen_id, lote_padre_id
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'EN_PROCESO',$10,$11,$12,$13,$14)
-     RETURNING id, codigo_lote;`,
+       estado_ui, producto_ui_id, lote_origen_id, lote_padre_id, lote_dia
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'EN_PROCESO',$10,$11,$12,$13,$14,$15)
+     RETURNING id, codigo_lote, lote_dia;`,
     [
       codigo,
       product.id,
@@ -226,6 +226,9 @@ async function createProductionBatch(
       params.productUiId,
       origen?.id ?? null,
       origen?.lote_padre_id ?? null,
+      // Kumis / Griego llevan el mismo lote visible que su Yogur; si no hay origen,
+      // NULL y la base de datos asigna las letras del día de inicio (trigger).
+      origen?.lote_dia ?? null,
     ]
   );
   const batch = inserted.rows[0];
@@ -364,7 +367,7 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
 
     await client.query('BEGIN');
     const currentRes = await client.query(
-      `SELECT b.*, lp.codigo_lote FROM borradores_lote b
+      `SELECT b.*, lp.codigo_lote, lp.lote_dia FROM borradores_lote b
        LEFT JOIN lotes_produccion lp ON lp.id = b.lote_id
        WHERE b.producto_ui_id = $1 FOR UPDATE OF b;`,
       [productUiId]
@@ -380,6 +383,7 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
           version: current.version,
           lote_id: current.lote_id,
           codigo_lote: current.codigo_lote,
+          lote_dia: current.lote_dia ?? null,
           etapa_actual: current.etapa_actual,
         },
       });
@@ -388,6 +392,7 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
 
     let loteId: string | null = current?.lote_id ?? null;
     let codigoLote: string | null = current?.codigo_lote ?? null;
+    let loteDia: string | null = current?.lote_dia ?? null;
 
     if ((started || completed) && !loteId) {
       const codigoCliente =
@@ -396,7 +401,7 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
           : null;
       if (codigoCliente) {
         const cerrado = await client.query(
-          `SELECT codigo_lote, estado FROM lotes_produccion
+          `SELECT codigo_lote, lote_dia, estado FROM lotes_produccion
             WHERE codigo_lote = $1 AND estado IN ('COMPLETADO', 'ANULADO')
             LIMIT 1;`,
           [codigoCliente]
@@ -406,6 +411,7 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
           res.status(409).json({
             error: 'BATCH_CLOSED',
             codigo_lote: cerrado.rows[0].codigo_lote,
+            lote_dia: cerrado.rows[0].lote_dia ?? null,
             estado: cerrado.rows[0].estado,
             message: 'El lote ya fue cerrado en otra sesión y no admite más cambios.',
           });
@@ -424,6 +430,7 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
       });
       loteId = created.id;
       codigoLote = created.codigo_lote;
+      loteDia = created.lote_dia ?? null;
     }
 
     if (loteId) {
@@ -470,7 +477,7 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
       );
       await client.query(`DELETE FROM borradores_lote WHERE producto_ui_id = $1;`, [productUiId]);
       await client.query('COMMIT');
-      res.json({ completed: true, lote_id: loteId, codigo_lote: codigoLote, version: 0 });
+      res.json({ completed: true, lote_id: loteId, codigo_lote: codigoLote, lote_dia: loteDia, version: 0 });
       return;
     }
 
@@ -488,7 +495,7 @@ export async function saveDraft(req: Request, res: Response): Promise<void> {
       [productUiId, line.id, estado, etapaActual ?? null, loteId, userId]
     );
     await client.query('COMMIT');
-    res.json({ version: saved.rows[0].version, lote_id: loteId, codigo_lote: codigoLote });
+    res.json({ version: saved.rows[0].version, lote_id: loteId, codigo_lote: codigoLote, lote_dia: loteDia });
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[workspace] Error al guardar lote:', error);
@@ -504,7 +511,7 @@ export async function listOpenDrafts(_req: Request, res: Response): Promise<void
     await purgeStaleUnstartedDrafts();
     const { rows } = await pool.query(
       `SELECT b.producto_ui_id, b.etapa_actual, b.updated_at, b.linea_id,
-              lp.codigo_lote,
+              lp.codigo_lote, lp.lote_dia,
               COALESCE(u.nombre_completo, 'Operador de planta') AS operador,
               u.codigo_empleado AS operador_codigo,
               (COALESCE(lp.estado = 'EN_PROCESO', FALSE) AND b.updated_at > NOW() - INTERVAL '12 hours') AS vigente,
@@ -525,7 +532,7 @@ export async function listOpenDrafts(_req: Request, res: Response): Promise<void
 export async function getDraftStatus(req: Request, res: Response): Promise<void> {
   try {
     const { rows } = await pool.query(
-      `SELECT b.lote_id, b.etapa_actual, lp.codigo_lote
+      `SELECT b.lote_id, b.etapa_actual, lp.codigo_lote, lp.lote_dia
          FROM borradores_lote b
          LEFT JOIN lotes_produccion lp ON lp.id = b.lote_id
         WHERE b.producto_ui_id = $1;`,
@@ -536,6 +543,7 @@ export async function getDraftStatus(req: Request, res: Response): Promise<void>
         estado: 'EN_PROCESO',
         lote_id: rows[0].lote_id,
         codigo_lote: rows[0].codigo_lote,
+        lote_dia: rows[0].lote_dia ?? null,
         etapa_actual: rows[0].etapa_actual,
         finalizado_por: null,
         finalizado_at: null,
@@ -543,7 +551,7 @@ export async function getDraftStatus(req: Request, res: Response): Promise<void>
       return;
     }
     const cerrado = await pool.query(
-      `SELECT lp.codigo_lote, lp.estado, lp.finalizado_at, lp.anulado_at,
+      `SELECT lp.codigo_lote, lp.lote_dia, lp.estado, lp.finalizado_at, lp.anulado_at,
               COALESCE(u.nombre_completo, 'Operador de planta') AS finalizado_por,
               u.codigo_empleado
          FROM lotes_produccion lp
@@ -561,6 +569,7 @@ export async function getDraftStatus(req: Request, res: Response): Promise<void>
         estado: row.estado,
         lote_id: null,
         codigo_lote: row.codigo_lote,
+        lote_dia: row.lote_dia ?? null,
         etapa_actual: null,
         finalizado_por: row.finalizado_por,
         finalizado_por_codigo: row.codigo_empleado,
@@ -568,7 +577,7 @@ export async function getDraftStatus(req: Request, res: Response): Promise<void>
       });
       return;
     }
-    res.json({ estado: 'SIN_LOTE', lote_id: null, codigo_lote: null, etapa_actual: null, finalizado_por: null, finalizado_at: null });
+    res.json({ estado: 'SIN_LOTE', lote_id: null, codigo_lote: null, lote_dia: null, etapa_actual: null, finalizado_por: null, finalizado_at: null });
   } catch (error) {
     console.error('[workspace] Error al consultar estado del lote:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al consultar el estado del lote.' });
@@ -790,7 +799,7 @@ export async function getBatchHistory(req: Request, res: Response): Promise<void
   try {
     const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
     const { rows } = await pool.query(
-      `SELECT lp.id, lp.codigo_lote, lp.estado, lp.etapa_actual_codigo, lp.volumen_leche_base_litros,
+      `SELECT lp.id, lp.codigo_lote, lp.lote_dia, lp.estado, lp.etapa_actual_codigo, lp.volumen_leche_base_litros,
               lp.iniciado_at, lp.finalizado_at, lp.duracion_total_segundos, lp.producto_ui_id, lp.estado_ui,
               p.nombre AS producto_nombre, p.codigo AS producto_codigo,
               l.nombre AS linea_nombre, l.codigo AS linea_codigo,
@@ -835,7 +844,7 @@ export async function getBatchHistory(req: Request, res: Response): Promise<void
 export async function getBatchDetail(req: Request, res: Response): Promise<void> {
   try {
     const { rows } = await pool.query(
-      `SELECT lp.id, lp.codigo_lote, lp.estado, lp.producto_ui_id, lp.estado_ui,
+      `SELECT lp.id, lp.codigo_lote, lp.lote_dia, lp.estado, lp.producto_ui_id, lp.estado_ui,
               lp.etapa_actual_codigo, lp.iniciado_at, lp.finalizado_at, lp.duracion_total_segundos,
               p.nombre AS producto_nombre, p.codigo AS producto_codigo,
               l.nombre AS linea_nombre, l.codigo AS linea_codigo,
@@ -984,6 +993,7 @@ export async function listAuditLogs(_req: Request, res: Response): Promise<void>
               ar.valor_anterior, ar.valor_nuevo, ar.unidad, ar.categoria_motivo, ar.justificacion_tecnica,
               ar.registrado_at, u.nombre_completo AS autorizado_por_nombre,
               COALESCE(lp.codigo_lote, pa.codigo_lote) AS codigo_lote,
+              lp.lote_dia,
               COALESCE(lp.id, pa.id) AS lote_id,
               lp.estado AS lote_estado,
               lp.producto_ui_id AS producto_ui_id,
@@ -1022,7 +1032,7 @@ export async function annulBatch(req: Request, res: Response): Promise<void> {
   try {
     await client.query('BEGIN');
     const lote = await client.query(
-      `SELECT id, estado, producto_ui_id, codigo_lote FROM lotes_produccion
+      `SELECT id, estado, producto_ui_id, codigo_lote, lote_dia FROM lotes_produccion
        WHERE id::text = $1 OR codigo_lote = $1 LIMIT 1 FOR UPDATE;`,
       [req.params.loteId]
     );
@@ -1051,7 +1061,7 @@ export async function annulBatch(req: Request, res: Response): Promise<void> {
       [target.id, justificacion, adminId, req.ip || req.socket.remoteAddress || null]
     );
     await client.query('COMMIT');
-    res.json({ message: `Lote ${target.codigo_lote} anulado.`, ...audit.rows[0] });
+    res.json({ message: `Lote ${target.lote_dia ?? target.codigo_lote} anulado.`, ...audit.rows[0] });
   } catch (error: any) {
     await client.query('ROLLBACK');
     console.error('[workspace] Error al anular lote:', error);

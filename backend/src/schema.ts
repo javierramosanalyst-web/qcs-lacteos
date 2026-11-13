@@ -146,6 +146,37 @@ CREATE TRIGGER trg_lock_lote_etapa_operarios
     BEFORE INSERT OR UPDATE OR DELETE ON lote_etapa_operarios
     FOR EACH ROW EXECUTE FUNCTION fn_bloquear_hijas_de_lote_cerrado();
 
+-- ============================================================================
+-- Lote visible por día (5 letras): DD + M + AA, con la fecha de INICIO del lote
+-- en hora de Colombia. Dígitos 1..9,0 -> A..J ; meses enero..diciembre -> A..L.
+-- Ej.: 12/10/2026 -> "AB" + "J" + "BF" = ABJBF. Todos los lotes que arrancan el
+-- mismo día comparten estas letras; el código interno (codigo_lote) y el id siguen
+-- siendo únicos y son los que usa el sistema por dentro.
+-- ============================================================================
+ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS lote_dia VARCHAR(5);
+CREATE INDEX IF NOT EXISTS idx_lotes_produccion_lote_dia ON lotes_produccion(lote_dia);
+
+CREATE OR REPLACE FUNCTION fn_lote_dia(ts TIMESTAMPTZ) RETURNS VARCHAR(5)
+LANGUAGE sql STABLE AS $$
+    SELECT translate(to_char(ts AT TIME ZONE 'America/Bogota', 'DD'), '1234567890', 'ABCDEFGHIJ')
+        || substr('ABCDEFGHIJKL', EXTRACT(MONTH FROM ts AT TIME ZONE 'America/Bogota')::int, 1)
+        || translate(to_char(ts AT TIME ZONE 'America/Bogota', 'YY'), '1234567890', 'ABCDEFGHIJ');
+$$;
+
+CREATE OR REPLACE FUNCTION fn_asignar_lote_dia() RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.lote_dia IS NULL THEN
+        NEW.lote_dia := fn_lote_dia(COALESCE(NEW.iniciado_at, NOW()));
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_asignar_lote_dia ON lotes_produccion;
+CREATE TRIGGER trg_asignar_lote_dia
+    BEFORE INSERT ON lotes_produccion
+    FOR EACH ROW EXECUTE FUNCTION fn_asignar_lote_dia();
+
 -- Balance de materia: el Yogur Griego ya no registra masa filtrada; se mide como la app
 -- (kg envasados / litros de leche recibidos). Se recrea la vista sin la columna de masa.
 DROP VIEW IF EXISTS v_balance_materia_lote;
@@ -181,4 +212,31 @@ LEFT JOIN envasado e ON e.lote_id = l.id;
 
 export async function ensureSchema(): Promise<void> {
   await pool.query(MIGRATIONS);
+  await rellenarLoteDia();
+}
+
+/**
+ * Asigna las letras del día a los lotes que aún no las tienen (los creados antes de
+ * existir la columna). Los lotes cerrados o anulados están protegidos contra cambios,
+ * así que se usa el mismo permiso controlado de las rectificaciones de administrador,
+ * activo SOLO dentro de esta transacción y solo para llenar lote_dia.
+ */
+async function rellenarLoteDia(): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SET LOCAL app.allow_admin_override = 'true'");
+    const result = await client.query(
+      `UPDATE lotes_produccion SET lote_dia = fn_lote_dia(iniciado_at) WHERE lote_dia IS NULL;`
+    );
+    await client.query('COMMIT');
+    if ((result.rowCount ?? 0) > 0) {
+      console.log(`[schema] Lote por día asignado a ${result.rowCount} lote(s) existentes.`);
+    }
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
 }

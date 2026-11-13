@@ -5,6 +5,7 @@ import {
   ProductionSummaryModal,
   SummaryMetricsRow,
 } from '../../../components/shared/ProductionSummaryModal';
+import { loteVisible } from '../../../utils/lote';
 
 interface YogurGriegoSummaryModalProps {
   batch: YogurGriegoBatchData;
@@ -96,6 +97,7 @@ export const YogurGriegoSummaryModal: React.FC<YogurGriegoSummaryModalProps> = (
       isOpen={isOpen}
       onClose={onClose}
       batchId={batch.id}
+      loteVisible={loteVisible(batch)}
       productName="Yogur Griego"
       productBadge="Yogur Griego Concentrado"
       standard="NTC-805"

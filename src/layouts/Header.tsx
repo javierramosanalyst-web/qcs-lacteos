@@ -68,7 +68,7 @@ export const Header: React.FC<HeaderProps> = ({
         {currentView === 'batch_process' ? (
           <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-[#F2F4F7] border border-[#D6DEEA] min-w-0">
             <div className="w-2 h-2 rounded-full bg-[#5FAF32] animate-pulse shrink-0"></div>
-            <span className="text-xs font-bold text-[#1B4E9B] truncate">{batch.id}</span>
+            <span className="text-xs font-bold text-[#1B4E9B] truncate">{batch.loteDia || batch.id}</span>
             <span className="text-[#D6DEEA] hidden sm:inline">|</span>
             <span className="text-xs font-semibold text-[#143A73] hidden sm:inline truncate">{batch.productName}</span>
           </div>
