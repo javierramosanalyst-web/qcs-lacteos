@@ -98,18 +98,30 @@ npm run dev
 
 Abre http://localhost:3000 en el navegador.
 
-## 6. Usuarios iniciales
+## 6. Cómo ingresar
+
+Todos ingresan con su **código de empleado** (ej. `OP-104`) y su **PIN**. El mismo campo acepta la contraseña, si el usuario tiene una.
+
+| Quién | PIN | Contraseña |
+| --- | --- | --- |
+| Operarios | 3 a 8 dígitos | No la necesitan. Si se deja vacía al crearlos, queda igual al PIN. |
+| Administradores y superadmin | 4 a 8 dígitos | Obligatoria al crearlos: mínimo 8 caracteres y distinta del PIN. |
+
+- El administrador asigna o restablece el PIN en **Usuarios → Editar**. Al cambiarle el PIN a un operario, el PIN anterior deja de servir.
+- Después de 5 intentos fallidos, el usuario queda bloqueado 15 minutos.
+
+### Usuarios iniciales
 
 Los crea `seed.sql`. Si tu equipo cambió los PIN, usa los que defina el administrador.
 
-| Código | Rol | Acceso |
-| --- | --- | --- |
-| `SA-001` | Superadmin | PIN `1234` |
-| `ADM-901` | Administrador | PIN `9090` |
-| `OP-104` | Operario Pasta Hilada | PIN `1040` |
-| `OP-105` | Operario Fermentados | PIN `1050` |
+| Código | Rol | PIN | Contraseña |
+| --- | --- | --- | --- |
+| `SA-001` | Superadmin | `1234` | `1234` |
+| `ADM-901` | Administrador | `9090` | `admin` |
+| `OP-104` | Operario Pasta Hilada | `1040` | `1234` |
+| `OP-105` | Operario Fermentados | `1050` | `1234` |
 
-Cambia estos PIN antes de usar el sistema en producción.
+Cambia estos PIN y contraseñas antes de usar el sistema en producción.
 
 ## 7. Comandos útiles
 

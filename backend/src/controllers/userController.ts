@@ -37,6 +37,16 @@ export async function listUsers(req: Request, res: Response): Promise<void> {
   }
 }
 
+/**
+ * PIN numérico: los operarios usan de 3 a 8 dígitos (pedido de planta: fácil de recordar);
+ * administradores y superadmin conservan el mínimo de 4 dígitos.
+ */
+const PIN_MIN_OPERARIO = 3;
+const PIN_MIN_ADMIN = 4;
+const pinMinimo = (rol: unknown): number => (rol === 'operador' ? PIN_MIN_OPERARIO : PIN_MIN_ADMIN);
+const pinValido = (pin: string, rol: unknown): boolean => new RegExp(`^\\d{${pinMinimo(rol)},8}$`).test(pin);
+const mensajePin = (rol: unknown): string => `El PIN debe tener entre ${pinMinimo(rol)} y 8 dígitos.`;
+
 export async function createUser(req: Request, res: Response): Promise<void> {
   try {
     const nombre = String(req.body.nombre_completo ?? '').trim();
@@ -55,8 +65,8 @@ export async function createUser(req: Request, res: Response): Promise<void> {
       res.status(400).json({ error: 'MISSING_FIELDS', message: 'Nombre y código de empleado son obligatorios.' });
       return;
     }
-    if (!/^\d{4,8}$/.test(pin)) {
-      res.status(400).json({ error: 'INVALID_PIN', message: 'El PIN debe tener entre 4 y 8 dígitos.' });
+    if (!pinValido(pin, rolSolicitado)) {
+      res.status(400).json({ error: 'INVALID_PIN', message: mensajePin(rolSolicitado) });
       return;
     }
     if (rolSolicitado === 'administrador' && (passwordInput.length < 8 || passwordInput === pin)) {
@@ -102,11 +112,15 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     const nombre = req.body.nombre_completo ? String(req.body.nombre_completo).trim() : null;
     const turno = TURNOS.includes(req.body.turno) ? req.body.turno : null;
     const pin = req.body.pin ? String(req.body.pin).trim() : null;
-    const password = req.body.password ? String(req.body.password).trim() : null;
-    if (pin && !/^\d{4,8}$/.test(pin)) {
-      res.status(400).json({ error: 'INVALID_PIN', message: 'El PIN debe tener entre 4 y 8 dígitos.' });
+    const rolDestino = target.rows[0].rol;
+    if (pin && !pinValido(pin, rolDestino)) {
+      res.status(400).json({ error: 'INVALID_PIN', message: mensajePin(rolDestino) });
       return;
     }
+    // Operarios: el PIN es su única clave. Al restablecerlo se reemplaza también la contraseña
+    // (que al crearlos sin contraseña quedó igual al PIN) para que el PIN anterior deje de servir.
+    const passwordInput = req.body.password ? String(req.body.password).trim() : null;
+    const password = passwordInput ?? (pin && rolDestino === 'operador' ? pin : null);
     const lineaProvided = Object.prototype.hasOwnProperty.call(req.body, 'linea_asignada_id');
     const lineaId = lineaProvided ? await resolveLine(req.body.linea_asignada_id) : null;
 
@@ -169,8 +183,9 @@ export async function reactivateUser(req: Request, res: Response): Promise<void>
       return;
     }
     const newPin = String(req.body?.pin ?? '').trim();
-    if (!/^\d{4,8}$/.test(newPin)) {
-      res.status(400).json({ error: 'INVALID_PIN', message: 'Al reactivar debes asignar un PIN nuevo de 4 a 8 dígitos.' });
+    const rolDestino = target.rows[0].rol;
+    if (!pinValido(newPin, rolDestino)) {
+      res.status(400).json({ error: 'INVALID_PIN', message: `Al reactivar debes asignar un PIN nuevo de ${pinMinimo(rolDestino)} a 8 dígitos.` });
       return;
     }
     await pool.query(
