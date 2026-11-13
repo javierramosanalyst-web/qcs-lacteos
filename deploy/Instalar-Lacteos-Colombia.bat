@@ -7,7 +7,7 @@ rem  "Lacteos Colombia" en el escritorio. Al abrirlo, el sistema se ve
 rem  como una aplicación propia, SIN barra de direcciones ni la IP.
 rem  Si la IP del servidor cambia en la planta, edita solo la línea URL.
 rem =====================================================================
-set "URL=http://192.168.18.10:3000"
+set "URL=https://192.168.18.10"
 
 set "BROWSER="
 if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" set "BROWSER=%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"

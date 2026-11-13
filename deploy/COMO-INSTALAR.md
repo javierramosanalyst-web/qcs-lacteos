@@ -14,6 +14,29 @@ nombre de la empresa, sin barra de direcciones. Hay dos maneras:
 - Si la IP del servidor cambia (por ejemplo al desplegar en la planta), abre el `.bat` con el Bloc de notas y cambia solo la línea `set "URL=http://192.168.18.10:3000"`.
 - Si prefieren un nombre en vez de IP (`http://lacteoscolombia.local:3000`), en cada PC se agrega una línea al archivo `C:\Windows\System32\drivers\etc\hosts` (requiere abrir el Bloc de notas como administrador): `192.168.18.10   lacteoscolombia.local`. Es opcional; el acceso directo funciona igual con la IP.
 
+## HTTPS (obligatorio para instalar en Android y para quitar "No seguro")
+
+Chrome en Android solo instala la app sin barra cuando la página va por HTTPS.
+Se hace una sola vez en el servidor:
+
+1. Ejecuta `deploy\Generar-Certificado-HTTPS.bat` y escribe la IP del servidor (por ejemplo `192.168.18.10`). Crea `backend\certs\` (esa carpeta no se sube a Git).
+2. En la raíz del proyecto: `npm run build`. En `backend\.env` pon `COOKIE_SECURE=true`.
+3. Reinicia el backend (`cd backend && npm run dev`). Debe mostrar `HTTPS activo en el puerto 443`.
+4. Si el puerto 443 está ocupado, agrega `HTTPS_PORT=8443` en `backend\.env` y entra por `https://IP:8443`.
+5. Abre `https://192.168.18.10` (sin puerto). El servidor entrega el sistema completo; ya no hace falta el puerto 3000.
+6. Permite el puerto 443 en el Firewall de Windows del servidor si los celulares no conectan.
+
+### Android: aprobar el certificado una sola vez por celular
+
+1. Envía `backend\certs\lacteos-ca.crt` al celular (WhatsApp, correo o USB) y guárdalo en Descargas. Nunca envíes los archivos `.key`.
+2. Ajustes → Seguridad (o "Seguridad y privacidad") → Más seguridad → Cifrado y credenciales → **Instalar un certificado** → **Certificado de CA** → Instalar de todos modos → elige `lacteos-ca.crt`. El celular debe tener bloqueo de pantalla.
+3. Abre `https://192.168.18.10` en Chrome. Ya no sale "No seguro".
+4. Menú ⋮ → **Instalar aplicación**. Se abre como "Lácteos Colombia", sin barra.
+
+En PC con Edge o Chrome: haz doble clic en `lacteos-ca.crt` → Instalar certificado → Equipo local → "Entidades de certificación raíz de confianza".
+
+iPhone ya funciona sin esto, porque Safari permite "Agregar a pantalla de inicio" por HTTP.
+
 ## Celulares y tabletas (Android / iPhone)
 
 1. Abre `http://192.168.18.10:3000` en Chrome (Android) o Safari (iPhone).

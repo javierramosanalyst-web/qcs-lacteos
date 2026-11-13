@@ -17,6 +17,7 @@ import { purgeExpiredInsumoLotes } from './controllers/insumoLoteController';
 import { purgeStaleUnstartedDrafts } from './controllers/workspaceController';
 import path from 'path';
 import fs from 'fs';
+import https from 'https';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
@@ -101,6 +102,19 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[server] API escuchando en http://localhost:${PORT} (CORS: ${allowedOrigins.join(', ')})`);
 });
+
+// HTTPS opcional: si existen backend/certs/server.crt y server.key (ver deploy/COMO-INSTALAR.md),
+// el mismo servidor atiende también por HTTPS (HTTPS_PORT, por defecto 443).
+const certDir = path.resolve(__dirname, '..', 'certs');
+const certFile = process.env.HTTPS_CERT_FILE ?? path.join(certDir, 'server.crt');
+const keyFile = process.env.HTTPS_KEY_FILE ?? path.join(certDir, 'server.key');
+if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
+  const HTTPS_PORT = Number(process.env.HTTPS_PORT ?? 443);
+  https
+    .createServer({ cert: fs.readFileSync(certFile), key: fs.readFileSync(keyFile) }, app)
+    .on('error', (err) => console.error(`[server] No se pudo abrir HTTPS en el puerto ${HTTPS_PORT}:`, err.message))
+    .listen(HTTPS_PORT, '0.0.0.0', () => console.log(`[server] HTTPS activo en el puerto ${HTTPS_PORT}`));
+}
 
 ensureSchema()
   .then(() => {
