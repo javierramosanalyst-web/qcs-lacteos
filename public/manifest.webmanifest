@@ -1,0 +1,18 @@
+{
+  "name": "Lácteos Colombia · Control de Producción",
+  "short_name": "Lácteos Colombia",
+  "description": "Sistema local de control de producción, trazabilidad de lotes y seguimiento de etapas para Lácteos Colombia.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1B4E9B",
+  "theme_color": "#1B4E9B",
+  "icons": [
+    { "src": "/brand/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/brand/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/brand/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/brand/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
