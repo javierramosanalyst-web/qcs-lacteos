@@ -1,4 +1,5 @@
 import { normalizeBatchTraceability } from '../services/traceability';
+import { sincronizarTotalesTrasCorreccion } from '../services/totalesQueso';
 import { Request, Response } from 'express';
 import { Pool, PoolClient } from 'pg';
 import { pool } from '../db';
@@ -668,6 +669,52 @@ const splitSize = (key: string): { name: string; size: number; unit: string } | 
 const humanizeKey = (s: string) =>
   s.replace(/([a-z])([A-Z0-9])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase()).trim();
 
+/**
+ * Yogur Griego: la pantalla guarda cada cantidad con dos nombres (tarro1L y tarrina1000g, etc.)
+ * y lee primero el del tarro. Se cuenta una sola vez, como masa en kg (igual que su resumen).
+ */
+const GRIEGO_FORMATOS: { claves: string[]; etiqueta: string; kg: number }[] = [
+  { claves: ['tarro1L', 'tarrina1000g'], etiqueta: 'Tarrina / Vaso 1000 g', kg: 1 },
+  { claves: ['tarro500ml', 'tarrina500g'], etiqueta: 'Tarrina / Vaso 500 g', kg: 0.5 },
+  { claves: ['vasito120ml', 'tarrina120g'], etiqueta: 'Tarrina / Vaso 120 g', kg: 0.12 },
+  { claves: ['bolsa4L'], etiqueta: 'Bolsa 4 L', kg: 4 },
+];
+const esGrupoGriego = (groupKey: string) => /^formatos(Sin|Con)Estevia$/.test(groupKey);
+const formatosGriego = (group: Record<string, unknown>) =>
+  GRIEGO_FORMATOS.map((f) => ({
+    ...f,
+    unidades: f.claves.reduce((n, k) => n || Number(group[k]) || 0, 0),
+  })).filter((f) => f.unidades > 0);
+
+/**
+ * Queso Pera: derivaciones Mexicano y Finas Hierbas (sus moldes no están en moldesDesglose).
+ * Mismas reglas que el resumen del lote y el "gran totalizador" de la etapa de moldeo.
+ */
+const derivacionesPera = (batch: any): { nombre: string; gramos: number; unidades: number }[] => {
+  if (batch?.productId !== 'prod-queso-pera') return [];
+  const out: { nombre: string; gramos: number; unidades: number }[] = [];
+  const mex = batch.derivaciones?.mexicano;
+  if (mex?.habilitado) {
+    [100, 200, 350].forEach((g) => {
+      const n = Number(mex[`moldes${g}g`]) || 0;
+      if (n > 0) out.push({ nombre: 'Queso Mexicano', gramos: g, unidades: n });
+    });
+  }
+  const fh = batch.derivaciones?.finasHierbas;
+  if (fh?.habilitado) {
+    if (fh.unidades !== undefined && fh.unidades !== null) {
+      const n = Number(fh.unidades) || 0;
+      if (n > 0) out.push({ nombre: 'Queso Finas Hierbas', gramos: Number(fh.gramosPorUnidad) || 350, unidades: n });
+    } else {
+      [100, 200, 350].forEach((g) => {
+        const n = Number(fh[`moldes${g}g`]) || 0;
+        if (n > 0) out.push({ nombre: 'Queso Finas Hierbas', gramos: g, unidades: n });
+      });
+    }
+  }
+  return out;
+};
+
 const productionDetail = (estadoUi: any): DetalleProduccion[] => {
   const batch = estadoUi?.batch ?? estadoUi;
   const out: DetalleProduccion[] = [];
@@ -700,11 +747,28 @@ const productionDetail = (estadoUi: any): DetalleProduccion[] => {
       if (n > 0) out.push({ categoria: 'Queso en molde', presentacion: `${label} 60 g`, unidades: n, tamano: 0.06, medida: 'kg', total: Math.round(n * 0.06 * 1000) / 1000 });
     });
   }
+  derivacionesPera(batch).forEach((d) => {
+    const kg = d.gramos / 1000;
+    out.push({ categoria: 'Queso en molde', presentacion: `${d.nombre} ${d.gramos} g`, unidades: d.unidades, tamano: kg, medida: 'kg', total: Math.round(d.unidades * kg * 1000) / 1000 });
+  });
 
   const envasado = batch.envasado ?? {};
   Object.entries(envasado as Record<string, unknown>).forEach(([groupKey, group]) => {
     if (!/^formatos/i.test(groupKey) || !group || typeof group !== 'object') return;
     const groupVariant = /ConEstevia$/i.test(groupKey) ? 'Con estevia' : /SinEstevia$/i.test(groupKey) ? 'Sin estevia' : null;
+    if (esGrupoGriego(groupKey)) {
+      formatosGriego(group as Record<string, unknown>).forEach((f) => {
+        out.push({
+          categoria: groupVariant ?? 'Sin estevia',
+          presentacion: f.etiqueta,
+          unidades: f.unidades,
+          tamano: f.kg,
+          medida: 'kg',
+          total: Math.round(f.unidades * f.kg * 1000) / 1000,
+        });
+      });
+      return;
+    }
     Object.entries(group as Record<string, unknown>).forEach(([k, v]) => {
       const n = Number(v) || 0;
       if (n <= 0) return;
@@ -771,14 +835,25 @@ const productionOutcome = (estadoUi: any, lecheLitros: number | null) => {
     Number(moldes.pesoTotalCalculadoKg) ||
     Number(moldes.pesadoTotalHiladoKg) ||
     0;
-  const kgQueso = pesoExplicito > 0 ? pesoExplicito : moldesKg;
-  const unidadesQueso = Number(batch.hilar?.numeroMoldes) || moldesUn;
+  const derPera = derivacionesPera(batch);
+  const derKg = derPera.reduce((acc, d) => acc + (d.unidades * d.gramos) / 1000, 0);
+  const derUn = derPera.reduce((acc, d) => acc + d.unidades, 0);
+  const kgQueso = (pesoExplicito > 0 ? pesoExplicito : moldesKg) + derKg;
+  const unidadesQueso = (Number(batch.hilar?.numeroMoldes) || moldesUn) + derUn;
 
   const envasado = batch.envasado ?? {};
   let unidadesEnv = 0;
   let litrosEnv = 0;
+  let masaGriegoKg = 0;
   Object.entries(envasado as Record<string, unknown>).forEach(([groupKey, group]) => {
     if (!/^formatos/i.test(groupKey) || !group || typeof group !== 'object') return;
+    if (esGrupoGriego(groupKey)) {
+      formatosGriego(group as Record<string, unknown>).forEach((f) => {
+        unidadesEnv += f.unidades;
+        masaGriegoKg += f.unidades * f.kg;
+      });
+      return;
+    }
     Object.entries(group as Record<string, unknown>).forEach(([k, v]) => {
       const n = Number(v) || 0;
       if (n <= 0) return;
@@ -786,11 +861,12 @@ const productionOutcome = (estadoUi: any, lecheLitros: number | null) => {
       litrosEnv += n * formatLiters(k);
     });
   });
-  const kgEnv = Math.round(litrosEnv * 1.03 * 100) / 100;
+  // Yogur y kumis se envasan por volumen (kg = L x 1,03); el griego se envasa por peso (kg directos).
+  const kgEnv = Math.round((litrosEnv * 1.03 + masaGriegoKg) * 100) / 100;
 
   const kg = kgQueso > 0 ? Math.round(kgQueso * 100) / 100 : kgEnv > 0 ? kgEnv : null;
   const unidades = unidadesQueso > 0 ? unidadesQueso : unidadesEnv > 0 ? unidadesEnv : null;
-  const base = kgQueso > 0 ? kgQueso : litrosEnv;
+  const base = kgQueso > 0 ? kgQueso : litrosEnv + masaGriegoKg;
   const rendimiento = leche && base > 0 ? Math.round((base / leche) * 1000) / 10 : null;
   return { kg_producidos: kg, unidades_producidas: unidades, rendimiento_pct: rendimiento };
 };
@@ -929,6 +1005,8 @@ export async function rectifyBatchField(req: Request, res: Response): Promise<vo
         let nc: any = next.batch;
         for (let i = 0; i < keys.length - 1; i += 1) nc = nc[keys[i]];
         nc[last] = newValue;
+        // Recalcula los totales que dependen del conteo corregido (peso y número de moldes, alias del griego).
+        sincronizarTotalesTrasCorreccion(next.batch, String(fieldKey));
         estadoFinal = next;
       }
     }

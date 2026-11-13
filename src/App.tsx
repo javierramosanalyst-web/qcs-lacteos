@@ -674,7 +674,9 @@ export default function App() {
     } catch (err) {
       return err instanceof Error ? err.message : 'No se pudo registrar la corrección.';
     }
-    setViewerDetail({ ...viewerDetail, estado_ui: estado });
+    // Se relee el lote: el servidor recalcula los totales que dependen del valor corregido.
+    const actualizado = await fetchBatchDetail(viewerDetail.id).catch(() => null);
+    setViewerDetail(actualizado?.estado_ui?.batch ? actualizado : { ...viewerDetail, estado_ui: estado });
     void loadCatalogs(userRole, true);
     showToast(`Corrección guardada: ${payload.label} ajustado a ${payload.newValue}.`, 'success');
     return null;
