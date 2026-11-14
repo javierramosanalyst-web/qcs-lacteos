@@ -115,12 +115,18 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[server] API escuchando en http://localhost:${PORT} (CORS: ${allowedOrigins.join(', ')})`);
 });
 
-// HTTPS opcional: si existen backend/certs/server.crt y server.key (ver deploy/COMO-INSTALAR.md),
-// el mismo servidor atiende también por HTTPS (HTTPS_PORT, por defecto 443).
+// HTTPS opcional, APAGADO por defecto: solo se enciende con HTTPS_ENABLED=true en backend/.env y si existen
+// backend/certs/server.crt y server.key (ver deploy/COMO-INSTALAR.md). Con un certificado propio, las tablets
+// Android que no lo tengan instalado ven una pantalla de error; por eso no basta con que existan los archivos.
+// Encendido, el mismo servidor atiende por HTTPS (HTTPS_PORT, por defecto 443) y redirige el puerto 80 a https.
 const certDir = path.resolve(__dirname, '..', 'certs');
 const certFile = process.env.HTTPS_CERT_FILE ?? path.join(certDir, 'server.crt');
 const keyFile = process.env.HTTPS_KEY_FILE ?? path.join(certDir, 'server.key');
-if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
+const httpsActivado = process.env.HTTPS_ENABLED === 'true';
+if (!httpsActivado && fs.existsSync(certFile) && fs.existsSync(keyFile)) {
+  console.log('[server] Hay certificados en backend/certs, pero HTTPS está apagado (HTTPS_ENABLED no es true). Se atiende solo por HTTP.');
+}
+if (httpsActivado && fs.existsSync(certFile) && fs.existsSync(keyFile)) {
   const HTTPS_PORT = Number(process.env.HTTPS_PORT ?? 443);
   https
     .createServer({ cert: fs.readFileSync(certFile), key: fs.readFileSync(keyFile) }, app)

@@ -80,6 +80,8 @@ El archivo `.env` no se sube a git. Cada persona crea el suyo.
 
 En producción el backend queda detrás de nginx (puerto 80, en el mismo PC). En el `.env` del servidor agrega `TRUST_PROXY=loopback`, para que el límite de intentos de login use la IP real de cada tablet. Sin esa línea, todos los equipos de la planta comparten el límite de 30 intentos cada 15 minutos. nginx debe enviar la cabecera `X-Forwarded-For` (`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`).
 
+HTTPS está apagado por defecto: solo se activa con `HTTPS_ENABLED=true` en `backend/.env` (y certificados en `backend/certs`). Antes de activarlo lean `deploy/COMO-INSTALAR.md`: con certificado propio, las tablets Android sin el certificado instalado ven una pantalla de error, y con `COOKIE_SECURE=true` el login solo funciona por HTTPS.
+
 Instala y arranca:
 
 ```powershell
