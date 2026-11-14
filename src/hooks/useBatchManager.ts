@@ -1725,6 +1725,7 @@ export function useBatchManager({ showToast, persistenceEnabled = false, current
       return {
         ...batch,
         id: batchYogurGriego.id,
+        loteDia: batchYogurGriego.loteDia,
         productName: batchYogurGriego.productName,
         productId: batchYogurGriego.productId,
         line: batchYogurGriego.line,
@@ -1736,6 +1737,7 @@ export function useBatchManager({ showToast, persistenceEnabled = false, current
       return {
         ...batch,
         id: batchKumis.id,
+        loteDia: batchKumis.loteDia,
         productName: batchKumis.productName,
         productId: batchKumis.productId,
         line: batchKumis.line,
@@ -1747,6 +1749,7 @@ export function useBatchManager({ showToast, persistenceEnabled = false, current
       return {
         ...batch,
         id: batchYogur.id,
+        loteDia: batchYogur.loteDia,
         productName: batchYogur.productName,
         productId: batchYogur.productId,
         line: batchYogur.line,

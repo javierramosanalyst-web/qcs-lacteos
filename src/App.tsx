@@ -56,6 +56,7 @@ import {
   UserRole,
 } from './types';
 import { setInsumoLotes, setSaboresYogur, useInsumoLotesVersion } from './data/insumoLotes';
+import { loteDeFila, loteVisible } from './utils/lote';
 
 const ACTIVITY_KEY = 'qcs_last_activity';
 const IDLE_LIMIT_MS = 15 * 60 * 1000;
@@ -168,6 +169,14 @@ export default function App() {
     shift: 'Jornada Continua',
   };
 
+  // Historial del panel: lotes iniciados en los últimos N días (hora de Colombia) más los que siguen en proceso.
+  const historyDiasRef = useRef(31);
+  const [historyDias, setHistoryDias] = useState(31);
+  const historyDesde = () => {
+    const d = new Date(Date.now() - (historyDiasRef.current - 1) * 86400000);
+    return d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  };
+
   const loadCatalogs = useCallback(async (role: UserRole, silent = false) => {
     setLoadingData(true);
     try {
@@ -183,7 +192,7 @@ export default function App() {
       if (apiProducts.length > 0) setProducts(apiProducts);
       setUsers(apiUsers);
       if (role === 'administrador') {
-        const [logs, history] = await Promise.all([fetchAuditLogs(), fetchBatchHistory(200)]);
+        const [logs, history] = await Promise.all([fetchAuditLogs(), fetchBatchHistory(500, historyDesde())]);
         setAuditLogs(logs);
         setBatchHistory(history);
       }
@@ -406,7 +415,7 @@ export default function App() {
         delete loteEnProcesoRef.current[activeProductId];
         setLoteCerrado({
           estado: estado.estado,
-          codigo: estado.codigo_lote,
+          codigo: estado.lote_dia || estado.codigo_lote,
           por: estado.finalizado_por,
         });
       } catch {
@@ -455,7 +464,7 @@ export default function App() {
     } else {
       if (user.assignedLineId) setSelectedLineId(user.assignedLineId);
       setCurrentView('operator_line_select');
-      showToast(`¡Bienvenido ${user.name}! Turno ${user.shift || 'Jornada Continua'}.`, 'success');
+      showToast(`¡Bienvenido ${user.name}!`, 'success');
     }
   };
 
@@ -638,7 +647,7 @@ export default function App() {
     } catch (err) {
       return err instanceof Error ? err.message : 'No se pudo anular el lote.';
     }
-    showToast(`Lote ${row.codigo_lote} anulado.`, 'success');
+    showToast(`Lote ${loteDeFila(row)} anulado.`, 'success');
     await loadCatalogs(userRole, true);
     return null;
   };
@@ -673,7 +682,9 @@ export default function App() {
     } catch (err) {
       return err instanceof Error ? err.message : 'No se pudo registrar la corrección.';
     }
-    setViewerDetail({ ...viewerDetail, estado_ui: estado });
+    // Se relee el lote: el servidor recalcula los totales que dependen del valor corregido.
+    const actualizado = await fetchBatchDetail(viewerDetail.id).catch(() => null);
+    setViewerDetail(actualizado?.estado_ui?.batch ? actualizado : { ...viewerDetail, estado_ui: estado });
     void loadCatalogs(userRole, true);
     showToast(`Corrección guardada: ${payload.label} ajustado a ${payload.newValue}.`, 'success');
     return null;
@@ -786,6 +797,12 @@ export default function App() {
           onViewBatchDetail={handleViewBatchDetail}
           onCorrectBatchDetail={handleCorrectBatchDetail}
           onAnnulBatch={handleAnnulBatch}
+          historyDias={historyDias}
+          onLoadMoreHistory={() => {
+            historyDiasRef.current += 30;
+            setHistoryDias(historyDiasRef.current);
+            void loadCatalogs(userRole, true);
+          }}
         />
       )}
 
@@ -795,6 +812,7 @@ export default function App() {
           products={products}
           currentUser={activeUser}
           activeBatchId={activeHeaderBatch.id}
+          activeLoteVisible={loteVisible(activeHeaderBatch)}
           activeBatchStatus={activeHeaderBatch.status}
           openDrafts={openDrafts}
           onSelectLine={handleSelectLine}
@@ -930,7 +948,7 @@ export default function App() {
         <YogurSummaryModal
           isOpen={viewerOpen}
           onClose={() => setViewerOpen(false)}
-          batch={{ ...viewerDetail.estado_ui.batch, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
+          batch={{ ...viewerDetail.estado_ui.batch, loteDia: viewerDetail.lote_dia ?? viewerDetail.estado_ui.batch.loteDia, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
           users={users}
         />
       )}
@@ -938,7 +956,7 @@ export default function App() {
         <KumisSummaryModal
           isOpen={viewerOpen}
           onClose={() => setViewerOpen(false)}
-          batch={{ ...viewerDetail.estado_ui.batch, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
+          batch={{ ...viewerDetail.estado_ui.batch, loteDia: viewerDetail.lote_dia ?? viewerDetail.estado_ui.batch.loteDia, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
           users={users}
         />
       )}
@@ -946,7 +964,7 @@ export default function App() {
         <YogurGriegoSummaryModal
           isOpen={viewerOpen}
           onClose={() => setViewerOpen(false)}
-          batch={{ ...viewerDetail.estado_ui.batch, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
+          batch={{ ...viewerDetail.estado_ui.batch, loteDia: viewerDetail.lote_dia ?? viewerDetail.estado_ui.batch.loteDia, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
           users={users}
         />
       )}
@@ -955,7 +973,7 @@ export default function App() {
           <BatchSummaryModal
             isOpen={viewerOpen}
             onClose={() => setViewerOpen(false)}
-            batch={{ ...viewerDetail.estado_ui.batch, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
+            batch={{ ...viewerDetail.estado_ui.batch, loteDia: viewerDetail.lote_dia ?? viewerDetail.estado_ui.batch.loteDia, status: viewerDetail.estado === 'COMPLETADO' ? 'COMPLETADO' : viewerDetail.estado_ui.batch.status }}
             users={users}
           />
         )}
@@ -964,7 +982,7 @@ export default function App() {
         isOpen={viewerCorrectOpen}
         onClose={() => setViewerCorrectOpen(false)}
         batch={viewerDetail?.estado_ui?.batch ?? {}}
-        title={viewerDetail ? `Lote ${viewerDetail.codigo_lote} · ${viewerDetail.producto_nombre}` : ''}
+        title={viewerDetail ? `Lote ${loteDeFila(viewerDetail)} · ${viewerDetail.producto_nombre}` : ''}
         adminName={activeUser.name}
         productId={viewerDetail?.producto_ui_id}
         onApply={handleApplyViewerCorrection}

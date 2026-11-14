@@ -230,6 +230,7 @@ CREATE TABLE lote_padre_recepcion (
 CREATE TABLE lotes_produccion (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     codigo_lote VARCHAR(50) UNIQUE NOT NULL,
+    lote_dia VARCHAR(5),                -- Lote visible por día en letras (DD+M+AA); lo asigna el backend
     lote_padre_id UUID REFERENCES lotes_padre(id) ON DELETE RESTRICT,       -- leche de origen (NULL en quesos directos)
     lote_origen_id UUID REFERENCES lotes_produccion(id) ON DELETE RESTRICT, -- lote del que se desvió el volumen (Kumis/Griego desde Yogur)
     producto_id UUID NOT NULL REFERENCES productos(id) ON DELETE RESTRICT,

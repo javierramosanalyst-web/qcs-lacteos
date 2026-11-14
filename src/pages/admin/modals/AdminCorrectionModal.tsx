@@ -276,7 +276,7 @@ export const AdminCorrectionModal: React.FC<AdminCorrectionModalProps> = ({
       maxWidth="2xl"
       icon="admin_panel_settings"
       title="Corrección Justificada de Dato en Proceso"
-      subtitle={`Lote: ${batch.id} · ${batch.line} · Operador: ${batch.operator}`}
+      subtitle={`Lote: ${batch.loteDia || batch.id} · ${batch.line} · Operador: ${batch.operator}`}
       badge={
         <span className="text-[10px] font-bold uppercase tracking-widest text-red-800 bg-red-100 px-2.5 py-0.5 rounded-full border border-red-300">
           Modo Auditoría · Nivel Administrador

@@ -6,8 +6,10 @@ rem  Doble clic en este archivo y se crea el acceso directo
 rem  "Lacteos Colombia" en el escritorio. Al abrirlo, el sistema se ve
 rem  como una aplicación propia, SIN barra de direcciones ni la IP.
 rem  Si la IP del servidor cambia en la planta, edita solo la línea URL.
+rem  Se entra por HTTP y con la IP (nginx en el puerto 80). Usa https:// o
+rem  el nombre .local solo si se activó HTTPS (ver COMO-INSTALAR.md).
 rem =====================================================================
-set "URL=https://lacteoscolombia.local"
+set "URL=http://192.168.18.10"
 
 set "BROWSER="
 if exist "%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe" set "BROWSER=%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"

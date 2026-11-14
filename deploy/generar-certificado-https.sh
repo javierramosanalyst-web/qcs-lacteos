@@ -44,6 +44,8 @@ echo "  sudo setcap 'cap_net_bind_service=+ep' $NODE_BIN"
 echo "Si usas el firewall de Ubuntu:"
 echo "  sudo ufw allow 443/tcp"
 echo
+echo "HTTPS sigue APAGADO hasta que pongas en backend/.env:  HTTPS_ENABLED=true  y  COOKIE_SECURE=true"
+echo "(y apagues nginx si ocupa el puerto 80). Antes, lee las advertencias de deploy/COMO-INSTALAR.md."
 echo "Luego reinicia el backend y abre https://$IP desde el celular."
 echo "Para el celular Android copia lacteos-ca.crt (nunca los .key), por ejemplo desde tu PC:"
 echo "  scp USUARIO@$IP:$DIR/lacteos-ca.crt ."

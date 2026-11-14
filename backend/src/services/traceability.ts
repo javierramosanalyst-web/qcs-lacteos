@@ -18,6 +18,33 @@ const isFerm = (b: Json): boolean => ['prod-yogur', 'prod-kumis', 'prod-yogur-gr
 const isGriego = (b: Json): boolean => b.productId === 'prod-yogur-griego';
 const baseDateStore = new AsyncLocalStorage<Date>();
 
+/**
+ * Varias horas de los fermentados se guardan solo como "HH:MM" (sin fecha). Para ubicarlas en el día
+ * correcto cuando el proceso pasa la medianoche (incubación nocturna, griego de 2 días), se lleva un
+ * cursor con la última hora del proceso: una hora más de 3 h "antes" del cursor es del día siguiente.
+ * Los datos se recorren en el orden del proceso; el cursor arranca en la creación del lote.
+ */
+const cursores = new WeakMap<Date, { t: number }>();
+const TRES_HORAS = 3 * 3600 * 1000;
+const UN_DIA = 24 * 3600 * 1000;
+
+const cursorActual = (): { t: number } => {
+  const base = baseDateStore.getStore();
+  if (!base) return { t: Date.now() };
+  let c = cursores.get(base);
+  if (!c) {
+    c = { t: base.getTime() };
+    cursores.set(base, c);
+  }
+  return c;
+};
+
+/** Vuelve el cursor al inicio del lote (cada recorrido -pasos, mediciones, insumos- empieza de cero). */
+const reiniciarCursor = (): void => {
+  const base = baseDateStore.getStore();
+  if (base) cursores.set(base, { t: base.getTime() });
+};
+
 const horaTs = (v: unknown): number | null => {
   if (typeof v !== 'string') return null;
   const m = v.trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap]m)?$/i);
@@ -26,12 +53,25 @@ const horaTs = (v: unknown): number | null => {
   const ap = m[4]?.toLowerCase();
   if (ap === 'pm' && h < 12) h += 12;
   if (ap === 'am' && h === 12) h = 0;
-  const d = new Date(baseDateStore.getStore() ?? Date.now());
+  const c = cursorActual();
+  const d = new Date(c.t);
   d.setHours(h, Number(m[2]), Number(m[3] ?? 0), 0);
-  return d.getTime();
+  let t = d.getTime();
+  if (t < c.t - TRES_HORAS) t += UN_DIA; // pasó la medianoche
+  else if (t > c.t + UN_DIA - TRES_HORAS) t -= UN_DIA; // hora de antes de la medianoche, registrada tarde
+  c.t = Math.max(c.t, t);
+  return t;
 };
 
-const anyTs = (v: unknown): number | null => (typeof v === 'string' ? horaTs(v) : num(v));
+const anyTs = (v: unknown): number | null => {
+  if (typeof v === 'string') return horaTs(v);
+  const n = num(v);
+  if (n !== null && n > 1_000_000_000_000) {
+    const c = cursorActual();
+    c.t = Math.max(c.t, n);
+  }
+  return n;
+};
 
 const is7C = (b: Json): boolean => b.productId === 'prod-queso-7-cueros';
 const isIndustrial = (b: Json): boolean => b.productId === 'prod-doble-crema-industrial';
@@ -95,6 +135,7 @@ function collectHitosPera(b: Json, add: (etapa: string, codigo: string, inicio: 
 }
 
 function collectHitosFerm(b: Json): Hito[] {
+  reiniciarCursor();
   const out: Hito[] = [];
   const add = (etapa: string, codigo: string, inicio: unknown, fin: unknown, duracion: unknown, manual: unknown) => {
     const i = anyTs(inicio);
@@ -203,6 +244,7 @@ function collectHitos(b: Json): Hito[] {
 }
 
 function collectMedicionesFerm(b: Json): Medicion[] {
+  reiniciarCursor();
   const out: Medicion[] = [];
   const add = (etapa: string, parametro: string, valor: unknown, manual: unknown, at: unknown) => {
     const v = num(valor);
@@ -220,8 +262,8 @@ function collectMedicionesFerm(b: Json): Medicion[] {
   add('calentar-y-cuajar', 'temperatura_incubacion', i.incubacion?.temperaturaCamara ?? i.incubacion?.temperaturaIncubacion, i.incubacion?.esManual, i.incubacion?.horaInicio);
   add('calentar-y-cuajar', 'ph_final_incubacion', i.incubacion?.phFinalIncubacion, i.incubacion?.esManual, i.incubacion?.horaFin);
   const m = b.maduracionFrio?.refrigeracion ?? {};
-  add('desuerar', 'ph_fin_reposo', m.iniciada || m.completada ? m.phFinalFrio : null, m.esManual, m.horaFin);
   add('desuerar', 'temperatura_cuarto_frio', m.iniciada || m.completada ? m.temperaturaCuartoFrio : null, m.esManual, m.horaInicio);
+  add('desuerar', 'ph_fin_reposo', m.iniciada || m.completada ? m.phFinalFrio : null, m.esManual, m.horaFin);
   const g = b.maduracionYFiltrado ?? {};
   add('desuerar', 'temperatura_cuarto_frio', g.cuartoFrio?.iniciado ? g.cuartoFrio?.temperatura : null, false, g.cuartoFrio?.horaInicio);
   const bt = b.batidoYAdiciones ?? {};
@@ -278,6 +320,7 @@ function collectMediciones(b: Json): Medicion[] {
 }
 
 function collectInsumosFerm(b: Json): Insumo[] {
+  reiniciarCursor();
   const out: Insumo[] = [];
   const add = (etapa: string, tipo: string, nombre: string, codigo: unknown, unidad: string, cantidad: unknown, manual: unknown, at: unknown) => {
     const q = num(cantidad);

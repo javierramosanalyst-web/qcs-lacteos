@@ -128,7 +128,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                       setPassword(e.target.value);
                       setErrorMsg('');
                     }}
-                    placeholder="••••"
+                    placeholder="•••"
                     className={inputClass}
                   />
                 </div>

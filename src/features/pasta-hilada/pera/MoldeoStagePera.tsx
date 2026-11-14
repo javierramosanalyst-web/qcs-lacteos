@@ -8,6 +8,7 @@ import {
   Button,
   Badge,
 } from '../../../components/ui';
+import { loteVisible } from '../../../utils/lote';
 
 interface MoldeoStagePeraProps {
   batch: BatchData;
@@ -428,6 +429,7 @@ export const MoldeoStagePera: React.FC<MoldeoStagePeraProps> = ({
       ========================================================================= */}
       <DerivacionesPastaResultante
         batchId={batch.id}
+        loteVisible={loteVisible(batch)}
         derivaciones={batch.derivaciones}
         onChange={(derivs) => {
           if (onUpdateBatch) {

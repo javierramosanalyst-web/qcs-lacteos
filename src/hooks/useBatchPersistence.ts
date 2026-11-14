@@ -310,6 +310,7 @@ export function useBatchPersistence({
           if (initial || (d.version > local && !dirty && !inflight.current[d.producto_ui_id])) {
             const estado = d.estado?.batch ? d.estado : { batch: d.estado };
             if (d.codigo_lote) estado.batch = { ...estado.batch, id: d.codigo_lote };
+            if (d.lote_dia) estado.batch = { ...estado.batch, loteDia: d.lote_dia };
             adopt(d.producto_ui_id, estado, d.version);
             if (initial) restoreBackup(d.producto_ui_id);
           }
@@ -460,15 +461,22 @@ export function useBatchPersistence({
         if (readBackup(pid)?.sig === sig || res.completed) clearBackup(pid);
         errorNotified.current = false;
         setSyncStatus('saved');
-        if (res.codigo_lote && b.id !== res.codigo_lote) {
+        // El servidor asigna el código interno (id) y el lote visible por día (loteDia).
+        const nuevoId = Boolean(res.codigo_lote) && b.id !== res.codigo_lote;
+        const nuevaLetra = Boolean(res.lote_dia) && b.loteDia !== res.lote_dia;
+        if (nuevoId || nuevaLetra) {
+          const asignado = {
+            ...(res.codigo_lote ? { id: res.codigo_lote } : {}),
+            ...(res.lote_dia ? { loteDia: res.lote_dia } : {}),
+          };
           if (!res.completed) {
-            lastSaved.current[pid] = signature({ ...b, id: res.codigo_lote }, stage);
+            lastSaved.current[pid] = signature({ ...b, ...asignado }, stage);
           }
-          p.setState((prev: AnyBatch) => ({ ...prev, id: res.codigo_lote }));
+          p.setState((prev: AnyBatch) => ({ ...prev, ...asignado }));
         }
         if (res.completed) {
           completed.current[pid] = true;
-          showToast(`✓ Lote ${res.codigo_lote ?? ''} cerrado y guardado en la base de datos.`, 'success');
+          showToast(`✓ Lote ${res.lote_dia || res.codigo_lote || ''} cerrado y guardado en la base de datos.`, 'success');
         }
       } catch (e) {
         const err = e as ApiError;
@@ -476,7 +484,7 @@ export function useBatchPersistence({
           completed.current[pid] = true;
           setSyncStatus('saved');
           showToast(
-            `El lote ${err.body?.codigo_lote ?? ''} ya fue cerrado en otra sesión. No se guardaron más cambios.`,
+            `El lote ${err.body?.lote_dia || err.body?.codigo_lote || ''} ya fue cerrado en otra sesión. No se guardaron más cambios.`,
             'warning'
           );
         } else if (err.status === 422 && err.body?.error === 'SIN_UNIDADES') {
@@ -487,6 +495,7 @@ export function useBatchPersistence({
           const cur = err.body.current;
           const estado = cur.estado?.batch ? cur.estado : { batch: cur.estado };
           if (cur.codigo_lote) estado.batch = { ...estado.batch, id: cur.codigo_lote };
+          if (cur.lote_dia) estado.batch = { ...estado.batch, loteDia: cur.lote_dia };
           adopt(pid, estado, cur.version);
           showToast('Otro usuario actualizó este lote. Se cargaron los datos más recientes.', 'warning');
           setSyncStatus('saved');

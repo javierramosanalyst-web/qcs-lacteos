@@ -5,6 +5,7 @@ import {
   ProductionSummaryModal,
   SummaryMetricsRow,
 } from '../../../components/shared/ProductionSummaryModal';
+import { loteVisible } from '../../../utils/lote';
 
 interface KumisSummaryModalProps {
   batch: KumisBatchData;
@@ -107,6 +108,7 @@ export const KumisSummaryModal: React.FC<KumisSummaryModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       batchId={batch.id}
+      loteVisible={loteVisible(batch)}
       productName={batch.productName || 'Kumis Tradicional'}
       productBadge={hasAzucar ? 'Kumis con Azúcar' : 'Kumis sin Azúcar'}
       standard={batch.standard || 'NTC-805'}

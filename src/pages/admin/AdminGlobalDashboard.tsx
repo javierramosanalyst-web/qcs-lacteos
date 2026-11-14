@@ -12,6 +12,7 @@ import {
 } from '../../api/client';
 import { InsumosManager } from './InsumosManager';
 import { ExportCenter } from './ExportCenter';
+import { loteDeFila } from '../../utils/lote';
 
 interface AdminGlobalDashboardProps {
   lines: ProductionLine[];
@@ -35,6 +36,9 @@ interface AdminGlobalDashboardProps {
   onViewBatchDetail: (row: BatchHistoryRow) => void;
   onCorrectBatchDetail: (row: BatchHistoryRow) => void;
   onAnnulBatch: (row: BatchHistoryRow, justification: string) => Promise<string | null>;
+  /** Días de historial cargados (lotes iniciados desde hace N días, más los que siguen en proceso). */
+  historyDias?: number;
+  onLoadMoreHistory?: () => void;
 }
 
 const STATUS_LABEL: Record<ProductionLine['status'], string> = {
@@ -58,14 +62,33 @@ const formatDuration = (sec: number | null): string => {
   return `${h}h ${String(m).padStart(2, '0')}m`;
 };
 
-const formatDate = (iso: string | null): string =>
-  iso ? new Date(iso).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+const TZ = 'America/Bogota';
 
-const isToday = (iso: string | null) => {
-  if (!iso) return false;
-  const d = new Date(iso);
-  const n = new Date();
-  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate();
+const formatDate = (iso: string | null): string =>
+  iso ? new Date(iso).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short', timeZone: TZ }) : '—';
+
+/** Día (AAAA-MM-DD) en hora de Colombia. */
+const diaColombia = (d: Date): string => d.toLocaleDateString('en-CA', { timeZone: TZ });
+
+const isToday = (iso: string | null) => Boolean(iso) && diaColombia(new Date(iso as string)) === diaColombia(new Date());
+
+/** "Hoy", "Ayer" o "lunes 10 de noviembre" para el encabezado de cada día del historial. */
+const etiquetaDia = (dia: string): string => {
+  if (!dia) return 'Sin fecha';
+  const hoy = diaColombia(new Date());
+  const ayer = diaColombia(new Date(Date.now() - 86400000));
+  if (dia === hoy) return 'Hoy';
+  if (dia === ayer) return 'Ayer';
+  return new Date(`${dia}T12:00:00Z`).toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+};
+
+const fmtNum = (v: number | null | undefined, dec = 2) =>
+  v === null || v === undefined ? '—' : v.toLocaleString('es-CO', { maximumFractionDigits: dec });
+
+/** Producido de un lote en texto corto: "8 kg · 15 und". */
+const producidoTexto = (h: BatchHistoryRow): string => {
+  if (h.estado !== 'COMPLETADO' || h.kg_producidos === null || h.kg_producidos === undefined) return '—';
+  return `${fmtNum(h.kg_producidos)} kg${h.unidades_producidas ? ` · ${fmtNum(h.unidades_producidas, 0)} und` : ''}`;
 };
 
 const card = 'bg-white rounded-2xl border border-[#D6DEEA] shadow-xs';
@@ -92,7 +115,7 @@ const dayKey = (iso: string | null): string => {
   if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return diaColombia(d);
 };
 
 const ADMIN_TABS: { key: AdminTab; label: string; icon: string }[] = [
@@ -125,6 +148,8 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
   onViewBatchDetail,
   onCorrectBatchDetail,
   onAnnulBatch,
+  historyDias = 31,
+  onLoadMoreHistory,
 }) => {
   const [tab, setTab] = useState<AdminTab>('produccion');
   const [annulTarget, setAnnulTarget] = useState<BatchHistoryRow | null>(null);
@@ -169,10 +194,11 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
     void loadInactive();
   }, [loadInactive, users.length, lines.length]);
 
-  const reactivate = async (kind: 'user' | 'line', key: string) => {
+  const reactivate = async (kind: 'user' | 'line', key: string, role?: UserProfile['role']) => {
     try {
       if (kind === 'user') {
-        const pin = window.prompt('Defina un PIN nuevo (4 a 8 digitos) para el usuario reactivado:');
+        const pinMin = role === 'administrador' ? 4 : 3;
+        const pin = window.prompt(`Defina un PIN nuevo (${pinMin} a 8 dígitos) para el usuario reactivado:`);
         if (pin === null) return;
         await reactivateUserRequest(key, pin.trim());
       } else await reactivateLineRequest(key);
@@ -202,13 +228,18 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
   const clearColFilters = () => setColFilters({});
 
   // Opciones de los desplegables de Lote, Producto y Responsable
-  const loteOptions = useMemo(
-    () =>
-      [...new Set(activeHistory.map((h) => h.codigo_lote).filter(Boolean))].sort((a, b) =>
-        a.localeCompare(b, 'es', { numeric: true }),
-      ),
-    [activeHistory],
-  );
+  // Lote visible por día: al elegir uno salen todos los productos que arrancaron ese día.
+  // Se ordenan del día más reciente al más antiguo.
+  const loteOptions = useMemo(() => {
+    const fechaPorLote = new Map<string, number>();
+    activeHistory.forEach((h) => {
+      const lote = loteDeFila(h);
+      if (!lote) return;
+      const t = h.iniciado_at ? new Date(h.iniciado_at).getTime() : 0;
+      fechaPorLote.set(lote, Math.max(fechaPorLote.get(lote) ?? 0, t));
+    });
+    return [...fechaPorLote.entries()].sort((a, b) => b[1] - a[1]).map(([lote]) => lote);
+  }, [activeHistory]);
   const productoOptions = useMemo(
     () =>
       [...new Set(activeHistory.map((h) => h.producto_nombre).filter(Boolean))].sort((a, b) =>
@@ -235,7 +266,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
 
   const visibleHistory = useMemo(() => {
     const rows = filteredHistory.filter((h) => {
-      if (colFilters.lote && h.codigo_lote !== colFilters.lote) return false;
+      if (colFilters.lote && loteDeFila(h) !== colFilters.lote) return false;
       if (colFilters.producto && h.producto_nombre !== colFilters.producto) return false;
       if (colFilters.responsable && h.responsable_nombre !== colFilters.responsable) return false;
       if (colFilters.leche) {
@@ -261,6 +292,8 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
           return h.duracion_total_segundos ?? -1;
         case 'estado':
           return h.estado;
+        case 'codigo_lote':
+          return normText(loteDeFila(h));
         default:
           return normText(h[sortKey]);
       }
@@ -276,6 +309,51 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
       return sortDir === 'asc' ? cmp : -cmp;
     });
   }, [filteredHistory, colFilters, sortKey, sortDir]);
+
+  // Historial agrupado por día de inicio (cuando se ordena por fecha de inicio).
+  const grupos = useMemo(() => {
+    if (sortKey !== 'iniciado_at') return [{ dia: '', filas: visibleHistory }];
+    const out: { dia: string; filas: BatchHistoryRow[] }[] = [];
+    visibleHistory.forEach((h) => {
+      const dia = dayKey(h.iniciado_at);
+      const ultimo = out[out.length - 1];
+      if (ultimo && ultimo.dia === dia) ultimo.filas.push(h);
+      else out.push({ dia, filas: [h] });
+    });
+    return out;
+  }, [visibleHistory, sortKey]);
+  // Los 3 días más recientes empiezan abiertos; el resto, cerrado.
+  const [diasAbiertos, setDiasAbiertos] = useState<Record<string, boolean>>({});
+  const diaAbierto = (dia: string, i: number) => diasAbiertos[dia] ?? i < 3;
+  const alternarDia = (dia: string, i: number) => setDiasAbiertos((m) => ({ ...m, [dia]: !diaAbierto(dia, i) }));
+  const resumenDia = (filas: BatchHistoryRow[]) => {
+    const ok = filas.filter((h) => h.estado === 'COMPLETADO');
+    const kg = ok.reduce((a, h) => a + (h.kg_producidos ?? 0), 0);
+    const enProceso = filas.length - ok.length;
+    return `${filas.length} lote${filas.length === 1 ? '' : 's'}${enProceso ? ` (${enProceso} en proceso)` : ''} · ${fmtNum(kg)} kg producidos`;
+  };
+
+  // Producción de hoy: lotes iniciados hoy (hora de Colombia), por producto.
+  const produccionHoy = useMemo(() => {
+    const hoy = history.filter((h) => h.estado !== 'ANULADO' && isToday(h.iniciado_at));
+    const porProducto = new Map<string, BatchHistoryRow[]>();
+    hoy.forEach((h) => porProducto.set(h.producto_nombre, [...(porProducto.get(h.producto_nombre) ?? []), h]));
+    return [...porProducto.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], 'es'))
+      .map(([producto, ls]) => {
+        const ok = ls.filter((h) => h.estado === 'COMPLETADO');
+        const rend = ok.map((h) => h.rendimiento_pct).filter((v): v is number => typeof v === 'number' && v > 0);
+        return {
+          producto,
+          completados: ok.length,
+          enProceso: ls.length - ok.length,
+          leche: ok.reduce((a, h) => a + (Number(h.volumen_leche_base_litros) || 0), 0),
+          kg: ok.reduce((a, h) => a + (h.kg_producidos ?? 0), 0),
+          unidades: ok.reduce((a, h) => a + (h.unidades_producidas ?? 0), 0),
+          rend: rend.length ? rend.reduce((a, b) => a + b, 0) / rend.length : null,
+        };
+      });
+  }, [history]);
 
   const sortIcon = (key: HistorySortKey) =>
     sortKey === key ? (sortDir === 'asc' ? 'arrow_upward' : 'arrow_downward') : 'unfold_more';
@@ -301,7 +379,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
 
   return (
     <div className="flex flex-col w-full p-4 lg:p-6 gap-6 bg-[#F2F4F7] min-h-[calc(100vh-4rem)] pb-12">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 lg:p-6 rounded-2xl shadow-sm bg-gradient-to-r from-[#1B4E9B] to-[#143A73] text-white">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 p-4 sm:p-5 lg:p-6 rounded-2xl shadow-sm bg-gradient-to-r from-[#1B4E9B] to-[#143A73] text-white">
         <div className="flex items-center gap-4">
           <img src="/brand/logo-lc.jpg" alt="Lácteos Colombia" className="hidden sm:block w-16 h-16 rounded-2xl object-cover ring-2 ring-white/30" />
           <div>
@@ -309,13 +387,13 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
               <span className="w-2 h-2 rounded-full bg-[#8CC63F] animate-pulse"></span>
               Panel de Supervisión · {currentUser.name}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold mt-0.5">Dashboard Global de Planta</h1>
-            <p className="text-xs text-white/80 mt-1">
+            <h1 className="text-xl sm:text-3xl font-extrabold mt-0.5">Dashboard Global de Planta</h1>
+            <p className="hidden sm:block text-xs text-white/80 mt-1">
               Líneas de producción, lotes en curso, historial, usuarios y rectificaciones auditadas.
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-2.5">
           <button
             onClick={onRefresh}
             className="px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/30 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
@@ -367,12 +445,12 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-2 bg-white rounded-2xl border border-[#D6DEEA] shadow-xs p-1.5 sticky top-16 z-20">
+      <div className="flex flex-nowrap overflow-x-auto sm:flex-wrap gap-2 bg-white rounded-2xl border border-[#D6DEEA] shadow-xs p-1.5 sticky top-16 z-20">
         {ADMIN_TABS.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 h-9 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+            className={`shrink-0 px-4 h-9 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
               tab === t.key ? 'bg-[#1B4E9B] text-white shadow-sm' : 'text-gray-600 hover:bg-[#F2F4F7]'
             }`}
           >
@@ -387,6 +465,48 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
 
       {tab === 'produccion' && (
         <>
+        <div className={`${card} p-4 sm:p-5 flex flex-col gap-3`}>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#D6DEEA] pb-3">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#5FAF32] text-[20px]">today</span>
+              <h3 className="text-sm font-bold text-gray-900">Producción de hoy</h3>
+            </div>
+            <span className="text-[10px] text-gray-500">Lotes iniciados hoy · kg, unidades y rendimiento de los completados</span>
+          </div>
+          {produccionHoy.length === 0 ? (
+            <p className="text-xs text-gray-400 py-2">Hoy aún no se ha iniciado ningún lote.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+              {produccionHoy.map((p) => (
+                <div key={p.producto} className="rounded-xl border border-[#D6DEEA] bg-[#F7F9FC] p-3 flex flex-col gap-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-xs font-black text-gray-900 break-words">{p.producto}</span>
+                    <span className="shrink-0 text-[10px] font-bold text-gray-600">
+                      {p.completados} completado{p.completados === 1 ? '' : 's'}
+                      {p.enProceso > 0 && <span className="text-[#1B4E9B]"> · {p.enProceso} en proceso</span>}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-[9px] uppercase font-bold text-gray-500">Producido</div>
+                      <div className="text-sm font-black text-[#143A73] font-mono">{p.completados ? `${fmtNum(p.kg)} kg` : '—'}</div>
+                      {p.unidades > 0 && <div className="text-[10px] text-gray-500">{fmtNum(p.unidades, 0)} und</div>}
+                    </div>
+                    <div>
+                      <div className="text-[9px] uppercase font-bold text-gray-500">Leche</div>
+                      <div className="text-sm font-black text-gray-800 font-mono">{p.completados ? `${fmtNum(p.leche, 0)} L` : '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-[9px] uppercase font-bold text-gray-500">Rendimiento</div>
+                      <div className="text-sm font-black text-[#3F7F1E] font-mono">{p.rend === null ? '—' : `${fmtNum(p.rend, 1)} %`}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-col gap-4">
           <h2 className="text-lg font-extrabold text-[#143A73] flex items-center gap-2">
             <span className="material-symbols-outlined text-[#1B4E9B]">factory</span>
@@ -432,7 +552,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                         className="text-left p-2.5 rounded-xl bg-[#1B4E9B]/5 border border-[#1B4E9B]/20 hover:bg-[#1B4E9B]/10 text-xs flex items-center justify-between gap-2 cursor-pointer"
                       >
                         <span>
-                          <span className="font-mono font-bold text-[#1B4E9B]">{h.codigo_lote}</span>
+                          <span className="font-mono font-bold text-[#1B4E9B]">{loteDeFila(h)}</span>
                           <span className="text-gray-600"> · {h.producto_nombre}</span>
                         </span>
                         <span className="text-[10px] text-gray-500">{h.responsable_nombre}</span>
@@ -622,13 +742,30 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                     : 'Aún no hay lotes registrados.'}
               </p>
             )}
-            {visibleHistory.map((h) => {
+            {grupos.map((g, gi) => (
+              <div key={g.dia || 'todos'} className="flex flex-col gap-2">
+                {g.dia && (
+                <button
+                  type="button"
+                  onClick={() => alternarDia(g.dia, gi)}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#F2F4F7] border border-[#D6DEEA] text-left cursor-pointer hover:bg-[#EAF2FF]"
+                >
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <span className="material-symbols-outlined text-[18px] text-[#1B4E9B]">{diaAbierto(g.dia, gi) ? 'expand_more' : 'chevron_right'}</span>
+                    <span className="text-xs font-black text-[#143A73] first-letter:uppercase">{etiquetaDia(g.dia)}</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-gray-600 text-right">{resumenDia(g.filas)}</span>
+                </button>
+                )}
+                {(!g.dia || diaAbierto(g.dia, gi)) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {g.filas.map((h) => {
               const productUiId = productUiIdFromCode(h.producto_codigo);
               const isCheese = products.find((p) => p.id === productUiId)?.lineType === 'pasta_hilada';
               return (
                 <div key={h.id} className="rounded-xl border border-[#D6DEEA] bg-white p-3 flex flex-col gap-2">
                   <div className="flex items-start justify-between gap-2">
-                    <span className="font-mono font-bold text-[11px] text-[#1B4E9B] break-all">{h.codigo_lote}</span>
+                    <span className="font-mono font-bold text-[11px] text-[#1B4E9B] break-all">{loteDeFila(h)}</span>
                     <span
                       className={`shrink-0 px-2 py-0.5 rounded-full text-[9px] font-bold border ${
                         h.estado === 'COMPLETADO'
@@ -654,6 +791,12 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                     <span className="text-right text-gray-800">{formatDate(h.finalizado_at)}</span>
                     <span className="text-gray-500">Duración</span>
                     <span className="text-right font-mono text-gray-800">{formatDuration(h.duracion_total_segundos)}</span>
+                    <span className="text-gray-500">Producido</span>
+                    <span className="text-right font-mono text-gray-800">{producidoTexto(h)}</span>
+                    <span className="text-gray-500">Rendimiento</span>
+                    <span className="text-right font-mono text-gray-800">
+                      {h.estado === 'COMPLETADO' && h.rendimiento_pct !== null && h.rendimiento_pct !== undefined ? `${fmtNum(h.rendimiento_pct, 1)} %` : '—'}
+                    </span>
                   </div>
                   {h.rectificaciones > 0 && (
                     <span className="text-[10px] text-amber-700 font-bold">{h.rectificaciones} rectificación(es)</span>
@@ -703,21 +846,27 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                 </div>
               );
             })}
+                </div>
+                )}
+              </div>
+            ))}
           </div>
 
           <div className="hidden lg:block overflow-x-auto">
-            <table className="w-full min-w-[860px] text-xs">
+            <table className="w-full min-w-[1080px] text-xs">
               <thead>
                 <tr className="text-left text-[10px] uppercase text-gray-500 border-b border-[#D6DEEA]">
                   <th className="py-2 pr-3">{sortHeader('Lote', 'codigo_lote')}</th>
                   <th className="py-2 pr-3">{sortHeader('Producto', 'producto_nombre')}</th>
                   <th className="py-2 pr-3">{sortHeader('Responsable', 'responsable_nombre')}</th>
                   <th className="py-2 pr-3">{sortHeader('Leche (L)', 'volumen', 'right')}</th>
+                  <th className="py-2 pr-3 text-right text-[10px] font-bold uppercase text-gray-500">Producido</th>
+                  <th className="py-2 pr-3 text-right text-[10px] font-bold uppercase text-gray-500">Rend.</th>
                   <th className="py-2 pr-3">{sortHeader('Inicio', 'iniciado_at')}</th>
                   <th className="py-2 pr-3">{sortHeader('Fin', 'finalizado_at')}</th>
                   <th className="py-2 pr-3">{sortHeader('Duración', 'duracion')}</th>
                   <th className="py-2 pr-3">{sortHeader('Estado', 'estado')}</th>
-                  <th className="py-2"></th>
+                  <th className="py-2 sticky right-0 bg-white"></th>
                 </tr>
                 <tr className="align-top border-b border-[#D6DEEA]">
                   <th className="pb-2 pr-3 font-normal">
@@ -775,6 +924,8 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                       aria-label="Filtrar por litros de leche"
                     />
                   </th>
+                  <th className="pb-2 pr-3"></th>
+                  <th className="pb-2 pr-3"></th>
                   <th className="pb-2 pr-3 font-normal">
                     <input
                       type="date"
@@ -814,7 +965,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                       <option value="COMPLETADO">Completado</option>
                     </select>
                   </th>
-                  <th className="pb-2 text-right font-normal">
+                  <th className="pb-2 text-right font-normal sticky right-0 bg-white">
                     {hasColFilters && (
                       <button
                         type="button"
@@ -830,7 +981,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
               <tbody>
                 {visibleHistory.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="py-6 text-center text-gray-400">
+                    <td colSpan={11} className="py-6 text-center text-gray-400">
                       {loading
                         ? 'Cargando...'
                         : hasColFilters
@@ -839,15 +990,38 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                     </td>
                   </tr>
                 )}
-                {visibleHistory.map((h) => {
+                {grupos.map((g, gi) => (
+                  <React.Fragment key={g.dia || 'todos'}>
+                    {g.dia && (
+                      <tr>
+                        <td colSpan={11} className="pt-3 pb-1">
+                          <button
+                  type="button"
+                  onClick={() => alternarDia(g.dia, gi)}
+                  className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#F2F4F7] border border-[#D6DEEA] text-left cursor-pointer hover:bg-[#EAF2FF]"
+                >
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <span className="material-symbols-outlined text-[18px] text-[#1B4E9B]">{diaAbierto(g.dia, gi) ? 'expand_more' : 'chevron_right'}</span>
+                    <span className="text-xs font-black text-[#143A73] first-letter:uppercase">{etiquetaDia(g.dia)}</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-gray-600 text-right">{resumenDia(g.filas)}</span>
+                </button>
+                        </td>
+                      </tr>
+                    )}
+                {(!g.dia || diaAbierto(g.dia, gi)) && g.filas.map((h) => {
                   const productUiId = productUiIdFromCode(h.producto_codigo);
                   const isCheese = products.find((p) => p.id === productUiId)?.lineType === 'pasta_hilada';
                   return (
-                    <tr key={h.id} className="border-b border-[#F2F4F7] hover:bg-[#F2F4F7]/60">
-                      <td className="py-2 pr-3 font-mono font-bold text-[#1B4E9B] whitespace-nowrap">{h.codigo_lote}</td>
+                    <tr key={h.id} className="group border-b border-[#F2F4F7] hover:bg-[#F7F9FC]">
+                      <td className="py-2 pr-3 font-mono font-bold text-[#1B4E9B] whitespace-nowrap">{loteDeFila(h)}</td>
                       <td className="py-2 pr-3">{h.producto_nombre}</td>
                       <td className="py-2 pr-3">{h.responsable_nombre}</td>
                       <td className="py-2 pr-3 text-right font-mono">{Number(h.volumen_leche_base_litros || 0).toLocaleString('es-CO')}</td>
+                      <td className="py-2 pr-3 text-right font-mono whitespace-nowrap">{producidoTexto(h)}</td>
+                      <td className="py-2 pr-3 text-right font-mono whitespace-nowrap">
+                        {h.estado === 'COMPLETADO' && h.rendimiento_pct !== null && h.rendimiento_pct !== undefined ? `${fmtNum(h.rendimiento_pct, 1)} %` : '—'}
+                      </td>
                       <td className="py-2 pr-3 whitespace-nowrap">{formatDate(h.iniciado_at)}</td>
                       <td className="py-2 pr-3 whitespace-nowrap">{formatDate(h.finalizado_at)}</td>
                       <td className="py-2 pr-3 font-mono">{formatDuration(h.duracion_total_segundos)}</td>
@@ -865,7 +1039,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                           <span className="ml-1 text-[10px] text-amber-700 font-bold">({h.rectificaciones} rect.)</span>
                         )}
                       </td>
-                      <td className="py-2 text-right whitespace-nowrap">
+                      <td className="py-2 pl-2 text-right whitespace-nowrap sticky right-0 bg-white group-hover:bg-[#F7F9FC]">
                         {h.estado === 'EN_PROCESO' && (
                           <>
                             <button onClick={() => onOpenBatch(productUiId)} className="text-[#1B4E9B] font-bold hover:underline cursor-pointer mr-2">
@@ -895,8 +1069,18 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                     </tr>
                   );
                 })}
+                  </React.Fragment>
+                ))}
               </tbody>
             </table>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#F2F4F7] text-[11px] text-gray-500">
+            <span>Lotes iniciados en los últimos {historyDias} días, más los que siguen en proceso.</span>
+            {onLoadMoreHistory && (
+              <button type="button" onClick={onLoadMoreHistory} className="font-bold text-[#1B4E9B] hover:underline cursor-pointer">
+                Cargar 30 días más
+              </button>
+            )}
           </div>
         </div>
         </>
@@ -933,7 +1117,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                         {u.name} {isSelf && <span className="text-[10px] text-gray-500">(tú)</span>}
                       </div>
                       <div className="text-[10px] text-gray-500 truncate">
-                        {u.code} · {u.role === 'administrador' ? 'Administrador' : 'Operador'} · {u.shift} · {lineName(u.assignedLineId)}
+                        {u.code} · {u.role === 'administrador' ? 'Administrador' : 'Operador'} · {lineName(u.assignedLineId)}
                       </div>
                     </div>
                   </div>
@@ -978,7 +1162,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                     </div>
                   </div>
                   <button
-                    onClick={() => reactivate('user', u.id)}
+                    onClick={() => reactivate('user', u.id, u.role)}
                     className="px-3 h-8 rounded-lg bg-white border border-[#5FAF32]/60 text-[#3F7F1E] font-bold hover:bg-[#5FAF32]/10 cursor-pointer shrink-0"
                   >
                     Reactivar
@@ -1027,7 +1211,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
               <tbody>
                 {annulled.map((h) => (
                   <tr key={h.id} className="border-b border-[#F2F4F7] align-top">
-                    <td className="py-2 pr-3 font-mono font-bold text-gray-700 whitespace-nowrap">{h.codigo_lote}</td>
+                    <td className="py-2 pr-3 font-mono font-bold text-gray-700 whitespace-nowrap">{loteDeFila(h)}</td>
                     <td className="py-2 pr-3">{h.producto_nombre}</td>
                     <td className="py-2 pr-3">{h.responsable_nombre}</td>
                     <td className="py-2 pr-3">{h.anulado_por ?? '—'}</td>
@@ -1051,7 +1235,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
       {annulTarget && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5 flex flex-col gap-3">
-            <h3 className="text-base font-bold text-gray-900">Anular lote {annulTarget.codigo_lote}</h3>
+            <h3 className="text-base font-bold text-gray-900">Anular lote {loteDeFila(annulTarget)}</h3>
             <p className="text-xs text-gray-600">
               El proceso se cancela, sale del historial activo y queda registrado de forma permanente con su motivo.
             </p>

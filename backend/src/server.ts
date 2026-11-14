@@ -1,4 +1,7 @@
 import 'dotenv/config';
+// La planta trabaja en hora de Colombia. Varias horas del proceso se registran como "HH:MM" y se
+// convierten con la zona del servidor; así no dependen de cómo esté configurado el PC (TZ=... la cambia).
+process.env.TZ = process.env.TZ || 'America/Bogota';
 import cors from 'cors';
 import express, { NextFunction, Request, Response } from 'express';
 import { checkDatabase, pool } from './db';
@@ -48,6 +51,14 @@ app.use(
   })
 );
 app.disable('x-powered-by');
+// Detrás de un proxy (nginx, IIS, Cloudflare...) todas las peticiones llegan con la IP del proxy.
+// TRUST_PROXY=loopback (nginx en el mismo PC) hace que Express use la IP real del equipo (X-Forwarded-For); así el límite
+// de intentos de login por equipo no bloquea a toda la planta. Sin la variable, nada cambia.
+const trustProxy = (process.env.TRUST_PROXY ?? '').trim();
+if (trustProxy) {
+  app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+  console.log(`[server] trust proxy = ${trustProxy}`);
+}
 app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
@@ -104,12 +115,18 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[server] API escuchando en http://localhost:${PORT} (CORS: ${allowedOrigins.join(', ')})`);
 });
 
-// HTTPS opcional: si existen backend/certs/server.crt y server.key (ver deploy/COMO-INSTALAR.md),
-// el mismo servidor atiende también por HTTPS (HTTPS_PORT, por defecto 443).
+// HTTPS opcional, APAGADO por defecto: solo se enciende con HTTPS_ENABLED=true en backend/.env y si existen
+// backend/certs/server.crt y server.key (ver deploy/COMO-INSTALAR.md). Con un certificado propio, las tablets
+// Android que no lo tengan instalado ven una pantalla de error; por eso no basta con que existan los archivos.
+// Encendido, el mismo servidor atiende por HTTPS (HTTPS_PORT, por defecto 443) y redirige el puerto 80 a https.
 const certDir = path.resolve(__dirname, '..', 'certs');
 const certFile = process.env.HTTPS_CERT_FILE ?? path.join(certDir, 'server.crt');
 const keyFile = process.env.HTTPS_KEY_FILE ?? path.join(certDir, 'server.key');
-if (fs.existsSync(certFile) && fs.existsSync(keyFile)) {
+const httpsActivado = process.env.HTTPS_ENABLED === 'true';
+if (!httpsActivado && fs.existsSync(certFile) && fs.existsSync(keyFile)) {
+  console.log('[server] Hay certificados en backend/certs, pero HTTPS está apagado (HTTPS_ENABLED no es true). Se atiende solo por HTTP.');
+}
+if (httpsActivado && fs.existsSync(certFile) && fs.existsSync(keyFile)) {
   const HTTPS_PORT = Number(process.env.HTTPS_PORT ?? 443);
   https
     .createServer({ cert: fs.readFileSync(certFile), key: fs.readFileSync(keyFile) }, app)

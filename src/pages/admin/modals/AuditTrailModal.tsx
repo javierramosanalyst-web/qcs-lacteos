@@ -46,7 +46,7 @@ const CardCorreccion: React.FC<{ log: AuditLogEntry; onCorrect?: (log: AuditLogE
   <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-[#D6DEEA] shadow-2xs flex flex-col gap-2.5 min-w-0 hover:border-blue-300 transition-all">
     <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-[#D6DEEA]/60">
       <div className="flex flex-wrap items-center gap-2 min-w-0">
-        <span className="text-xs font-bold text-[#1B4E9B] break-all">{log.batchId}</span>
+        <span className="text-xs font-bold text-[#1B4E9B] break-all">{log.loteDia || log.batchId}</span>
         <span className="text-gray-300">|</span>
         <span className="text-xs font-semibold text-gray-700">{log.lineName}</span>
         <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-[#1B4E9B] border border-blue-200 font-bold uppercase">
@@ -99,7 +99,7 @@ const CardAnulacion: React.FC<{ log: AuditLogEntry }> = ({ log }) => (
   <div className="p-3.5 sm:p-4 rounded-2xl bg-white border border-red-200 shadow-2xs flex flex-col gap-2.5 min-w-0 hover:border-red-400 transition-all">
     <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-red-100">
       <div className="flex flex-wrap items-center gap-2 min-w-0">
-        <span className="text-xs font-bold text-[#1B4E9B] break-all">{log.batchId}</span>
+        <span className="text-xs font-bold text-[#1B4E9B] break-all">{log.loteDia || log.batchId}</span>
         <span className="text-gray-300">|</span>
         <span className="text-xs font-semibold text-gray-700">{log.lineName}</span>
         <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 font-bold uppercase flex items-center gap-1">

@@ -371,6 +371,8 @@ export interface EnvasadoYAlmacenamientoYogurState {
 
 export interface YogurBatchData {
   id: string; // 'Lote YOG-01'
+  /** Lote visible por día en letras (DD+M+AA), asignado por el servidor. `id` sigue siendo el código interno. */
+  loteDia?: string;
   productName: string; // 'Yogur Entero Probiótico'
   productId: string; // 'prod-yogur'
   lineId: string; // 'line-fermentacion'

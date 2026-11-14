@@ -6,6 +6,8 @@ import { LOTES_ESPECIA_CATALOG, insumoLabel, getInsumoLoteDetail, useInsumoLotes
 
 interface DerivacionesPastaResultanteProps {
   batchId: string;
+  /** Lote que se muestra como origen (letras del día). No cambia los códigos de derivación. */
+  loteVisible?: string;
   derivaciones?: DerivacionesBatchState;
   onChange?: (derivaciones: DerivacionesBatchState) => void;
   showToast?: (msg: string, type?: 'success' | 'info' | 'warning') => void;
@@ -13,12 +15,13 @@ interface DerivacionesPastaResultanteProps {
 
 export const DerivacionesPastaResultante: React.FC<DerivacionesPastaResultanteProps> = ({
   batchId,
+  loteVisible,
   derivaciones,
   onChange,
   showToast,
 }) => {
   // Lote base origen (ej: Lote QP-01 o batchId actual)
-  const loteBaseOrigen = `Lote ${batchId || 'QP-01'}`;
+  const loteBaseOrigen = `Lote ${loteVisible || batchId || 'QP-01'}`;
 
   // Mini lotes por defecto
   const defaultMexLote = `LOTE-MEX-${batchId.replace(/^QP-?/i, 'BD') || 'BD01'}`;

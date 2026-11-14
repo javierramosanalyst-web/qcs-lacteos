@@ -1,15 +1,39 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AuditLogEntry, ProductDefinition, ProductionLine, UserProfile } from '../../types';
-import { BatchHistoryRow, fetchAuditLogs, fetchBatchDetail, fetchBatchHistory, lineUiId } from '../../api/client';
-import { CellValue, ExportColumn, ExportSheet, buildCsv, exportCsv, exportXlsx, exportZip } from '../../utils/exporters';
+import { ProductDefinition, ProductionLine, UserProfile } from '../../types';
+import { ReporteLote, ReporteProduccion, fetchProductionReport } from '../../api/client';
+import {
+  CellValue,
+  ExportColumn,
+  ExportSheet,
+  buildCsv,
+  excelDuracion,
+  excelFecha,
+  exportXlsx,
+  exportZip,
+} from '../../utils/exporters';
+import { loteDeFila } from '../../utils/lote';
+
+/**
+ * Centro de exportación del administrador.
+ *
+ * Un solo reporte de producción, armado en el servidor por la FECHA DE INICIO del lote (hora de
+ * Colombia) y sin tope de lotes. Cada hoja tiene un solo nivel de detalle y todas se unen por
+ * "Lote" + "Producto" + "Hora de inicio" (las letras del día se repiten entre productos y entre
+ * lotes del mismo producto del mismo día):
+ *   1. Resumen (por producto, con alertas)
+ *   2. Lotes (una fila por lote)
+ *   3. Una hoja por producto: una fila por lote con los tiempos de cada etapa y de cada paso
+ *      y el valor de cada medición, en columnas (cada producto tiene etapas y mediciones distintas)
+ *   4. Envasado (una fila por presentación)  5. Insumos (una fila por insumo)
+ *   6. Correcciones (correcciones y anulaciones)
+ * Fechas, horas y duraciones van como valores reales de Excel (se pueden ordenar y restar).
+ */
 
 interface ExportCenterProps {
   lines: ProductionLine[];
   products: ProductDefinition[];
   users: UserProfile[];
 }
-
-type DatasetKey = 'historial' | 'produccion' | 'variables' | 'auditoria' | 'anulados' | 'usuarios' | 'lineas' | 'presentaciones' | 'totales';
 
 const ESTADO_LABEL: Record<string, string> = {
   EN_PROCESO: 'En proceso',
@@ -18,352 +42,569 @@ const ESTADO_LABEL: Record<string, string> = {
   PENDIENTE: 'Pendiente',
 };
 
-const SHIFT_ROLE: Record<string, string> = { administrador: 'Administrador', operador: 'Operador' };
-
-const FILE_SLUG: Record<DatasetKey, string> = {
-  historial: 'Historial_Lotes',
-  produccion: 'Resumen_Producto',
-  variables: 'Variables_Proceso',
-  auditoria: 'Auditoria',
-  anulados: 'Lotes_Anulados',
-  usuarios: 'Usuarios',
-  lineas: 'Lineas_Productos',
-  presentaciones: 'Produccion_Presentacion',
-  totales: 'Totales_Presentacion',
-};
-
-const PREFIX = {
-  historial: '[HISTORIAL]',
-  auditoria: '[AUDITORÍA]',
-  anulado: '[ANULADO]',
-  producto: '[PRODUCTO]',
-} as const;
+const ETAPA_ESTADO: Record<string, string> = { pendiente: 'Pendiente', en_proceso: 'En proceso', completada: 'Completada' };
 
 const card = 'bg-white rounded-2xl border border-[#D6DEEA] shadow-xs';
-
-const fmtDateTime = (iso: string | null | undefined): string =>
-  iso ? new Date(iso).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '';
+const TZ = 'America/Bogota';
 
 const toDate = (v: string | number | null | undefined): Date | null => {
   if (v === null || v === undefined || v === '') return null;
-  const d = typeof v === 'number' ? new Date(v) : /^\d{10,}$/.test(v) ? new Date(Number(v)) : new Date(v);
-  return Number.isNaN(d.getTime()) ? null : d;
+  const d = new Date(v);
+  return Number.isFinite(d.getTime()) ? d : null;
 };
 
 const fmtDate = (v: string | number | null | undefined): string => {
   const d = toDate(v);
-  return d ? d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+  return d ? d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: TZ }) : '';
 };
 
 const fmtTime = (v: string | number | null | undefined): string => {
   const d = toDate(v);
-  return d ? d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }) : '';
+  return d ? d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ }) : '';
 };
 
-const fmtDuration = (sec: number | null): string => {
-  if (!sec || sec <= 0) return '';
-  const h = Math.floor(sec / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  return `${h}:${String(m).padStart(2, '0')}`;
-};
-
-const toNumber = (v: string | number | null | undefined): number | null => {
+const num = (v: unknown): number | null => {
   if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 };
 
-const STAGE_LABELS: Record<string, string> = {
-  acidificar: '1. Acidificar leche',
-  calentarYCuajar: '2. Calentar y cuajar',
-  desuerar: '3. Desuerar y escurrir',
-  hilar: '4. Hilar y salar',
-  moldesDesglose: '5. Moldes y pesos',
-  pasteurizacion: '1. Pasteurización y enfriamiento',
-  inoculacion: '2. Inoculación e incubación',
-  maduracionFrio: '3. Maduración en frío',
-  batidoYAdiciones: '4. Batido y adiciones',
-  envasado: '5. Envasado',
-  lotesLeche: 'Materia prima · lotes de leche',
-  observaciones: 'Observaciones del lote',
-  operariosIntervinientes: 'Equipo que intervino',
-  responsableProceso: 'Responsable del proceso',
-  actividadOperarios: 'Actividad por operario',
+/** Duración en segundos: la registrada o, si falta, la diferencia entre fin e inicio. */
+const segundos = (dur: number | null | undefined, inicio: string | null, fin: string | null): number | null => {
+  if (dur !== null && dur !== undefined && dur > 0) return dur;
+  const a = toDate(inicio)?.getTime();
+  const b = toDate(fin)?.getTime();
+  return a !== undefined && b !== undefined && b >= a ? Math.round((b - a) / 1000) : dur ?? null;
 };
 
-const VARIABLE_LABELS: Record<string, string> = {
-  litrosLeche: 'Leche pasteurizada',
-  litrosConfirmados: 'Leche confirmada',
-  lecheFresca: 'Leche fresca',
-  lecheAcida: 'Leche ácida',
-  litrosLote1: 'Litros del lote de leche 1',
-  litrosLote2: 'Litros del lote de leche 2',
-  loteLeche1: 'Lote de leche 1',
-  loteLeche2: 'Lote de leche 2',
-  loteLecheFresca: 'Lote de leche fresca',
-  loteAcidoAcetico: 'Lote de ácido acético',
-  loteCuajo: 'Lote de cuajo',
-  loteSal: 'Lote de sal',
-  loteAzucar: 'Lote de azúcar',
-  loteEstevia: 'Lote de estevia',
-  loteSaborizante: 'Lote de saborizante',
-  loteColorante: 'Lote de colorante',
-  loteCultivo: 'Lote de cultivo láctico',
-  cantidadGramos: 'Cantidad dosificada',
-  gramosAzucar: 'Azúcar dosificada',
-  kilosAzucar: 'Azúcar dosificada',
-  gramosEstevia: 'Estevia dosificada',
-  kilosSaborizante: 'Saborizante dosificado',
-  saborizanteMl: 'Saborizante dosificado',
-  coloranteMl: 'Colorante dosificado',
-  acidezLA: 'Acidez (ácido láctico)',
-  phActual: 'pH medido',
-  phMezcla: 'pH de la mezcla',
-  phEscurrido: 'pH del escurrido',
-  tempBano: 'Temperatura del baño',
-  temperaturaEnvasado: 'Temperatura de envasado',
-  temperaturaIncubacion: 'Temperatura de incubación',
-  numeroMoldes: 'Número de moldes',
-  pesoTotalQueso: 'Peso total de queso',
-  pesoTotalHilado: 'Peso total hilado',
-  pesadoTotalHiladoKg: 'Peso total hilado',
-  pesoTotalCalculadoKg: 'Peso total calculado',
-  moldes100g: 'Moldes de 100 g',
-  moldes200g: 'Moldes de 200 g',
-  moldes400g: 'Moldes de 400 g',
-  moldes800g: 'Moldes de 800 g',
-  moldes1600g: 'Moldes de 1600 g',
-  moldes7Cueros350g: 'Moldes 7 Cueros de 350 g',
-  moldesTrenza350g: 'Moldes trenza de 350 g',
-  moldesPeraGrande350g: 'Moldes Pera grande de 350 g',
-  moldes60g: 'Moldes de 60 g',
-  botella120ml: 'Botellas de 120 ml',
-  botella200ml: 'Botellas de 200 ml',
-  botella1L: 'Botellas de 1 L',
-  botella2L: 'Botellas de 2 L',
-  botella4L: 'Botellas de 4 L',
-  bolsa4L: 'Bolsas de 4 L',
-  vaso150g: 'Vasos de 150 g',
-  vaso200g: 'Vasos de 200 g',
-  botella1000g: 'Botellas de 1000 g',
-  botella500g: 'Botellas de 500 g',
-  tarro1000g: 'Tarros de 1000 g',
-  tarro500g: 'Tarros de 500 g',
-  vaso120g: 'Vasos de 120 g',
-  bolsa4l: 'Bolsas de 4 L',
-  resultado: 'Resultado de la prueba',
-  exitosa: 'Prueba superada',
-  tiempoTotalProceso: 'Tiempo total del proceso',
-  selladoVerificado: 'Sellado verificado',
-  rotuladoCumpleNTC805: 'Rotulado conforme a NTC 805',
-  procesoFinalizado: 'Proceso finalizado',
-  horaFinalizacion: 'Hora de finalización',
-  horaInicio: 'Hora de inicio',
-  horaFin: 'Hora de fin',
-  horaRegistro: 'Hora de registro',
-  hora40GradosReferencia: 'Hora de referencia a 40 °C',
-  tiempoDesuerado: 'Tiempo de desuerado',
-  segundosDesuerado: 'Tiempo de desuerado',
-  tiempoDesdeDesuerado: 'Tiempo desde el desuerado',
-  tiempoCalentamiento: 'Tiempo de calentamiento',
-  tiempoCuajado: 'Tiempo de cuajado',
-  tiempoCorte: 'Tiempo de corte',
-  tiempoEscurrido: 'Tiempo de escurrido',
-  duracionHilado: 'Duración del hilado',
-  duracion: 'Duración',
-  tipoYogur: 'Variedad de yogur',
-  litrosBase: 'Litros base de la variedad',
-  litrosYogurConAzucar: 'Litros destinados a yogur con azúcar',
-  litrosYogurSinAzucar: 'Litros destinados a yogur sin azúcar',
-  litrosYogurGriego: 'Litros destinados a yogur griego',
-  litrosKumis: 'Litros destinados a kumis',
-  litrosKumisDestinados: 'Litros destinados a kumis',
-  incluyeKumis: 'El lote incluye kumis',
-  llevaAzucar: 'El lote lleva azúcar',
-  sabor: 'Sabor',
-  variedad: 'Variedad',
-  masaFormulada: 'Masa formulada',
-  rendimiento: 'Rendimiento',
-  merma: 'Merma',
-  temperatura: 'Temperatura',
-  temperaturaAlcanzada: 'Temperatura alcanzada',
-  temperaturaSembrado: 'Temperatura de siembra',
-  dosis: 'Dosis',
-  dosisDv: 'Dosis de cultivo (DV)',
-  adicion: 'Adición',
-  adiciones: 'Adiciones',
-  observaciones: 'Observaciones',
-  responsable: 'Responsable',
-  operario: 'Operario',
-  nombre: 'Nombre',
-  codigo: 'Código',
-  descripcion: 'Descripción',
-  motivo: 'Motivo',
-  justificacion: 'Justificación',
+/** Día en hora de Colombia, AAAA-MM-DD. */
+const diaColombia = (d: Date): string => d.toLocaleDateString('en-CA', { timeZone: TZ });
+
+const sumarDias = (dia: string, n: number): string => {
+  const d = new Date(`${dia}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 };
 
-const SKIP_VAR =
-  /(^|\.)(id|line|lineId|productId|productName|standard|status|operator|operatorRole|version|processTimer|stageStatuses|esManual|registrado|iniciado|completado|confirmado|saved|habilitado|timestamp[A-Za-z0-9]*|hora[A-Za-z0-9]*|fecha[A-Za-z0-9]*|[a-zA-Z]+At|[a-zA-Z]+Ms)$/;
+const ddmm = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}/${dia.slice(0, 4)}`;
 
-const ACRONYMS: Record<string, string> = {
-  ph: 'pH',
-  ntc: 'NTC',
-  dv: 'DV',
-  la: 'LA',
-  kg: 'kg',
-  ml: 'ml',
-  l: 'L',
-  pt100: 'PT-100',
-  ui: 'UI',
-};
+// ---------------------------------------------------------------------------------------------
+// Construcción de las hojas
+// ---------------------------------------------------------------------------------------------
 
-const humanize = (key: string): string =>
-  key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
-    .replace(/([A-Za-z])(\d)/g, '$1 $2')
-    .replace(/(\d)([A-Za-z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .split(' ')
-    .map((w) => ACRONYMS[w.toLowerCase()] ?? (/^\d/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
-    .join(' ');
+type Fila = Record<string, CellValue>;
 
-const labelFor = (key: string): string => {
-  if (VARIABLE_LABELS[key]) return VARIABLE_LABELS[key];
-  const prefixed = /^(sinAzucar|stevia)_(.+)$/.exec(key);
-  if (prefixed) {
-    const base = VARIABLE_LABELS[prefixed[2]] ?? humanize(prefixed[2]);
-    return `${prefixed[1] === 'sinAzucar' ? 'Sin azúcar' : 'Con estevia'} › ${base}`;
-  }
-  return humanize(key);
-};
+const COL_LOTE: ExportColumn[] = [
+  { key: 'lote', label: 'Lote' },
+  { key: 'producto', label: 'Producto' },
+  { key: 'fecha', label: 'Fecha de inicio', format: 'fecha' },
+  { key: 'horaIni', label: 'Hora de inicio', format: 'hora' },
+];
 
-const unitFor = (key: string): string => {
-  if (/^(sinAzucar_|stevia_)?(botella|bolsa|vaso|tarro|tarrina|moldes)/i.test(key)) return 'und';
-  if (/Litros$|^litros/i.test(key)) return 'L';
-  if (/Gramos$|^gramos/i.test(key)) return 'g';
-  if (/Kilos$|Kg$|^kilos/i.test(key)) return 'kg';
-  if (/Ml$|^ml/i.test(key)) return 'ml';
-  if (/Grados|Temperatura|^temp/i.test(key)) return '°C';
-  if (/Segundos$|^segundos/i.test(key)) return 's';
-  if (/Minutos$|^minutos/i.test(key)) return 'min';
-  if (/Porcentaje|Rendimiento|^rendimiento/i.test(key)) return '%';
-  if (/^ph/i.test(key)) return 'pH';
-  return '';
-};
-
-const collectVariables = (batch: unknown): { etapa: string; variable: string; valor: CellValue; unidad: string }[] => {
-  const out: { etapa: string; variable: string; valor: CellValue; unidad: string }[] = [];
-  const walk = (node: unknown, trail: string[]) => {
-    if (node === null || node === undefined || node === '') return;
-    if (typeof node === 'number' || typeof node === 'string' || typeof node === 'boolean') {
-      const key = trail[trail.length - 1] ?? '';
-      if (SKIP_VAR.test(key)) return;
-      if (typeof node === 'number' && node === 0) return;
-      const stageKey = trail[0] ?? '';
-      const etapa = STAGE_LABELS[stageKey] ?? humanize(stageKey);
-      const path = trail.slice(1).map((t) => (/^\d+$/.test(t) ? `#${Number(t) + 1}` : labelFor(t)));
-      const variable = path.length ? path.join(' › ') : labelFor(key);
-      let valor: CellValue = node;
-      if (typeof node === 'boolean') valor = node ? 'Sí' : 'No';
-      else if (typeof node === 'number' && node > 1e11 && node < 1e14) valor = new Date(node).toLocaleString('es-CO');
-      out.push({ etapa, variable, valor, unidad: typeof node === 'number' ? unitFor(key) : '' });
-      return;
-    }
-    if (Array.isArray(node)) {
-      node.forEach((item, i) => walk(item, [...trail, String(i)]));
-      return;
-    }
-    if (typeof node === 'object') {
-      Object.entries(node as Record<string, unknown>).forEach(([k, v]) => {
-        if (SKIP_VAR.test(k)) return;
-        walk(v, [...trail, k]);
-      });
-    }
+const baseFila = (l: ReporteLote | undefined): Fila => {
+  const ini = l ? excelFecha(l.iniciado_at) : null;
+  return {
+    lote: l ? loteDeFila(l) : '',
+    producto: l?.producto_nombre ?? '',
+    fecha: ini !== null ? Math.floor(ini) : null,
+    horaIni: ini !== null ? ini - Math.floor(ini) : null,
   };
-  walk(batch, []);
-  return out;
 };
 
-const FORMAT_LITERS: Record<string, number> = {
-  botella120ml: 0.12,
-  botella200ml: 0.2,
-  botella1L: 1,
-  botella2L: 2,
-  botella4L: 4,
-  bolsa4L: 4,
-  vaso120g: 0.12,
-  vaso150g: 0.15,
-  vaso200g: 0.2,
-  botella500g: 0.5,
-  botella1000g: 1,
-  tarro500g: 0.5,
-  tarro1000g: 1,
+/** Nombre corto del producto para la hoja (Excel admite máximo 31 caracteres). */
+const NOMBRE_HOJA: Record<string, string> = {
+  'QDC-PREM': 'Doble Crema Premium',
+  'QDC-IND': 'Doble Crema Industrial',
+  'QP-2026': 'Queso Pera',
+  'Q7C-2026': 'Queso 7 Cueros',
+  'YOG-101': 'Yogur Entero',
+  'KUM-102': 'Kumis',
+  'YGR-103': 'Yogur Griego',
 };
 
-const formatLiters = (key: string): number => {
-  const base = key.replace(/^(sinAzucar_|stevia_)/, '');
-  if (FORMAT_LITERS[base] !== undefined) return FORMAT_LITERS[base];
-  const m = /(\d+(?:[.,]\d+)?)(ml|l|kg|g)$/i.exec(base);
-  if (!m) return 0;
-  const n = Number(m[1].replace(',', '.'));
-  const u = m[2].toLowerCase();
-  if (u === 'ml' || u === 'g') return n / 1000;
-  return n;
-};
+const ms = (iso: string | null | undefined) => toDate(iso)?.getTime() ?? null;
 
-const productionOutcome = (
-  batch: any,
-  lecheLitros: number | null
-): { kg: number | null; unidades: number | null; rendimiento: number | null } => {
-  if (!batch) return { kg: null, unidades: null, rendimiento: null };
-  const leche = lecheLitros && lecheLitros > 0 ? lecheLitros : null;
+/**
+ * Hoja de proceso de un producto: una fila por lote; en columnas, cada etapa (inicio, fin,
+ * duración), cada paso con hora (hora y duración) y cada medición (valor y, si la tiene, hora).
+ */
+const hojaProceso = (rep: ReporteProduccion, codigo: string, lotes: ReporteLote[]): ExportSheet => {
+  const ids = new Set(lotes.map((l) => l.id));
+  const porId = new Map(lotes.map((l) => [l.id, l]));
+  const etapas = rep.etapas.filter((e) => ids.has(e.lote_id));
+  const pasos = rep.pasos.filter((p) => ids.has(p.lote_id));
+  const meds = rep.mediciones.filter((m) => ids.has(m.lote_id));
+  const env = rep.envasado.filter((e) => ids.has(e.lote_id));
+  const ins = rep.insumos.filter((i) => ids.has(i.lote_id));
 
-  const moldes = batch.moldesDesglose ?? {};
-  const moldesQueso =
-    (Number(moldes.moldes100g) || 0) * 0.1 +
-    (Number(moldes.moldes200g) || 0) * 0.2 +
-    (Number(moldes.moldes400g) || 0) * 0.4 +
-    (Number(moldes.moldes800g) || 0) * 0.8 +
-    (Number(moldes.moldes1600g) || 0) * 1.6;
-  const kgQueso =
-    Number(batch.hilar?.pesoTotalQueso) ||
-    Number(moldes.pesoTotalCalculadoKg) ||
-    Number(moldes.pesadoTotalHiladoKg) ||
-    moldesQueso ||
-    0;
-  const unidadesQueso = Number(batch.hilar?.numeroMoldes) || 0;
-
-  const envasado = batch.envasado ?? {};
-  let unidadesEnv = 0;
-  let litrosEnv = 0;
-  Object.entries(envasado as Record<string, unknown>).forEach(([groupKey, group]) => {
-    if (!/^formatos/i.test(groupKey) || !group || typeof group !== 'object') return;
-    Object.entries(group as Record<string, unknown>).forEach(([k, v]) => {
-      const n = Number(v) || 0;
-      if (n <= 0) return;
-      unidadesEnv += n;
-      litrosEnv += n * formatLiters(k);
-    });
+  // Envasado: una columna por tipo + presentación (unidades), en el orden en que aparecen.
+  const defEnv = new Map<string, { tipo: string; presentacion: string; medida: string }>();
+  env.forEach((e) => {
+    const k = `${e.categoria}|${e.presentacion}`;
+    if (!defEnv.has(k)) defEnv.set(k, { tipo: e.categoria, presentacion: e.presentacion, medida: e.medida });
   });
-  const kgEnv = Math.round(litrosEnv * 1.03 * 100) / 100;
+  const medidaTotal = [...new Set(env.map((e) => e.medida))].join(' / ');
 
-  const kg = kgQueso > 0 ? Math.round(kgQueso * 100) / 100 : kgEnv > 0 ? kgEnv : null;
-  const unidades = unidadesQueso > 0 ? unidadesQueso : unidadesEnv > 0 ? unidadesEnv : null;
-  const base = kgQueso > 0 ? kgQueso : litrosEnv;
-  const rendimiento = leche && base > 0 ? Math.round((base / leche) * 1000) / 10 : null;
-  return { kg, unidades, rendimiento };
+  // Insumos: lote del proveedor y cantidad, en el orden de la etapa.
+  const defIns = new Map<string, { orden: number; nombre: string; unidad: string }>();
+  ins.forEach((i) => {
+    const nombre = i.derivacion ? `${i.insumo} (${i.derivacion.replace(/_/g, ' ')})` : i.insumo;
+    const k = `${i.orden ?? 99}|${nombre}`;
+    if (!defIns.has(k)) defIns.set(k, { orden: i.orden ?? 99, nombre, unidad: i.unidad });
+  });
+  const insOrdenados = [...defIns.entries()].sort((a, b) => a[1].orden - b[1].orden);
+
+  // Etapas del producto en orden.
+  const defEtapas = [...new Map(etapas.map((e) => [e.orden, e.etapa])).entries()].sort((a, b) => a[0] - b[0]);
+
+  // Pasos: en el orden de la etapa y, dentro de ella, por el momento típico en que ocurren.
+  const defPasos = new Map<string, { orden: number; paso: string; t: number[]; conDuracion: boolean }>();
+  pasos.forEach((p) => {
+    const k = `${p.orden}|${p.paso}`;
+    const d = defPasos.get(k) ?? { orden: p.orden, paso: p.paso, t: [], conDuracion: false };
+    const ini = ms(p.inicio);
+    const base = ms(porId.get(p.lote_id)?.iniciado_at);
+    if (ini !== null && base !== null) d.t.push(ini - base);
+    if (p.fin || (p.duracion_segundos ?? 0) > 0) d.conDuracion = true;
+    defPasos.set(k, d);
+  });
+  const prom = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : Number.MAX_SAFE_INTEGER);
+  const pasosOrdenados = [...defPasos.entries()].sort((a, b) => a[1].orden - b[1].orden || prom(a[1].t) - prom(b[1].t));
+
+  // Mediciones: en el orden de la etapa; columna de hora solo si alguna medición la registra.
+  const defMeds = new Map<string, { orden: number; parametro: string; unidad: string; conHora: boolean }>();
+  meds.forEach((m) => {
+    const k = `${m.orden}|${m.parametro}`;
+    const d = defMeds.get(k) ?? { orden: m.orden, parametro: m.parametro, unidad: m.unidad, conHora: false };
+    if (m.hora) d.conHora = true;
+    defMeds.set(k, d);
+  });
+  const medsOrdenadas = [...defMeds.entries()].sort((a, b) => a[1].orden - b[1].orden);
+
+  const columns: ExportColumn[] = [
+    { key: 'lote', label: 'Lote' },
+    { key: 'fecha', label: 'Fecha de inicio', format: 'fecha' },
+    { key: 'horaIni', label: 'Hora de inicio', format: 'hora' },
+    { key: 'estado', label: 'Estado' },
+    { key: 'cierre', label: 'Cierre', format: 'diaHora' },
+    { key: 'duracion', label: 'Duración total', format: 'duracion' },
+    { key: 'responsable', label: 'Responsable' },
+    { key: 'leche', label: 'Leche (L)' },
+    { key: 'kg', label: 'Producido (kg)' },
+    { key: 'unidades', label: 'Unidades' },
+    { key: 'rend', label: 'Rendimiento (%)', format: 'decimal' },
+  ];
+  defEtapas.forEach(([orden, etapa]) => {
+    columns.push(
+      { key: `e${orden}i`, label: `${orden}. ${etapa} · inicio`, format: 'diaHora' },
+      { key: `e${orden}f`, label: `${orden}. ${etapa} · fin`, format: 'diaHora' },
+      { key: `e${orden}d`, label: `${orden}. ${etapa} · duración`, format: 'duracion' },
+    );
+  });
+  pasosOrdenados.forEach(([k, d]) => {
+    columns.push({ key: `p${k}h`, label: `${d.paso} · hora`, format: 'diaHora' });
+    if (d.conDuracion) columns.push({ key: `p${k}d`, label: `${d.paso} · duración`, format: 'duracion' });
+  });
+  medsOrdenadas.forEach(([k, d]) => {
+    columns.push({ key: `m${k}v`, label: `${d.parametro}${d.unidad ? ` (${d.unidad})` : ''}`, format: 'decimal', width: Math.min(Math.max(d.parametro.length + 6, 12), 40) });
+    if (d.conHora) columns.push({ key: `m${k}h`, label: `${d.parametro} · hora`, format: 'diaHora' });
+  });
+  defEnv.forEach((d, k) => {
+    columns.push({ key: `v${k}`, label: `Envasado · ${d.tipo} · ${d.presentacion} (und)` });
+  });
+  if (defEnv.size) columns.push({ key: 'envTotal', label: `Envasado · total (${medidaTotal})`, format: 'decimal' });
+  insOrdenados.forEach(([k, d]) => {
+    columns.push(
+      { key: `i${k}l`, label: `${d.nombre} · lote del insumo` },
+      { key: `i${k}c`, label: `${d.nombre} · cantidad (${d.unidad})`, format: 'decimal' },
+    );
+  });
+  columns.push({ key: 'codigo', label: 'Código interno' });
+
+  const rows: Fila[] = lotes.map((l) => {
+    const f: Fila = {
+      ...baseFila(l),
+      estado: ESTADO_LABEL[l.estado] ?? l.estado,
+      cierre: l.estado === 'COMPLETADO' ? excelFecha(l.finalizado_at) : null,
+      duracion: l.estado === 'COMPLETADO' ? excelDuracion(l.duracion_total_segundos) : null,
+      responsable: l.responsable_nombre,
+      leche: num(l.volumen_leche_base_litros),
+      kg: l.estado === 'COMPLETADO' ? l.kg_producidos : null,
+      unidades: l.estado === 'COMPLETADO' ? l.unidades_producidas : null,
+      rend: l.estado === 'COMPLETADO' ? l.rendimiento_pct : null,
+      codigo: l.codigo_lote,
+    };
+    let total = 0;
+    env
+      .filter((e) => e.lote_id === l.id)
+      .forEach((e) => {
+        const k = `v${e.categoria}|${e.presentacion}`;
+        f[k] = (Number(f[k]) || 0) + e.unidades;
+        total += e.total;
+      });
+    if (total > 0) f.envTotal = Math.round(total * 1000) / 1000;
+    ins
+      .filter((i) => i.lote_id === l.id)
+      .forEach((i) => {
+        const nombre = i.derivacion ? `${i.insumo} (${i.derivacion.replace(/_/g, ' ')})` : i.insumo;
+        const k = `${i.orden ?? 99}|${nombre}`;
+        if (f[`i${k}l`] === undefined) {
+          f[`i${k}l`] = i.lote_insumo;
+          f[`i${k}c`] = num(i.cantidad);
+        } else {
+          f[`i${k}l`] = `${f[`i${k}l`]}, ${i.lote_insumo}`;
+          f[`i${k}c`] = (Number(f[`i${k}c`]) || 0) + (num(i.cantidad) ?? 0);
+        }
+      });
+    etapas
+      .filter((e) => e.lote_id === l.id)
+      .forEach((e) => {
+        f[`e${e.orden}i`] = excelFecha(e.inicio);
+        f[`e${e.orden}f`] = excelFecha(e.fin);
+        f[`e${e.orden}d`] = e.estado === 'completada' ? excelDuracion(segundos(e.duracion_segundos, e.inicio, e.fin)) : null;
+      });
+    pasos
+      .filter((p) => p.lote_id === l.id)
+      .forEach((p) => {
+        const k = `${p.orden}|${p.paso}`;
+        if (f[`p${k}h`] === undefined) {
+          f[`p${k}h`] = excelFecha(p.inicio);
+          f[`p${k}d`] = excelDuracion(segundos(p.duracion_segundos, p.inicio, p.fin));
+        }
+      });
+    meds
+      .filter((m) => m.lote_id === l.id)
+      .forEach((m) => {
+        const k = `${m.orden}|${m.parametro}`;
+        if (f[`m${k}v`] === undefined) {
+          f[`m${k}v`] = num(m.valor);
+          f[`m${k}h`] = excelFecha(m.hora);
+        }
+      });
+    return f;
+  });
+
+  return { name: NOMBRE_HOJA[codigo] ?? lotes[0]?.producto_nombre ?? codigo, columns, rows };
 };
 
-const stamp = () => {
-  const d = new Date();
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}_${String(d.getHours()).padStart(2, '0')}${String(d.getMinutes()).padStart(2, '0')}`;
+const promedio = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+const r2 = (x: number | null) => (x === null ? null : Math.round(x * 100) / 100);
+
+export interface DescripcionFiltros {
+  periodo: string;
+  otros: string;
+}
+
+export const construirHojas = (rep: ReporteProduccion, filtros: DescripcionFiltros): ExportSheet[] => {
+  const porId = new Map(rep.lotes.map((l) => [l.id, l]));
+
+  // 1. Resumen por producto
+  const productos = new Map<string, ReporteLote[]>();
+  rep.lotes.forEach((l) => productos.set(l.producto_nombre, [...(productos.get(l.producto_nombre) ?? []), l]));
+  const filasResumen: Fila[] = [...productos.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], 'es'))
+    .map(([producto, ls]) => {
+      const ok = ls.filter((l) => l.estado === 'COMPLETADO');
+      const rend = ok.map((l) => l.rendimiento_pct).filter((v): v is number => typeof v === 'number' && v > 0);
+      const dur = ok.map((l) => l.duracion_total_segundos).filter((v): v is number => typeof v === 'number' && v > 0);
+      return {
+        producto,
+        linea: ls[0].linea_nombre,
+        lotes: ls.length,
+        completados: ok.length,
+        proceso: ls.filter((l) => l.estado === 'EN_PROCESO').length,
+        anulados: ls.filter((l) => l.estado === 'ANULADO').length,
+        leche: r2(ok.reduce((a, l) => a + (num(l.volumen_leche_base_litros) ?? 0), 0)),
+        kg: r2(ok.reduce((a, l) => a + (l.kg_producidos ?? 0), 0)),
+        unidades: ok.reduce((a, l) => a + (l.unidades_producidas ?? 0), 0),
+        rend: r2(promedio(rend)),
+        duracion: excelDuracion(promedio(dur)),
+      };
+    });
+  if (filasResumen.length > 1) {
+    const sum = (k: string) => filasResumen.reduce((a, f) => a + (Number(f[k]) || 0), 0);
+    filasResumen.push({
+      producto: 'TOTAL',
+      linea: '',
+      lotes: sum('lotes'),
+      completados: sum('completados'),
+      proceso: sum('proceso'),
+      anulados: sum('anulados'),
+      leche: r2(sum('leche')),
+      kg: r2(sum('kg')),
+      unidades: sum('unidades'),
+      rend: null,
+      duracion: null,
+    });
+  }
+
+  const alertas: Fila[] = [];
+  const ahora = Date.now();
+  rep.lotes.forEach((l) => {
+    const base = { lote: loteDeFila(l), producto: l.producto_nombre, fecha: baseFila(l).fecha };
+    if (l.estado === 'EN_PROCESO') {
+      const horas = Math.max(0, Math.round((ahora - (toDate(l.iniciado_at)?.getTime() ?? ahora)) / 3600000));
+      alertas.push({ ...base, alerta: 'En proceso', detalle: `Etapa actual: ${l.etapa_actual ?? 'sin dato'} · iniciado hace ${horas} h` });
+    }
+    if (l.estado === 'ANULADO') {
+      alertas.push({ ...base, alerta: 'Anulado', detalle: `${l.anulacion_motivo ?? 'Sin motivo'}${l.anulado_por ? ` · por ${l.anulado_por}` : ''}` });
+    }
+    if (l.correcciones > 0) {
+      alertas.push({ ...base, alerta: 'Corregido', detalle: `${l.correcciones} corrección(es) del administrador (ver hoja Correcciones)` });
+    }
+    if (l.estado === 'COMPLETADO' && !(l.unidades_producidas && l.unidades_producidas > 0)) {
+      alertas.push({ ...base, alerta: 'Sin envasado', detalle: 'Lote cerrado sin unidades registradas' });
+    }
+  });
+
+  const resumen: ExportSheet = {
+    name: 'Resumen',
+    columns: [
+      { key: 'producto', label: 'Producto' },
+      { key: 'linea', label: 'Línea' },
+      { key: 'lotes', label: 'Lotes' },
+      { key: 'completados', label: 'Completados' },
+      { key: 'proceso', label: 'En proceso' },
+      { key: 'anulados', label: 'Anulados' },
+      { key: 'leche', label: 'Leche procesada (L) *' },
+      { key: 'kg', label: 'Producido (kg) *' },
+      { key: 'unidades', label: 'Unidades *' },
+      { key: 'rend', label: 'Rendimiento promedio (%) *', format: 'decimal' },
+      { key: 'duracion', label: 'Duración promedio (h:mm) *', format: 'duracion' },
+    ],
+    rows: filasResumen,
+    extra: [
+      {
+        title: alertas.length ? `Alertas (${alertas.length})` : 'Alertas: ninguna',
+        columns: [
+          { key: 'lote', label: 'Lote' },
+          { key: 'producto', label: 'Producto' },
+          { key: 'fecha', label: 'Fecha de inicio', format: 'fecha' },
+          { key: 'alerta', label: 'Alerta' },
+          { key: 'detalle', label: 'Detalle', width: 70 },
+        ],
+        rows: alertas,
+      },
+      {
+        title: 'Datos del reporte',
+        columns: [
+          { key: 'campo', label: 'Campo' },
+          { key: 'valor', label: 'Valor', width: 70 },
+        ],
+        rows: [
+          { campo: 'Período', valor: filtros.periodo },
+          { campo: 'Fecha usada', valor: 'Fecha de inicio del lote (hora de Colombia)' },
+          { campo: 'Filtros', valor: filtros.otros || 'Ninguno' },
+          { campo: 'Generado', valor: `${fmtDate(rep.generado_at)} ${fmtTime(rep.generado_at)}` },
+          { campo: '* Nota', valor: 'Leche, producido, unidades, rendimiento y duración suman solo los lotes completados.' },
+          { campo: 'Hojas por producto', valor: 'Una hoja por producto: una fila por lote con la hora y duración de cada etapa y cada paso, y el valor de cada medición.' },
+          { campo: 'Cómo cruzar hojas', valor: 'Use Lote + Producto + Hora de inicio: las letras del lote se repiten entre productos y entre lotes del mismo producto del mismo día.' },
+        ],
+      },
+    ],
+  };
+
+  // 2. Lotes
+  const lotes: ExportSheet = {
+    name: 'Lotes',
+    columns: [
+      { key: 'lote', label: 'Lote' },
+      { key: 'producto', label: 'Producto' },
+      { key: 'linea', label: 'Línea' },
+      { key: 'estado', label: 'Estado' },
+      { key: 'etapa', label: 'Etapa actual' },
+      { key: 'responsable', label: 'Responsable' },
+      { key: 'operarios', label: 'Operarios que intervinieron' },
+      { key: 'fechaInicio', label: 'Fecha de inicio', format: 'fecha' },
+      { key: 'horaInicio', label: 'Hora de inicio', format: 'hora' },
+      { key: 'fechaFin', label: 'Fecha de cierre', format: 'fecha' },
+      { key: 'horaFin', label: 'Hora de cierre', format: 'hora' },
+      { key: 'duracion', label: 'Duración (h:mm)', format: 'duracion' },
+      { key: 'leche', label: 'Leche (L)' },
+      { key: 'kg', label: 'Producido (kg)' },
+      { key: 'unidades', label: 'Unidades' },
+      { key: 'rend', label: 'Rendimiento (%)', format: 'decimal' },
+      { key: 'sabores', label: 'Sabores' },
+      { key: 'correcciones', label: 'Correcciones' },
+      { key: 'anulacion', label: 'Motivo de anulación' },
+      { key: 'observaciones', label: 'Observaciones' },
+      { key: 'codigo', label: 'Código interno' },
+    ],
+    rows: rep.lotes.map((l) => {
+      const ini = excelFecha(l.iniciado_at);
+      const fin = l.estado === 'COMPLETADO' ? excelFecha(l.finalizado_at) : null;
+      return {
+        lote: loteDeFila(l),
+        producto: l.producto_nombre,
+        linea: l.linea_nombre,
+        estado: ESTADO_LABEL[l.estado] ?? l.estado,
+        etapa: l.estado === 'EN_PROCESO' ? l.etapa_actual ?? '' : '',
+        responsable: l.responsable_nombre,
+        operarios: l.operarios ?? '',
+        fechaInicio: ini !== null ? Math.floor(ini) : null,
+        horaInicio: ini !== null ? ini - Math.floor(ini) : null,
+        fechaFin: fin !== null ? Math.floor(fin) : null,
+        horaFin: fin !== null ? fin - Math.floor(fin) : null,
+        duracion: l.estado === 'COMPLETADO' ? excelDuracion(l.duracion_total_segundos) : null,
+        leche: num(l.volumen_leche_base_litros),
+        kg: l.estado === 'COMPLETADO' ? l.kg_producidos : null,
+        unidades: l.estado === 'COMPLETADO' ? l.unidades_producidas : null,
+        rend: l.estado === 'COMPLETADO' ? l.rendimiento_pct : null,
+        sabores: l.sabores ?? '',
+        correcciones: l.correcciones,
+        anulacion: l.estado === 'ANULADO' ? l.anulacion_motivo ?? '' : '',
+        observaciones: l.observaciones_finales ?? '',
+        codigo: l.codigo_lote,
+      };
+    }),
+  };
+
+  // 3. Una hoja por producto: una fila por lote con tiempos y mediciones en columnas
+  const porProducto = new Map<string, ReporteLote[]>();
+  rep.lotes
+    .filter((l) => l.estado !== 'ANULADO')
+    .forEach((l) => porProducto.set(l.producto_codigo, [...(porProducto.get(l.producto_codigo) ?? []), l]));
+  const hojasProceso = [...porProducto.entries()]
+    .sort((a, b) => (NOMBRE_HOJA[a[0]] ?? a[0]).localeCompare(NOMBRE_HOJA[b[0]] ?? b[0], 'es'))
+    .map(([codigo, ls]) => hojaProceso(rep, codigo, ls));
+
+  // 4. Correcciones y anulaciones (envasado e insumos van en la hoja de cada producto)
+  const correcciones: ExportSheet = {
+    name: 'Correcciones',
+    columns: [
+      ...COL_LOTE,
+      { key: 'accion', label: 'Acción' },
+      { key: 'cuando', label: 'Fecha y hora', format: 'fechaHora' },
+      { key: 'etapa', label: 'Etapa' },
+      { key: 'campo', label: 'Dato' },
+      { key: 'anterior', label: 'Valor anterior' },
+      { key: 'nuevo', label: 'Valor nuevo' },
+      { key: 'unidad', label: 'Unidad' },
+      { key: 'motivo', label: 'Motivo' },
+      { key: 'justificacion', label: 'Justificación', width: 50 },
+      { key: 'autorizado', label: 'Autorizado por' },
+    ],
+    rows: rep.correcciones.map((c) => ({
+      ...baseFila(porId.get(c.lote_id)),
+      accion: c.accion === 'ANULACION' ? 'Anulación' : 'Corrección',
+      cuando: excelFecha(c.fecha),
+      etapa: c.etapa ?? '',
+      campo: c.campo ?? '',
+      anterior: c.accion === 'ANULACION' ? ESTADO_LABEL[c.valor_anterior ?? ''] ?? c.valor_anterior : c.valor_anterior,
+      nuevo: c.accion === 'ANULACION' ? ESTADO_LABEL[c.valor_nuevo ?? ''] ?? c.valor_nuevo : c.valor_nuevo,
+      unidad: c.unidad ?? '',
+      motivo: c.motivo ?? '',
+      justificacion: c.justificacion ?? '',
+      autorizado: c.autorizado_por,
+    })),
+  };
+
+  return [resumen, lotes, ...hojasProceso, correcciones];
 };
+
+const fmtDuracion = (seg: number | null | undefined): string => {
+  if (!seg || seg <= 0) return '';
+  const min = Math.round(seg / 60);
+  return `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`;
+};
+
+const fechaHoraTexto = (iso: string | null | undefined) => (iso ? `${fmtDate(iso)} ${fmtTime(iso)}` : '');
+const duracionCorta = (seg: number | null | undefined) => {
+  if (seg === null || seg === undefined || seg <= 0) return '';
+  const min = Math.round(seg / 60);
+  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`;
+};
+
+/**
+ * Ficha de un lote: todo el registro en una hoja vertical (Sección · Dato · Valor), leído de arriba
+ * abajo como el registro del lote (etapas, pasos, mediciones, envasado e insumos); correcciones aparte.
+ */
+export const construirFicha = (rep: ReporteProduccion, l: ReporteLote): ExportSheet[] => {
+  const hojas = construirHojas(rep, { periodo: '', otros: '' });
+  const ok = l.estado === 'COMPLETADO';
+  const filas: Fila[] = [];
+  const add = (seccion: string, dato: string, valor: CellValue, detalle = '') => {
+    if (valor === '' || valor === null || valor === undefined) return;
+    filas.push({ seccion, dato, valor, detalle });
+  };
+  add('Lote', 'Lote', loteDeFila(l));
+  add('Lote', 'Código interno', l.codigo_lote);
+  add('Lote', 'Producto', l.producto_nombre);
+  add('Lote', 'Línea', l.linea_nombre);
+  add('Lote', 'Estado', ESTADO_LABEL[l.estado] ?? l.estado);
+  add('Lote', 'Etapa actual', l.estado === 'EN_PROCESO' ? l.etapa_actual ?? '' : '');
+  add('Lote', 'Responsable', l.responsable_nombre);
+  add('Lote', 'Operarios que intervinieron', l.operarios ?? '');
+  add('Lote', 'Inicio', fechaHoraTexto(l.iniciado_at));
+  add('Lote', 'Cierre', ok ? fechaHoraTexto(l.finalizado_at) : '');
+  add('Lote', 'Duración total', ok ? duracionCorta(l.duracion_total_segundos) : '');
+  add('Producción', 'Leche (L)', num(l.volumen_leche_base_litros));
+  add('Producción', 'Producido (kg)', ok ? l.kg_producidos : null);
+  add('Producción', 'Unidades', ok ? l.unidades_producidas : null);
+  add('Producción', 'Rendimiento (%)', ok ? l.rendimiento_pct : null);
+  add('Producción', 'Sabores', l.sabores ?? '');
+
+  const etapas = rep.etapas.filter((e) => e.lote_id === l.id).sort((a, b) => a.orden - b.orden);
+  etapas.forEach((e) => {
+    const sec = `Etapa ${e.orden}. ${e.etapa}`;
+    const d = e.estado === 'completada' ? duracionCorta(segundos(e.duracion_segundos, e.inicio, e.fin)) : '';
+    add(sec, 'Inicio de la etapa', e.inicio ? fechaHoraTexto(e.inicio) : 'Sin iniciar', e.operario ? `Operario: ${e.operario}` : '');
+    add(sec, 'Fin de la etapa', e.fin ? fechaHoraTexto(e.fin) : e.inicio ? 'En proceso' : '', d ? `Duración: ${d}` : '');
+    rep.pasos
+      .filter((p) => p.lote_id === l.id && p.orden === e.orden)
+      .forEach((p) => {
+        const dp = duracionCorta(segundos(p.duracion_segundos, p.inicio, p.fin));
+        add(sec, p.paso, fechaHoraTexto(p.inicio), [p.fin ? `Hasta: ${fmtTime(p.fin)}` : '', dp ? `Duración: ${dp}` : '', p.manual ? 'Hora registrada manualmente' : ''].filter(Boolean).join(' · '));
+      });
+    rep.mediciones
+      .filter((m) => m.lote_id === l.id && m.orden === e.orden)
+      .forEach((m) => add(sec, m.parametro, num(m.valor), [m.unidad, m.hora ? `Hora: ${fmtTime(m.hora)}` : ''].filter(Boolean).join(' · ')));
+  });
+  rep.envasado
+    .filter((e) => e.lote_id === l.id)
+    .forEach((e) => add('Envasado', `${e.categoria} · ${e.presentacion}`, e.unidades, `und · total ${String(e.total).replace('.', ',')} ${e.medida}`));
+  rep.insumos
+    .filter((i) => i.lote_id === l.id)
+    .forEach((i) =>
+      add('Insumos', i.derivacion ? `${i.insumo} (${i.derivacion.replace(/_/g, ' ')})` : i.insumo, num(i.cantidad), `${i.unidad} · lote ${i.lote_insumo} · ${i.etapa}`),
+    );
+  add('Cierre', 'Correcciones del administrador', l.correcciones);
+  add('Cierre', 'Motivo de anulación', l.estado === 'ANULADO' ? l.anulacion_motivo ?? '' : '');
+  add('Cierre', 'Observaciones', l.observaciones_finales ?? '');
+
+  const registro: ExportSheet = {
+    name: 'Registro del lote',
+    columns: [
+      { key: 'seccion', label: 'Sección', width: 34 },
+      { key: 'dato', label: 'Dato', width: 48 },
+      { key: 'valor', label: 'Valor', width: 22, format: 'decimal' },
+      { key: 'detalle', label: 'Detalle', width: 40 },
+    ],
+    rows: filas,
+  };
+  const aparte = hojas.filter((h) => h.name === 'Correcciones' && h.rows.length > 0);
+  return [registro, ...aparte];
+};
+
+// ---------------------------------------------------------------------------------------------
+// Buscador de lotes (para la ficha)
+// ---------------------------------------------------------------------------------------------
+
+/** Datos mínimos de un lote para el buscador. */
+interface LoteBuscable {
+  id: string;
+  codigo_lote: string;
+  lote_dia?: string | null;
+  estado: string;
+  iniciado_at: string;
+  producto_nombre: string;
+  producto_codigo: string;
+  linea_nombre: string;
+  responsable_nombre: string;
+}
 
 interface LotPickerProps {
-  rows: BatchHistoryRow[];
+  rows: LoteBuscable[];
   value: string;
   onChange: (id: string) => void;
   disabled?: boolean;
@@ -419,6 +660,7 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
         if (tokens.length === 0) return true;
         const hay = norm(
           [
+            r.lote_dia ?? '',
             r.codigo_lote,
             r.producto_nombre,
             r.producto_codigo,
@@ -432,7 +674,7 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
         return tokens.every((t) => hay.includes(t));
       })
       .sort((a, b) => (toDate(b.iniciado_at)?.getTime() ?? 0) - (toDate(a.iniciado_at)?.getTime() ?? 0));
-    const map = new Map<string, BatchHistoryRow[]>();
+    const map = new Map<string, LoteBuscable[]>();
     filtered.forEach((r) => {
       const list = map.get(r.producto_nombre);
       if (list) list.push(r);
@@ -462,14 +704,14 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
         <span className="flex-1 min-w-0">
           {selected ? (
             <span className="flex flex-col">
-              <span className="text-xs font-bold text-gray-900 break-all">{selected.codigo_lote}</span>
+              <span className="text-xs font-bold text-gray-900 break-all">{loteDeFila(selected)}</span>
               <span className="text-[11px] text-gray-500 break-words">
                 {selected.producto_nombre} · {fmtDate(selected.iniciado_at)} {fmtTime(selected.iniciado_at)} ·{' '}
                 {ESTADO_LABEL[selected.estado] ?? selected.estado}
               </span>
             </span>
           ) : (
-            <span className="text-xs font-semibold text-gray-500">Buscar lote por código, producto, fecha o responsable…</span>
+            <span className="text-xs font-semibold text-gray-500">Buscar lote (ej. ABJBF), producto, fecha o responsable…</span>
           )}
         </span>
         <span className="material-symbols-outlined text-[18px] text-gray-400 shrink-0">{open ? 'expand_less' : 'expand_more'}</span>
@@ -496,7 +738,7 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="O escribe código, fecha (dd/mm/aaaa) o responsable"
+              placeholder="O escribe el lote (ej. ABJBF), fecha (dd/mm/aaaa) o responsable"
               className="w-full h-9 px-3 rounded-lg bg-[#F7F9FC] border border-[#D6DEEA] text-xs font-semibold text-gray-800 outline-none focus:border-[#1B4E9B]"
             />
             <div className="px-1 text-[10px] font-bold text-gray-500">
@@ -518,7 +760,7 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
                     className={`w-full px-3 py-2 text-left flex items-start gap-2 hover:bg-[#F2F7FF] cursor-pointer ${r.id === value ? 'bg-[#EAF2FF]' : ''}`}
                   >
                     <span className="flex-1 min-w-0">
-                      <span className="block text-xs font-bold text-gray-900 break-all">{r.codigo_lote}</span>
+                      <span className="block text-xs font-bold text-gray-900 break-all">{loteDeFila(r)}</span>
                       <span className="block text-[11px] text-gray-500 break-words">
                         {fmtDate(r.iniciado_at)} {fmtTime(r.iniciado_at)} · {r.responsable_nombre}
                       </span>
@@ -539,854 +781,371 @@ const LotPicker: React.FC<LotPickerProps> = ({ rows, value, onChange, disabled }
   );
 };
 
+
+// ---------------------------------------------------------------------------------------------
+// Pantalla
+// ---------------------------------------------------------------------------------------------
+
+type Preset = 'hoy' | 'ayer' | 'semana' | 'mes' | 'mesAnterior' | 'todo';
+
+const HOJAS_INFO: { nombre: string; desc: string; icon: string; clave: keyof ReporteProduccion | 'resumen' }[] = [
+  { nombre: 'Resumen', desc: 'Totales por producto y alertas: lotes en proceso, anulados, corregidos o sin envasado.', icon: 'summarize', clave: 'resumen' },
+  { nombre: 'Lotes', desc: 'Una fila por lote: inicio, cierre, duración, leche, kg, unidades y rendimiento.', icon: 'inventory_2', clave: 'lotes' },
+  { nombre: 'Una hoja por producto', desc: 'Una fila por lote con todo su proceso: cada etapa y paso (hora y duración), cada medición, el envasado por presentación y cada insumo con su lote.', icon: 'schedule', clave: 'etapas' },
+  { nombre: 'Correcciones', desc: 'Correcciones y anulaciones: quién, cuándo, valor anterior y nuevo, y motivo.', icon: 'history_edu', clave: 'correcciones' },
+];
+
 export const ExportCenter: React.FC<ExportCenterProps> = ({ lines, products, users }) => {
-  const [history, setHistory] = useState<BatchHistoryRow[]>([]);
-  const [audit, setAudit] = useState<AuditLogEntry[]>([]);
+  const hoy = diaColombia(new Date());
+  const [desde, setDesde] = useState(hoy);
+  const [hasta, setHasta] = useState(hoy);
+  const [linea, setLinea] = useState('');
+  const [producto, setProducto] = useState('');
+  const [estado, setEstado] = useState('');
+  const [responsable, setResponsable] = useState('');
+  const [lote, setLote] = useState('');
+  const [rep, setRep] = useState<ReporteProduccion | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [lineFilter, setLineFilter] = useState('todas');
-  const [estadoFilter, setEstadoFilter] = useState('todos');
-  const [productFilter, setProductFilter] = useState('todos');
-  const [responsableFilter, setResponsableFilter] = useState('todos');
-  const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<Set<DatasetKey>>(new Set(['historial', 'produccion', 'presentaciones', 'totales', 'auditoria', 'anulados']));
-  const [fichaLote, setFichaLote] = useState('');
-
-  const load = async () => {
-    setLoading(true);
-    try {
-      const [h, a] = await Promise.all([fetchBatchHistory(500), fetchAuditLogs()]);
-      setHistory(h);
-      setAudit(a);
-      setError('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudieron cargar los datos.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [fichaId, setFichaId] = useState('');
+  const peticion = useRef(0);
 
   useEffect(() => {
-    void load();
-  }, []);
+    const id = ++peticion.current;
+    setLoading(true);
+    const t = window.setTimeout(() => {
+      fetchProductionReport({ desde, hasta, linea, producto, estado, responsable, lote: lote.trim() })
+        .then((r) => {
+          if (id !== peticion.current) return;
+          setRep(r);
+          setError('');
+        })
+        .catch((err) => {
+          if (id !== peticion.current) return;
+          setError(err instanceof Error ? err.message : 'No se pudo cargar el reporte.');
+        })
+        .finally(() => {
+          if (id === peticion.current) setLoading(false);
+        });
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [desde, hasta, linea, producto, estado, responsable, lote]);
 
-  const inRange = (iso: string | null | undefined) => {
-    if (!iso) return !from && !to;
-    const t = new Date(iso).getTime();
-    if (from && t < new Date(`${from}T00:00:00`).getTime()) return false;
-    if (to && t > new Date(`${to}T23:59:59`).getTime()) return false;
-    return true;
-  };
+  useEffect(() => {
+    if (fichaId && rep && !rep.lotes.some((l) => l.id === fichaId)) setFichaId('');
+  }, [rep, fichaId]);
 
-  const hasFilters =
-    !!from || !!to || lineFilter !== 'todas' || estadoFilter !== 'todos' || productFilter !== 'todos' || responsableFilter !== 'todos' || !!search.trim();
-
-  const productOptions = useMemo(() => Array.from(new Set(history.map((h) => h.producto_nombre))).sort(), [history]);
-  const responsableOptions = useMemo(() => Array.from(new Set(history.map((h) => h.responsable_nombre).filter(Boolean))).sort(), [history]);
-
-  const filteredLots = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return history
-      .filter(
-        (h) =>
-          inRange(h.iniciado_at) &&
-          (lineFilter === 'todas' || lineUiId(h.linea_codigo) === lineFilter) &&
-          (estadoFilter === 'todos' || h.estado === estadoFilter) &&
-          (productFilter === 'todos' || h.producto_nombre === productFilter) &&
-          (responsableFilter === 'todos' || h.responsable_nombre === responsableFilter) &&
-          (!q || h.codigo_lote.toLowerCase().includes(q))
-      )
-      .sort((a, b) => new Date(a.iniciado_at).getTime() - new Date(b.iniciado_at).getTime());
-  }, [history, from, to, lineFilter, estadoFilter, productFilter, responsableFilter, search]);
-
-  const filteredAudit = useMemo(() => {
-    const codes = new Set(filteredLots.map((h) => h.codigo_lote));
-    return audit.filter((a) => !hasFilters || codes.has(a.batchId));
-  }, [audit, filteredLots, hasFilters]);
-
-  const setPreset = (days: number | 'mes' | 'todo') => {
-    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const end = new Date();
-    if (days === 'todo') {
-      setFrom('');
-      setTo('');
+  const setPreset = (p: Preset) => {
+    if (p === 'todo') {
+      setDesde('');
+      setHasta('');
       return;
     }
-    const start = new Date();
-    if (days === 'mes') start.setDate(1);
-    else start.setDate(start.getDate() - (days - 1));
-    setFrom(fmt(start));
-    setTo(fmt(end));
-  };
-
-  const clearFilters = () => {
-    setFrom('');
-    setTo('');
-    setLineFilter('todas');
-    setEstadoFilter('todos');
-    setProductFilter('todos');
-    setResponsableFilter('todos');
-    setSearch('');
-  };
-
-  const sheets = useMemo(() => {
-    const historial: ExportSheet = {
-      name: 'Historial de lotes',
-      columns: [
-        { key: 'lote', label: 'Lote' },
-        { key: 'producto', label: 'Producto' },
-        { key: 'codigo', label: 'Código producto' },
-        { key: 'linea', label: 'Línea' },
-        { key: 'responsable', label: 'Responsable' },
-        { key: 'estado', label: 'Estado' },
-        { key: 'etapa', label: 'Etapa actual' },
-        { key: 'leche', label: 'Leche base (L)' },
-        { key: 'kg', label: 'Kg producidos' },
-        { key: 'unidades', label: 'Unidades producidas' },
-        { key: 'rend', label: 'Rendimiento (%)' },
-        { key: 'fechaInicio', label: 'Fecha de inicio' },
-        { key: 'horaInicio', label: 'Hora de inicio' },
-        { key: 'fechaFin', label: 'Fecha de fin' },
-        { key: 'horaFin', label: 'Hora de fin' },
-        { key: 'duracion', label: 'Duración (h:mm)' },
-        { key: 'minutos', label: 'Duración (min)' },
-        { key: 'rect', label: 'Rectificaciones' },
-      ],
-      rows: filteredLots.map((h) => {
-        // Etiquetas claras según el estado, para que ninguna celda quede en blanco sin explicación.
-        const sinFin = h.estado === 'ANULADO' ? 'No finalizó (anulado)' : h.estado === 'EN_PROCESO' ? 'En proceso' : '';
-        const sinProd = h.estado === 'ANULADO' ? 'No aplica (anulado)' : h.estado === 'EN_PROCESO' ? 'En proceso' : 'Sin registro';
-        const etapa =
-          h.estado === 'EN_PROCESO'
-            ? humanize(h.etapa_actual_codigo ?? '') || 'En proceso'
-            : h.estado === 'ANULADO'
-            ? 'Anulado antes de terminar'
-            : 'Proceso terminado';
-        return {
-          lote: h.codigo_lote,
-          producto: h.producto_nombre,
-          codigo: h.producto_codigo,
-          linea: h.linea_nombre,
-          responsable: h.responsable_nombre,
-          estado: ESTADO_LABEL[h.estado] ?? h.estado,
-          etapa,
-          leche: toNumber(h.volumen_leche_base_litros) ?? sinProd,
-          kg: h.kg_producidos ?? sinProd,
-          unidades: h.unidades_producidas ?? sinProd,
-          rend: h.rendimiento_pct ?? sinProd,
-          fechaInicio: fmtDate(h.iniciado_at),
-          horaInicio: fmtTime(h.iniciado_at),
-          fechaFin: fmtDate(h.finalizado_at) || sinFin,
-          horaFin: fmtTime(h.finalizado_at) || sinFin,
-          duracion: fmtDuration(h.duracion_total_segundos) || sinFin,
-          minutos: h.duracion_total_segundos ? Math.round(h.duracion_total_segundos / 60) : sinFin,
-          rect: h.rectificaciones,
-        };
-      }),
-    };
-
-    const byProduct = new Map<string, BatchHistoryRow[]>();
-    filteredLots.forEach((h) => byProduct.set(h.producto_nombre, [...(byProduct.get(h.producto_nombre) ?? []), h]));
-    const produccion: ExportSheet = {
-      name: 'Resumen por producto',
-      columns: [
-        { key: 'producto', label: 'Producto' },
-        { key: 'linea', label: 'Línea' },
-        { key: 'total', label: 'Lotes totales' },
-        { key: 'completados', label: 'Completados' },
-        { key: 'proceso', label: 'En proceso' },
-        { key: 'anulados', label: 'Anulados' },
-        { key: 'leche', label: 'Leche procesada en completados (L)' },
-        { key: 'kg', label: 'Kg producidos en completados' },
-        { key: 'unidades', label: 'Unidades producidas en completados' },
-        { key: 'rend', label: 'Rendimiento promedio (%)' },
-        { key: 'promedio', label: 'Duración promedio (min)' },
-        { key: 'rect', label: 'Rectificaciones' },
-      ],
-      rows: Array.from(byProduct.entries()).map(([producto, rows]) => {
-        const done = rows.filter((r) => r.estado === 'COMPLETADO');
-        const durs = done.map((r) => r.duracion_total_segundos ?? 0).filter((s) => s > 0);
-        return {
-          producto,
-          linea: rows[0].linea_nombre,
-          total: rows.length,
-          completados: done.length,
-          proceso: rows.filter((r) => r.estado === 'EN_PROCESO').length,
-          anulados: rows.filter((r) => r.estado === 'ANULADO').length,
-          leche: done.reduce((s, r) => s + (toNumber(r.volumen_leche_base_litros) ?? 0), 0),
-          kg: Math.round(done.reduce((s, r) => s + (r.kg_producidos ?? 0), 0) * 100) / 100,
-          unidades: done.reduce((s, r) => s + (r.unidades_producidas ?? 0), 0),
-          rend: (() => {
-            const vals = done.map((r) => r.rendimiento_pct).filter((v): v is number => typeof v === 'number' && v > 0);
-            return vals.length ? Math.round((vals.reduce((s, v) => s + v, 0) / vals.length) * 10) / 10 : null;
-          })(),
-          promedio: durs.length ? Math.round(durs.reduce((s, x) => s + x, 0) / durs.length / 60) : null,
-          rect: rows.reduce((s, r) => s + r.rectificaciones, 0),
-        };
-      }),
-    };
-
-    const auditoria: ExportSheet = {
-      name: 'Auditoría',
-      columns: [
-        { key: 'fecha', label: 'Fecha' },
-        { key: 'hora', label: 'Hora' },
-        { key: 'lote', label: 'Lote' },
-        { key: 'linea', label: 'Línea' },
-        { key: 'admin', label: 'Autorizado por' },
-        { key: 'etapa', label: 'Etapa' },
-        { key: 'variable', label: 'Variable' },
-        { key: 'anterior', label: 'Valor anterior' },
-        { key: 'nuevo', label: 'Valor nuevo' },
-        { key: 'unidad', label: 'Unidad' },
-        { key: 'causal', label: 'Causal' },
-        { key: 'just', label: 'Justificación', width: 60 },
-      ],
-      rows: filteredAudit.map((a) => ({
-        fecha: fmtDate(a.timestamp),
-        hora: fmtTime(a.timestamp),
-        lote: a.batchId,
-        linea: a.lineName,
-        admin: a.adminName,
-        etapa: a.stageLabel,
-        variable: a.fieldLabel,
-        anterior: ESTADO_LABEL[String(a.oldValue)] ?? a.oldValue,
-        nuevo: ESTADO_LABEL[String(a.newValue)] ?? a.newValue,
-        unidad: a.unit ?? '',
-        causal: a.reasonCategory,
-        just: a.justificationText,
-      })),
-    };
-
-    const anulados: ExportSheet = {
-      name: 'Lotes anulados',
-      columns: [
-        { key: 'lote', label: 'Lote' },
-        { key: 'producto', label: 'Producto' },
-        { key: 'linea', label: 'Línea' },
-        { key: 'responsable', label: 'Responsable' },
-        { key: 'inicio', label: 'Fecha de inicio' },
-        { key: 'horaInicio', label: 'Hora de inicio' },
-        { key: 'por', label: 'Anulado por' },
-        { key: 'fecha', label: 'Fecha de anulación' },
-        { key: 'hora', label: 'Hora de anulación' },
-        { key: 'motivo', label: 'Motivo', width: 60 },
-      ],
-      rows: filteredLots
-        .filter((h) => h.estado === 'ANULADO')
-        .map((h) => ({
-          lote: h.codigo_lote,
-          producto: h.producto_nombre,
-          linea: h.linea_nombre,
-          responsable: h.responsable_nombre,
-          inicio: fmtDate(h.iniciado_at),
-          horaInicio: fmtTime(h.iniciado_at),
-          por: h.anulado_por ?? '',
-          fecha: fmtDate(h.anulado_at),
-          hora: fmtTime(h.anulado_at),
-          motivo: h.anulacion_justificacion ?? '',
-        })),
-    };
-
-    const usuarios: ExportSheet = {
-      name: 'Usuarios',
-      columns: [
-        { key: 'codigo', label: 'Código' },
-        { key: 'nombre', label: 'Nombre' },
-        { key: 'rol', label: 'Rol' },
-        { key: 'turno', label: 'Turno' },
-        { key: 'linea', label: 'Línea asignada' },
-      ],
-      rows: users.map((u) => ({
-        codigo: u.code,
-        nombre: u.name,
-        rol: SHIFT_ROLE[u.role] ?? u.role,
-        turno: u.shift,
-        linea: lines.find((l) => l.id === u.assignedLineId)?.name ?? 'Flotante',
-      })),
-    };
-
-    const lineasSheet: ExportSheet = {
-      name: 'Líneas y productos',
-      columns: [
-        { key: 'codigo', label: 'Código línea' },
-        { key: 'linea', label: 'Línea' },
-        { key: 'capacidad', label: 'Capacidad (L)' },
-        { key: 'estado', label: 'Estado' },
-        { key: 'producto', label: 'Producto' },
-        { key: 'pcodigo', label: 'Código producto' },
-        { key: 'norma', label: 'Normativa' },
-      ],
-      rows: lines.flatMap((l) => {
-        const prods = products.filter((p) => l.allowedProductIds.includes(p.id));
-        const base = { codigo: l.code, linea: l.name, capacidad: l.capacityLiters, estado: humanize(l.status) };
-        return prods.length
-          ? prods.map((p) => ({ ...base, producto: p.name, pcodigo: p.code, norma: p.standards }))
-          : [base];
-      }),
-    };
-
-    const detalleRows = filteredLots
-      .filter((h) => h.estado !== 'ANULADO')
-      .flatMap((h) =>
-        (h.detalle_produccion ?? []).map((d) => ({
-          lote: h.codigo_lote,
-          linea: h.linea_nombre,
-          producto: h.producto_nombre,
-          estado: ESTADO_LABEL[h.estado] ?? h.estado,
-          fecha: fmtDate(h.finalizado_at ?? h.iniciado_at),
-          tipo: d.categoria,
-          presentacion: d.presentacion,
-          unidades: d.unidades,
-          tamano: d.tamano,
-          total: d.total,
-          medida: d.medida === 'kg' ? 'kg' : 'litros',
-          sabores: h.sabores || '—',
-        }))
-      );
-    const presentaciones: ExportSheet = {
-      name: 'Producción por presentación',
-      columns: [
-        { key: 'lote', label: 'Lote' },
-        { key: 'linea', label: 'Línea' },
-        { key: 'producto', label: 'Producto' },
-        { key: 'estado', label: 'Estado del lote' },
-        { key: 'fecha', label: 'Fecha' },
-        { key: 'tipo', label: 'Tipo (con azúcar, sin azúcar, estevia, molde...)', width: 30 },
-        { key: 'presentacion', label: 'Presentación', width: 32 },
-        { key: 'unidades', label: 'Unidades producidas' },
-        { key: 'tamano', label: 'Contenido por unidad (kg o L)' },
-        { key: 'total', label: 'Total (kg o L)' },
-        { key: 'medida', label: 'Medida del total' },
-        { key: 'sabores', label: 'Sabores del lote', width: 30 },
-      ],
-      rows: detalleRows,
-    };
-    const acum = new Map<string, { linea: string; producto: string; tipo: string; presentacion: string; lotes: Set<string>; unidades: number; total: number; medida: string }>();
-    detalleRows.forEach((r) => {
-      const k = `${r.linea}|${r.producto}|${r.tipo}|${r.presentacion}`;
-      const a = acum.get(k) ?? { linea: r.linea, producto: r.producto, tipo: r.tipo, presentacion: r.presentacion, lotes: new Set<string>(), unidades: 0, total: 0, medida: r.medida };
-      a.lotes.add(r.lote);
-      a.unidades += r.unidades;
-      a.total += r.total;
-      acum.set(k, a);
-    });
-    const totales: ExportSheet = {
-      name: 'Totales por presentación',
-      columns: [
-        { key: 'linea', label: 'Línea' },
-        { key: 'producto', label: 'Producto' },
-        { key: 'tipo', label: 'Tipo (con azúcar, sin azúcar, estevia, molde...)', width: 30 },
-        { key: 'presentacion', label: 'Presentación', width: 32 },
-        { key: 'lotes', label: 'Lotes' },
-        { key: 'unidades', label: 'Unidades producidas' },
-        { key: 'total', label: 'Total (kg o L)' },
-        { key: 'medida', label: 'Medida del total' },
-      ],
-      rows: Array.from(acum.values())
-        .sort((x, y) => x.linea.localeCompare(y.linea) || x.producto.localeCompare(y.producto) || x.tipo.localeCompare(y.tipo) || x.presentacion.localeCompare(y.presentacion))
-        .map((a) => ({ linea: a.linea, producto: a.producto, tipo: a.tipo, presentacion: a.presentacion, lotes: a.lotes.size, unidades: a.unidades, total: Math.round(a.total * 1000) / 1000, medida: a.medida })),
-    };
-
-    return { historial, produccion, presentaciones, totales, auditoria, anulados, usuarios, lineas: lineasSheet } as Record<Exclude<DatasetKey, 'variables'>, ExportSheet>;
-  }, [filteredLots, filteredAudit, users, lines, products]);
-
-  const consolidated = useMemo<ExportSheet | null>(() => {
-    if (sheets.historial.rows.length === 0) return null;
-
-    const auditByLot = new Map<string, Record<string, CellValue>[]>();
-    sheets.auditoria.rows.forEach((r) => {
-      const key = String(r.lote ?? '');
-      auditByLot.set(key, [...(auditByLot.get(key) ?? []), r]);
-    });
-    const anuladoByLot = new Map(sheets.anulados.rows.map((r) => [String(r.lote ?? ''), r]));
-    const productoByName = new Map(sheets.produccion.rows.map((r) => [String(r.producto ?? ''), r]));
-
-    const columns: ExportColumn[] = [
-      ...sheets.historial.columns.map((c) => ({ key: `h_${c.key}`, label: `${PREFIX.historial} ${c.label}`, width: c.width })),
-      { key: 'a_total', label: `${PREFIX.auditoria} Correcciones` },
-      { key: 'a_fecha', label: `${PREFIX.auditoria} Fecha de la última corrección` },
-      { key: 'a_hora', label: `${PREFIX.auditoria} Hora de la última corrección` },
-      { key: 'a_etapa', label: `${PREFIX.auditoria} Etapa` },
-      { key: 'a_variable', label: `${PREFIX.auditoria} Variable` },
-      { key: 'a_anterior', label: `${PREFIX.auditoria} Valor anterior` },
-      { key: 'a_nuevo', label: `${PREFIX.auditoria} Valor nuevo` },
-      { key: 'a_causal', label: `${PREFIX.auditoria} Causal` },
-      { key: 'a_just', label: `${PREFIX.auditoria} Justificación`, width: 60 },
-      { key: 'a_admin', label: `${PREFIX.auditoria} Autorizado por` },
-      { key: 'n_por', label: `${PREFIX.anulado} Anulado por` },
-      { key: 'n_fecha', label: `${PREFIX.anulado} Fecha de anulación` },
-      { key: 'n_hora', label: `${PREFIX.anulado} Hora de anulación` },
-      { key: 'n_motivo', label: `${PREFIX.anulado} Motivo`, width: 60 },
-      { key: 'p_total', label: `${PREFIX.producto} Lotes del producto` },
-      { key: 'p_completados', label: `${PREFIX.producto} Completados` },
-      { key: 'p_proceso', label: `${PREFIX.producto} En proceso` },
-      { key: 'p_anulados', label: `${PREFIX.producto} Anulados` },
-      { key: 'p_leche', label: `${PREFIX.producto} Leche procesada (L)` },
-      { key: 'p_promedio', label: `${PREFIX.producto} Duración promedio (min)` },
-    ];
-
-    const rows = sheets.historial.rows.map((h) => {
-      const lote = String(h.lote ?? '');
-      const correcciones = (auditByLot.get(lote) ?? []).slice().sort((a, b) => {
-        const ta = new Date(String(a.fecha ?? '')).getTime();
-        const tb = new Date(String(b.fecha ?? '')).getTime();
-        return (Number.isFinite(ta) ? ta : 0) - (Number.isFinite(tb) ? tb : 0);
-      });
-      const ultima = correcciones[correcciones.length - 1];
-      const anulado = anuladoByLot.get(lote);
-      const producto = productoByName.get(String(h.producto ?? ''));
-
-      const row: Record<string, CellValue> = {};
-      sheets.historial.columns.forEach((c) => {
-        row[`h_${c.key}`] = h[c.key];
-      });
-      row.a_total = correcciones.length;
-      row.a_fecha = ultima?.fecha ?? '';
-      row.a_hora = ultima?.hora ?? '';
-      row.a_etapa = ultima?.etapa ?? '';
-      row.a_variable = ultima?.variable ?? '';
-      row.a_anterior = ultima?.anterior ?? '';
-      row.a_nuevo = ultima?.nuevo ?? '';
-      row.a_causal = ultima?.causal ?? '';
-      row.a_just = ultima?.just ?? '';
-      row.a_admin = ultima?.admin ?? '';
-      row.n_por = anulado?.por ?? '';
-      row.n_fecha = anulado?.fecha ?? '';
-      row.n_hora = anulado?.hora ?? '';
-      row.n_motivo = anulado?.motivo ?? '';
-      row.p_total = producto?.total ?? null;
-      row.p_completados = producto?.completados ?? null;
-      row.p_proceso = producto?.proceso ?? null;
-      row.p_anulados = producto?.anulados ?? null;
-      row.p_leche = producto?.leche ?? null;
-      row.p_promedio = producto?.promedio ?? null;
-      // Ninguna celda queda en blanco: lo que no aplica a este lote se marca con un guion.
-      Object.keys(row).forEach((k) => {
-        const v = row[k];
-        if (v === '' || v === null || v === undefined) row[k] = '—';
-      });
-      return row;
-    });
-
-    return { name: 'Datos Consolidados', columns, rows };
-  }, [sheets]);
-
-  const buildVariablesSheet = async (lots: BatchHistoryRow[]): Promise<ExportSheet> => {
-    const rows: Record<string, CellValue>[] = [];
-    for (let i = 0; i < lots.length; i += 1) {
-      const lot = lots[i];
-      setBusy(`Leyendo variables del lote ${i + 1} de ${lots.length}...`);
-      try {
-        const detail = await fetchBatchDetail(lot.id);
-        const out = collectVariables(detail.estado_ui?.batch);
-        out.forEach((o) =>
-          rows.push({
-            lote: lot.codigo_lote,
-            producto: lot.producto_nombre,
-            linea: lot.linea_nombre,
-            estado: ESTADO_LABEL[lot.estado] ?? lot.estado,
-            etapa: o.etapa,
-            variable: o.variable,
-            valor: o.valor,
-            unidad: o.unidad,
-          })
-        );
-      } catch {
-        rows.push({ lote: lot.codigo_lote, producto: lot.producto_nombre, linea: lot.linea_nombre, estado: lot.estado, etapa: 'Error', variable: 'No se pudo leer el lote', valor: '', unidad: '' });
-      }
+    if (p === 'hoy') {
+      setDesde(hoy);
+      setHasta(hoy);
+    } else if (p === 'ayer') {
+      const ayer = sumarDias(hoy, -1);
+      setDesde(ayer);
+      setHasta(ayer);
+    } else if (p === 'semana') {
+      setDesde(sumarDias(hoy, -6));
+      setHasta(hoy);
+    } else if (p === 'mes') {
+      setDesde(`${hoy.slice(0, 8)}01`);
+      setHasta(hoy);
+    } else {
+      const primeroEste = `${hoy.slice(0, 8)}01`;
+      const ultimoAnterior = sumarDias(primeroEste, -1);
+      setDesde(`${ultimoAnterior.slice(0, 8)}01`);
+      setHasta(ultimoAnterior);
     }
-    return {
-      name: 'Variables de proceso',
-      columns: [
-        { key: 'lote', label: 'Lote' },
-        { key: 'producto', label: 'Producto' },
-        { key: 'linea', label: 'Línea' },
-        { key: 'estado', label: 'Estado' },
-        { key: 'etapa', label: 'Etapa del proceso' },
-        { key: 'variable', label: 'Variable registrada', width: 45 },
-        { key: 'valor', label: 'Valor', width: 40 },
-        { key: 'unidad', label: 'Unidad' },
-      ],
-      rows,
-    };
   };
 
-  const getSheet = async (key: DatasetKey): Promise<ExportSheet> =>
-    key === 'variables' ? buildVariablesSheet(filteredLots.filter((l) => l.estado !== 'ANULADO')) : sheets[key];
-
-  const ORDER: DatasetKey[] = ['historial', 'produccion', 'presentaciones', 'totales', 'variables', 'auditoria', 'anulados', 'usuarios', 'lineas'];
-
-  const filterSummary = (): string => {
-    const parts: string[] = [];
-    if (from || to) parts.push(`Fechas: ${from || 'inicio'} a ${to || 'hoy'}`);
-    if (lineFilter !== 'todas') parts.push(`Línea: ${lines.find((l) => l.id === lineFilter)?.name ?? lineFilter}`);
-    if (productFilter !== 'todos') parts.push(`Producto: ${productFilter}`);
-    if (estadoFilter !== 'todos') parts.push(`Estado: ${ESTADO_LABEL[estadoFilter] ?? estadoFilter}`);
-    if (responsableFilter !== 'todos') parts.push(`Responsable: ${responsableFilter}`);
-    if (search.trim()) parts.push(`Lote contiene: ${search.trim()}`);
-    return parts.length ? parts.join(' | ') : 'Sin filtros (todos los lotes)';
+  const limpiar = () => {
+    setPreset('hoy');
+    setLinea('');
+    setProducto('');
+    setEstado('');
+    setResponsable('');
+    setLote('');
   };
 
-  const runExport = async (format: 'csv' | 'xlsx') => {
-    const keys = ORDER.filter((k) => selected.has(k));
-    if (keys.length === 0) return;
-    setBusy('Preparando archivo...');
+  const periodo = !desde && !hasta ? 'Todos los lotes' : desde === hasta ? ddmm(desde) : `${desde ? ddmm(desde) : 'inicio'} a ${hasta ? ddmm(hasta) : 'hoy'}`;
+  const otros = [
+    linea && `Línea: ${lines.find((l) => l.code === linea)?.name ?? linea}`,
+    producto && `Producto: ${products.find((p) => p.code === producto)?.name ?? producto}`,
+    estado && `Estado: ${ESTADO_LABEL[estado] ?? estado}`,
+    responsable && `Responsable: ${responsable}`,
+    lote.trim() && `Lote contiene: ${lote.trim()}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const hojas = useMemo(() => (rep ? construirHojas(rep, { periodo, otros }) : []), [rep, periodo, otros]);
+  const resumen = hojas[0];
+  const alertas = resumen?.extra?.[0]?.rows.length ?? 0;
+  const lotes = rep?.lotes ?? [];
+  const conteo = {
+    total: lotes.length,
+    completados: lotes.filter((l) => l.estado === 'COMPLETADO').length,
+    proceso: lotes.filter((l) => l.estado === 'EN_PROCESO').length,
+    anulados: lotes.filter((l) => l.estado === 'ANULADO').length,
+  };
+  const filasPorHoja: Record<string, number> = Object.fromEntries(hojas.map((h) => [h.name, h.rows.length]));
+
+  const nombreArchivo = () => {
+    const rango = !desde && !hasta ? 'todo' : desde === hasta ? desde : `${desde || 'inicio'}_a_${hasta || hoy}`;
+    return `Produccion_${rango}`;
+  };
+
+  const descargarExcel = () => {
+    if (!rep) return;
+    setBusy('Preparando el Excel...');
     try {
-      const built: { key: DatasetKey; sheet: ExportSheet }[] = [];
-      for (const k of keys) built.push({ key: k, sheet: await getSheet(k) });
-      const base = `QCS_${stamp()}`;
-      if (format === 'csv') {
-        if (built.length === 1) exportCsv(built[0].sheet, `${FILE_SLUG[built[0].key]}_${stamp()}`);
-        else
-          exportZip(
-            built.map(({ key, sheet }) => ({
-              name: `${String(ORDER.indexOf(key) + 1).padStart(2, '0')}_${FILE_SLUG[key]}.csv`,
-              content: buildCsv(sheet),
-            })),
-            base
-          );
-      } else {
-        const indice: ExportSheet = {
-          name: 'Índice',
-          columns: [
-            { key: 'hoja', label: 'Hoja' },
-            { key: 'contenido', label: 'Contenido', width: 70 },
-            { key: 'filas', label: 'Filas' },
-          ],
-          rows: [
-            { hoja: 'Datos Consolidados', contenido: 'Una fila por lote: historial unido con auditoría, anulación y resumen del producto. Los encabezados llevan el prefijo [HISTORIAL], [AUDITORÍA], [ANULADO] o [PRODUCTO] según su origen. Un guion (—) significa que ese dato no aplica al lote (sin correcciones, no anulado o sin producción registrada).', filas: consolidated?.rows.length ?? 0 },
-            ...built.map(({ key, sheet }) => ({
-              hoja: sheet.name,
-              contenido: DATASETS.find((d) => d.key === key)?.desc ?? '',
-              filas: sheet.rows.length,
-            })),
-            { hoja: 'Filtros aplicados', contenido: filterSummary(), filas: null },
-            { hoja: 'Generado', contenido: new Date().toLocaleString('es-CO'), filas: null },
-            { hoja: 'Relación entre hojas', contenido: 'La columna "Lote" enlaza Historial, Variables de proceso, Auditoría y Lotes anulados. En Datos Consolidados cada lote aparece una sola vez; si no tiene auditoría o no fue anulado, esas celdas muestran un guion (—).', filas: null },
-          ],
-        };
-        const sheetsOut: ExportSheet[] = [indice];
-        if (consolidated) sheetsOut.push(consolidated);
-        built.forEach(({ sheet }) => sheetsOut.push(sheet));
-        exportXlsx(sheetsOut, base);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo generar el archivo.');
+      exportXlsx(hojas, nombreArchivo());
     } finally {
       setBusy('');
     }
   };
 
-  const exportFicha = async (format: 'csv' | 'xlsx') => {
-    const lot = history.find((h) => h.id === fichaLote);
-    if (!lot) return;
-    setBusy('Preparando ficha del lote...');
+  const descargarCsv = () => {
+    if (!rep) return;
+    setBusy('Preparando los CSV...');
     try {
-      const variables = await buildVariablesSheet([lot]);
-      const resumen: ExportSheet = {
-        name: 'Resumen del lote',
-        columns: [
-          { key: 'campo', label: 'Dato del lote', width: 42 },
-          { key: 'valor', label: 'Valor', width: 50 },
-        ],
-        rows: [
-          { campo: 'Código del lote', valor: lot.codigo_lote },
-          { campo: 'Producto', valor: lot.producto_nombre },
-          { campo: 'Código del producto', valor: lot.producto_codigo },
-          { campo: 'Línea de producción', valor: lot.linea_nombre },
-          { campo: 'Responsable del lote', valor: lot.responsable_nombre },
-          { campo: 'Estado del lote', valor: ESTADO_LABEL[lot.estado] ?? lot.estado },
-          { campo: 'Etapa actual', valor: lot.estado === 'EN_PROCESO' ? humanize(lot.etapa_actual_codigo ?? '') : 'Proceso terminado' },
-          { campo: 'Leche base utilizada (L)', valor: toNumber(lot.volumen_leche_base_litros) },
-          { campo: 'Kg producidos', valor: lot.kg_producidos ?? null },
-          { campo: 'Unidades producidas', valor: lot.unidades_producidas ?? null },
-          { campo: 'Rendimiento (%)', valor: lot.rendimiento_pct ?? null },
-          { campo: 'Fecha de inicio', valor: fmtDate(lot.iniciado_at) },
-          { campo: 'Hora de inicio', valor: fmtTime(lot.iniciado_at) },
-          { campo: 'Fecha de fin', valor: fmtDate(lot.finalizado_at) },
-          { campo: 'Hora de fin', valor: fmtTime(lot.finalizado_at) },
-          { campo: 'Duración total (h:mm)', valor: fmtDuration(lot.duracion_total_segundos) },
-          { campo: 'Duración total (min)', valor: lot.duracion_total_segundos ? Math.round(lot.duracion_total_segundos / 60) : null },
-          { campo: 'Rectificaciones registradas', valor: lot.rectificaciones },
-          { campo: 'Anulado por', valor: lot.anulado_por ?? '' },
-          { campo: 'Fecha de anulación', valor: fmtDate(lot.anulado_at) },
-          { campo: 'Hora de anulación', valor: fmtTime(lot.anulado_at) },
-          { campo: 'Motivo de anulación', valor: lot.anulacion_justificacion ?? '' },
-        ],
-      };
-      const sinDato = lot.estado === 'ANULADO' ? 'No aplica (anulado)' : lot.estado === 'EN_PROCESO' ? 'En proceso' : 'Sin registro';
-      const noAnulado = lot.estado === 'ANULADO' ? '' : 'No aplica (lote no anulado)';
-      resumen.rows = resumen.rows.map((r) => {
-        if (r.campo === 'Kg producidos' || r.campo === 'Unidades producidas' || r.campo === 'Rendimiento (%)') return { ...r, valor: r.valor ?? sinDato };
-        if (String(r.campo).includes('anulación') || r.campo === 'Anulado por') return { ...r, valor: r.valor || noAnulado || '—' };
-        if (r.campo === 'Fecha de fin' || r.campo === 'Hora de fin' || String(r.campo).startsWith('Duración total'))
-          return { ...r, valor: r.valor === null || r.valor === '' || r.valor === undefined ? (lot.estado === 'ANULADO' ? 'No finalizó (anulado)' : 'En proceso') : r.valor };
-        return { ...r, valor: r.valor ?? '—' };
-      });
-      resumen.rows.splice(
-        10,
-        0,
-        { campo: 'Sabores usados en el lote', valor: lot.sabores || 'No aplica' },
-        { campo: 'Presentaciones distintas producidas', valor: lot.estado === 'ANULADO' ? 'No aplica (anulado)' : (lot.detalle_produccion ?? []).length }
-      );
-      const detalle = lot.estado === 'ANULADO' ? [] : lot.detalle_produccion ?? [];
-      const presLot: ExportSheet = {
-        ...sheets.presentaciones,
-        rows: detalle.length
-          ? detalle.map((d) => ({
-              lote: lot.codigo_lote, linea: lot.linea_nombre, producto: lot.producto_nombre, estado: ESTADO_LABEL[lot.estado] ?? lot.estado,
-              fecha: fmtDate(lot.finalizado_at ?? lot.iniciado_at), tipo: d.categoria, presentacion: d.presentacion, unidades: d.unidades,
-              tamano: d.tamano, total: d.total, medida: d.medida === 'kg' ? 'kg' : 'litros', sabores: lot.sabores || '—',
-            }))
-          : [{ lote: lot.codigo_lote, linea: lot.linea_nombre, producto: lot.producto_nombre, estado: ESTADO_LABEL[lot.estado] ?? lot.estado, fecha: fmtDate(lot.iniciado_at), tipo: sinDato, presentacion: sinDato, unidades: sinDato, tamano: sinDato, total: sinDato, medida: sinDato, sabores: lot.sabores || '—' }],
-      };
-      const corr = sheets.auditoria.rows.filter((r) => r.lote === lot.codigo_lote);
-      const auditLot: ExportSheet = {
-        ...sheets.auditoria,
-        name: 'Correcciones',
-        rows: corr.length
-          ? corr
-          : [{ lote: lot.codigo_lote, ...Object.fromEntries(sheets.auditoria.columns.filter((c) => c.key !== 'lote').map((c, i) => [c.key, i === 0 ? 'Sin correcciones registradas' : '—'])) }],
-      };
-      const name = `Ficha_${lot.codigo_lote}`;
-      if (format === 'csv')
-        exportZip(
-          [
-            { name: `01_Resumen_${lot.codigo_lote}.csv`, content: buildCsv(resumen) },
-            { name: `02_Produccion_Presentacion_${lot.codigo_lote}.csv`, content: buildCsv(presLot) },
-            { name: `03_Variables_${lot.codigo_lote}.csv`, content: buildCsv(variables) },
-            { name: `04_Correcciones_${lot.codigo_lote}.csv`, content: buildCsv(auditLot) },
-          ],
-          name
-        );
-      else exportXlsx([resumen, presLot, variables, auditLot], name);
+      const archivos = hojas.map((h, i) => ({
+        name: `${String(i + 1).padStart(2, '0')}_${h.name.replace(/\s+/g, '_')}.csv`,
+        content: buildCsv(h),
+      }));
+      const al = hojas[0]?.extra?.[0];
+      if (al && al.rows.length) archivos.push({ name: '08_Alertas.csv', content: buildCsv({ name: 'Alertas', columns: al.columns, rows: al.rows }) });
+      exportZip(archivos, nombreArchivo());
     } finally {
       setBusy('');
     }
   };
 
-  const DATASETS: { key: DatasetKey; title: string; desc: string; icon: string; count: number | string }[] = [
-    { key: 'historial', title: 'Historial de lotes', desc: 'Lote, producto, responsable, estado, leche, fechas y duración.', icon: 'inventory_2', count: sheets.historial.rows.length },
-    { key: 'produccion', title: 'Resumen por producto', desc: 'Lotes, completados, anulados, litros y duración promedio por producto.', icon: 'bar_chart', count: sheets.produccion.rows.length },
-    { key: 'presentaciones', title: 'Producción por presentación', desc: 'Por lote: unidades de cada presentación (con azúcar, sin azúcar, con estevia, moldes, 7 Cueros, Pera...) con su peso o litros.', icon: 'category', count: sheets.presentaciones.rows.length },
-    { key: 'totales', title: 'Totales por presentación', desc: 'Suma de unidades y kg/litros por línea, producto, tipo y presentación.', icon: 'functions', count: sheets.totales.rows.length },
-    { key: 'variables', title: 'Variables de proceso', desc: 'Cada dato registrado por el operario en cada fase (temperaturas, pH, insumos, lotes, tiempos).', icon: 'science', count: `${filteredLots.filter((l) => l.estado !== 'ANULADO').length} lotes` },
-    { key: 'auditoria', title: 'Auditoría de correcciones', desc: 'Rectificaciones y anulaciones con valor anterior, nuevo, causal y justificación.', icon: 'verified', count: sheets.auditoria.rows.length },
-    { key: 'anulados', title: 'Lotes anulados', desc: 'Lotes cancelados, quién los anuló, cuándo y por qué.', icon: 'block', count: sheets.anulados.rows.length },
-    { key: 'usuarios', title: 'Usuarios', desc: 'Personal activo con rol, turno y línea asignada.', icon: 'group', count: sheets.usuarios.rows.length },
-    { key: 'lineas', title: 'Líneas y productos', desc: 'Catálogo de líneas, capacidad y productos con su normativa.', icon: 'factory', count: sheets.lineas.rows.length },
-  ];
+  const descargarFicha = () => {
+    if (!rep) return;
+    const l = rep.lotes.find((x) => x.id === fichaId);
+    if (!l) return;
+    const solo = <T extends { lote_id: string }>(xs: T[]) => xs.filter((x) => x.lote_id === l.id);
+    const sub: ReporteProduccion = {
+      ...rep,
+      lotes: [l],
+      etapas: solo(rep.etapas),
+      pasos: solo(rep.pasos),
+      mediciones: solo(rep.mediciones),
+      envasado: solo(rep.envasado),
+      insumos: solo(rep.insumos),
+      correcciones: solo(rep.correcciones),
+    };
+    exportXlsx(construirFicha(sub, l), `Ficha_${loteDeFila(l)}_${l.producto_codigo}`);
+  };
 
-  const toggle = (k: DatasetKey) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(k)) next.delete(k);
-      else next.add(k);
-      return next;
-    });
-
-  const inputCls = 'w-full p-2 rounded-xl bg-white border border-[#D6DEEA] text-xs font-semibold text-gray-800 outline-none focus:border-[#1B4E9B]';
-  const disabled = loading || !!busy;
-  const selectedList = ORDER.filter((k) => selected.has(k));
+  const responsables = useMemo(() => Array.from(new Set(users.map((u) => u.name))).sort((a, b) => a.localeCompare(b, 'es')), [users]);
   const presetCls = 'px-3 h-8 rounded-lg border border-[#D6DEEA] bg-white text-[11px] font-bold text-gray-700 hover:bg-[#F2F4F7] cursor-pointer';
-  const stepBadge = 'w-6 h-6 rounded-full bg-[#1B4E9B] text-white text-xs font-black flex items-center justify-center shrink-0';
+  const inputCls = 'h-9 px-2 rounded-lg border border-[#D6DEEA] bg-white text-xs font-semibold text-gray-800 outline-none focus:border-[#1B4E9B] w-full';
+  const labelCls = 'flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500';
+  const sinDatos = !loading && lotes.length === 0;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className={`${card} p-5 flex flex-col gap-4`}>
-        <div className="flex items-center justify-between border-b border-[#D6DEEA] pb-3">
-          <div className="flex items-center gap-2">
-            <span className={stepBadge}>1</span>
-            <h3 className="text-sm font-bold text-gray-900">Filtra los lotes a exportar</h3>
-          </div>
-          <div className="flex items-center gap-3">
-            {hasFilters && (
-              <button onClick={clearFilters} className="text-xs text-red-700 font-bold hover:underline cursor-pointer">
-                Limpiar filtros
-              </button>
-            )}
-            <button onClick={() => void load()} disabled={disabled} className="text-xs text-[#1B4E9B] font-bold hover:underline cursor-pointer disabled:opacity-50">
-              Recargar datos
-            </button>
-          </div>
+      {/* Filtros */}
+      <div className={`${card} p-4 flex flex-col gap-3`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#1B4E9B] text-[20px]">filter_alt</span>
+            ¿Qué lotes quieres ver?
+          </h3>
+          <button className="text-[11px] font-bold text-[#1B4E9B] hover:underline cursor-pointer" onClick={limpiar}>
+            Limpiar filtros
+          </button>
         </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-bold uppercase text-gray-500 mr-1">Periodo rápido</span>
-          <button className={presetCls} onClick={() => setPreset(1)}>Hoy</button>
-          <button className={presetCls} onClick={() => setPreset(7)}>Últimos 7 días</button>
-          <button className={presetCls} onClick={() => setPreset(30)}>Últimos 30 días</button>
+        <div className="flex flex-wrap gap-2">
+          <button className={presetCls} onClick={() => setPreset('hoy')}>Hoy</button>
+          <button className={presetCls} onClick={() => setPreset('ayer')}>Ayer</button>
+          <button className={presetCls} onClick={() => setPreset('semana')}>Últimos 7 días</button>
           <button className={presetCls} onClick={() => setPreset('mes')}>Este mes</button>
+          <button className={presetCls} onClick={() => setPreset('mesAnterior')}>Mes anterior</button>
           <button className={presetCls} onClick={() => setPreset('todo')}>Todo</button>
         </div>
-
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <label className="flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500">
-            Desde
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputCls} />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <label className={labelCls}>
+            Inicio desde
+            <input type="date" value={desde} max={hasta || undefined} onChange={(e) => setDesde(e.target.value)} className={inputCls} />
           </label>
-          <label className="flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500">
-            Hasta
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputCls} />
+          <label className={labelCls}>
+            Inicio hasta
+            <input type="date" value={hasta} min={desde || undefined} onChange={(e) => setHasta(e.target.value)} className={inputCls} />
           </label>
-          <label className="flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500">
+          <label className={labelCls}>
             Línea
-            <select value={lineFilter} onChange={(e) => setLineFilter(e.target.value)} className={inputCls}>
-              <option value="todas">Todas las líneas</option>
+            <select value={linea} onChange={(e) => setLinea(e.target.value)} className={inputCls}>
+              <option value="">Todas</option>
               {lines.map((l) => (
-                <option key={l.id} value={l.id}>
+                <option key={l.id} value={l.code}>
                   {l.name}
                 </option>
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500">
+          <label className={labelCls}>
             Producto
-            <select value={productFilter} onChange={(e) => setProductFilter(e.target.value)} className={inputCls}>
-              <option value="todos">Todos los productos</option>
-              {productOptions.map((n) => (
-                <option key={n} value={n}>
-                  {n}
+            <select value={producto} onChange={(e) => setProducto(e.target.value)} className={inputCls}>
+              <option value="">Todos</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.code}>
+                  {p.name}
                 </option>
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500">
-            Estado del lote
-            <select value={estadoFilter} onChange={(e) => setEstadoFilter(e.target.value)} className={inputCls}>
-              <option value="todos">Todos</option>
+          <label className={labelCls}>
+            Estado
+            <select value={estado} onChange={(e) => setEstado(e.target.value)} className={inputCls}>
+              <option value="">Todos</option>
               <option value="COMPLETADO">Completados</option>
               <option value="EN_PROCESO">En proceso</option>
               <option value="ANULADO">Anulados</option>
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500">
+          <label className={labelCls}>
             Responsable
-            <select value={responsableFilter} onChange={(e) => setResponsableFilter(e.target.value)} className={inputCls}>
-              <option value="todos">Todos</option>
-              {responsableOptions.map((n) => (
+            <select value={responsable} onChange={(e) => setResponsable(e.target.value)} className={inputCls}>
+              <option value="">Todos</option>
+              {responsables.map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
               ))}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[10px] font-bold uppercase text-gray-500 col-span-2">
-            Buscar por código de lote
-            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Ej: KUM-102" className={inputCls} />
+          <label className={`${labelCls} col-span-2`}>
+            Lote
+            <input type="text" value={lote} onChange={(e) => setLote(e.target.value)} placeholder="Ej: ABKBF" className={`${inputCls} uppercase`} />
           </label>
         </div>
-
-        <div className="flex items-center gap-2 bg-[#F2F4F7] border border-[#D6DEEA] rounded-xl px-3 py-2 text-xs text-gray-700">
-          <span className="material-symbols-outlined text-[18px] text-[#1B4E9B]">filter_alt</span>
-          {loading ? (
-            'Cargando datos desde la base de datos...'
-          ) : (
-            <span>
-              <strong>{filteredLots.length}</strong> de {history.length} lotes cumplen los filtros
-              {hasFilters ? '' : ' (sin filtros)'}. Los filtros aplican a lotes, variables, auditoría y anulados.
-            </span>
-          )}
-        </div>
-        {error && <div className="text-xs font-bold text-red-700">{error}</div>}
+        <p className="text-[11px] text-gray-500">
+          Las fechas son las de <strong>inicio del lote</strong> (hora de Colombia), las mismas de sus letras.
+        </p>
       </div>
 
-      <div className={`${card} p-5 flex flex-col gap-3`}>
-        <div className="flex items-center justify-between border-b border-[#D6DEEA] pb-3">
-          <div className="flex items-center gap-2">
-            <span className={stepBadge}>2</span>
-            <h3 className="text-sm font-bold text-gray-900">Elige qué información quieres</h3>
+      {/* Resultado */}
+      <div className={`${card} p-4 flex flex-col gap-3`}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[10px] font-bold uppercase text-gray-500">{periodo}{otros ? ` · ${otros}` : ''}</div>
+            <div className="text-lg font-black text-gray-900">
+              {loading ? 'Cargando…' : `${conteo.total} lote${conteo.total === 1 ? '' : 's'}`}
+            </div>
+            {!loading && conteo.total > 0 && (
+              <div className="text-[11px] text-gray-600 flex flex-wrap gap-x-3">
+                <span>{conteo.completados} completados</span>
+                <span>{conteo.proceso} en proceso</span>
+                <span>{conteo.anulados} anulados</span>
+                {alertas > 0 && <span className="font-bold text-amber-700">{alertas} alerta(s)</span>}
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-3 text-xs font-bold">
-            <button onClick={() => setSelected(new Set(ORDER))} className="text-[#1B4E9B] hover:underline cursor-pointer">Seleccionar todo</button>
-            <button onClick={() => setSelected(new Set())} className="text-gray-500 hover:underline cursor-pointer">Ninguno</button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={descargarExcel}
+              disabled={!rep || loading || sinDatos || Boolean(busy)}
+              className="h-10 px-4 rounded-xl bg-[#1B4E9B] hover:bg-[#143A73] text-white text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-[18px]">download</span>
+              Descargar Excel
+            </button>
+            <button
+              onClick={descargarCsv}
+              disabled={!rep || loading || sinDatos || Boolean(busy)}
+              className="h-10 px-4 rounded-xl border border-[#D6DEEA] bg-white text-gray-700 text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className="material-symbols-outlined text-[18px]">folder_zip</span>
+              CSV (ZIP)
+            </button>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {DATASETS.map((d) => (
-            <label
-              key={d.key}
-              className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                selected.has(d.key) ? 'border-[#1B4E9B] bg-[#1B4E9B]/5' : 'border-[#D6DEEA] bg-white hover:border-[#1B4E9B]/50'
-              }`}
-            >
-              <input type="checkbox" checked={selected.has(d.key)} onChange={() => toggle(d.key)} className="mt-1 accent-[#1B4E9B] cursor-pointer" />
-              <span className="material-symbols-outlined text-[#1B4E9B] text-[22px]">{d.icon}</span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <h4 className="text-sm font-bold text-gray-900">{d.title}</h4>
-                  <span className="text-[10px] font-bold text-gray-500 bg-[#F2F4F7] border border-[#D6DEEA] px-2 py-0.5 rounded-full whitespace-nowrap">
-                    {d.count} {typeof d.count === 'number' ? 'filas' : ''}
-                  </span>
+        {error && <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-xs font-bold text-red-800">{error}</div>}
+        {busy && <div className="text-xs font-bold text-[#1B4E9B]">{busy}</div>}
+        {sinDatos && !error && <div className="text-xs text-gray-500">No hay lotes con estos filtros.</div>}
+
+        {resumen && resumen.rows.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-xs">
+              <thead>
+                <tr className="text-left text-[10px] uppercase text-gray-500 border-b border-[#D6DEEA]">
+                  <th className="py-2 pr-2">Producto</th>
+                  <th className="py-2 px-2 text-right">Lotes</th>
+                  <th className="py-2 px-2 text-right">Leche (L)</th>
+                  <th className="py-2 px-2 text-right">Producido (kg)</th>
+                  <th className="py-2 px-2 text-right">Unidades</th>
+                  <th className="py-2 pl-2 text-right">Rend. prom.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resumen.rows.map((f) => (
+                  <tr key={String(f.producto)} className={`border-b border-[#EEF1F6] ${f.producto === 'TOTAL' ? 'font-black' : ''}`}>
+                    <td className="py-1.5 pr-2 font-bold text-gray-900">{f.producto}</td>
+                    <td className="py-1.5 px-2 text-right">
+                      {f.lotes}
+                      {Number(f.proceso) > 0 && <span className="text-amber-700"> ({f.proceso} en proceso)</span>}
+                    </td>
+                    <td className="py-1.5 px-2 text-right font-mono">{Number(f.leche).toLocaleString('es-CO')}</td>
+                    <td className="py-1.5 px-2 text-right font-mono">{Number(f.kg).toLocaleString('es-CO')}</td>
+                    <td className="py-1.5 px-2 text-right font-mono">{Number(f.unidades).toLocaleString('es-CO')}</td>
+                    <td className="py-1.5 pl-2 text-right font-mono">{f.rend === null || f.rend === undefined ? '—' : `${String(f.rend).replace('.', ',')} %`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-1 text-[10px] text-gray-500">Leche, kg, unidades y rendimiento cuentan solo los lotes completados.</p>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pt-1">
+          {HOJAS_INFO.map((h, i) => (
+            <div key={h.nombre} className="p-2.5 rounded-xl bg-[#F7F9FC] border border-[#E7ECF3] flex gap-2">
+              <span className="material-symbols-outlined text-[18px] text-[#1B4E9B] shrink-0">{h.icon}</span>
+              <div className="min-w-0">
+                <div className="text-[11px] font-black text-gray-900">
+                  {i + 1}. {h.nombre}
+                  {rep && (
+                    <span className="ml-1 font-bold text-gray-500">
+                      · {h.clave === 'etapas' ? `${Math.max(hojas.length - 3, 0)} hoja(s)` : `${filasPorHoja[h.nombre] ?? 0} filas`}
+                    </span>
+                  )}
                 </div>
-                <p className="text-[11px] text-gray-500 mt-0.5">{d.desc}</p>
+                <div className="text-[10px] text-gray-500 leading-snug">{h.desc}</div>
               </div>
-            </label>
+            </div>
           ))}
         </div>
-        <p className="text-[11px] text-gray-500">Usuarios y Líneas y productos no dependen de los filtros: siempre se exporta el catálogo completo.</p>
       </div>
 
-      <div className={`${card} p-5 flex flex-col gap-3`}>
-        <div className="flex items-center gap-2 border-b border-[#D6DEEA] pb-3">
-          <span className={stepBadge}>3</span>
-          <h3 className="text-sm font-bold text-gray-900">Descarga</h3>
-        </div>
-        <p className="text-xs text-gray-600">
-          {selectedList.length === 0
-            ? 'Marca al menos un conjunto de información en el paso 2.'
-            : `Seleccionado: ${selectedList.map((k) => DATASETS.find((d) => d.key === k)?.title).join(', ')}.`}
-        </p>
+      {/* Ficha de un lote */}
+      <div className={`${card} p-4 flex flex-col gap-3`}>
+        <h3 className="text-sm font-black text-gray-900 flex items-center gap-2">
+          <span className="material-symbols-outlined text-[#1B4E9B] text-[20px]">description</span>
+          Ficha de un lote
+        </h3>
         <p className="text-[11px] text-gray-500">
-          <strong>Excel:</strong> hoja "Índice" con los filtros aplicados, hoja "Datos Consolidados" con una fila por lote (historial + auditoría + anulación + resumen del producto, con prefijos en los encabezados y filtros activos) y luego una hoja por cada conjunto. <strong>CSV:</strong>{' '}
-          {selectedList.length > 1 ? 'un archivo ZIP con un CSV por conjunto, numerados en orden (01_Historial_Lotes.csv, 02_Resumen_Producto.csv, 03_Auditoria.csv...).' : 'un archivo CSV.'} En todos, la columna "Lote" enlaza las hojas entre sí.
+          Todo el registro de un lote en un Excel: datos generales, etapas y tiempos, mediciones, envasado, insumos y correcciones.
+          Busca entre los lotes de los filtros de arriba (usa "Todo" para buscar en cualquier fecha).
         </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex-1 min-w-0">
+            <LotPicker rows={lotes} value={fichaId} onChange={setFichaId} disabled={loading || lotes.length === 0} />
+          </div>
           <button
-            onClick={() => void runExport('csv')}
-            disabled={disabled || selectedList.length === 0}
-            className="h-11 rounded-xl bg-white border border-[#1B4E9B] text-[#1B4E9B] text-sm font-bold hover:bg-[#1B4E9B]/5 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+            onClick={descargarFicha}
+            disabled={!fichaId || loading}
+            className="h-10 px-4 rounded-xl bg-[#1B4E9B] hover:bg-[#143A73] text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
-            <span className="material-symbols-outlined text-[20px]">description</span>
-            Descargar CSV{selectedList.length > 1 ? ' (ZIP)' : ''}
-          </button>
-          <button
-            onClick={() => void runExport('xlsx')}
-            disabled={disabled || selectedList.length === 0}
-            className="h-11 rounded-xl bg-[#5FAF32] hover:bg-[#4E9628] text-white text-sm font-bold cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            <span className="material-symbols-outlined text-[20px]">table_view</span>
-            Descargar Excel
-          </button>
-        </div>
-        {busy && <div className="text-xs font-bold text-[#1B4E9B]">{busy}</div>}
-      </div>
-
-      <div className={`${card} p-5 flex flex-col gap-3`}>
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-[#1B4E9B] text-[20px]">assignment</span>
-          <h3 className="text-sm font-bold text-gray-900">Ficha completa de un solo lote</h3>
-        </div>
-        <p className="text-[11px] text-gray-500">Resumen, todas las variables registradas y correcciones de un lote específico.</p>
-        <LotPicker rows={history} value={fichaLote} onChange={setFichaLote} disabled={disabled} />
-        <div className="flex gap-2">
-          <button
-            onClick={() => void exportFicha('csv')}
-            disabled={disabled || !fichaLote}
-            className="flex-1 h-10 rounded-xl bg-white border border-[#D6DEEA] text-xs font-bold text-gray-700 hover:bg-[#F2F4F7] cursor-pointer disabled:opacity-50"
-          >
-            Variables en CSV
-          </button>
-          <button
-            onClick={() => void exportFicha('xlsx')}
-            disabled={disabled || !fichaLote}
-            className="flex-1 h-10 rounded-xl bg-[#5FAF32] hover:bg-[#4E9628] text-white text-xs font-bold cursor-pointer disabled:opacity-50"
-          >
-            Ficha en Excel
+            <span className="material-symbols-outlined text-[18px]">download</span>
+            Descargar ficha
           </button>
         </div>
       </div>

@@ -6,6 +6,7 @@ import {
   SummarySection,
   EtapaResumen,
 } from '../../../components/shared/ProductionSummaryModal';
+import { loteVisible } from '../../../utils/lote';
 
 interface BatchSummaryModalProps {
   isOpen: boolean;
@@ -396,6 +397,7 @@ export const BatchSummaryModal: React.FC<BatchSummaryModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       batchId={batch.id}
+      loteVisible={loteVisible(batch)}
       productName={batch.productName}
       productBadge={
         is7Cueros

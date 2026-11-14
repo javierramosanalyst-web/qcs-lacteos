@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal } from '../../../components/ui';
 import { ProductionLine, UserProfile } from '../../../types';
-import { createUserRequest, lineCodeFromUiId, updateUserRequest } from '../../../api/client';
+import { createUserRequest, updateUserRequest } from '../../../api/client';
 
 interface AdminUserModalProps {
   isOpen: boolean;
@@ -17,15 +17,14 @@ const inputClass =
 export const AdminUserModal: React.FC<AdminUserModalProps> = ({
   isOpen,
   onClose,
-  lines,
   editingUser,
   onSaved,
 }) => {
   const isEdit = Boolean(editingUser);
+  // Operarios: PIN de 3 a 8 dígitos. Administradores: de 4 a 8 (el modal solo crea operarios).
+  const pinMin = editingUser?.role === 'administrador' ? 4 : 3;
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
-  const [shift, setShift] = useState<UserProfile['shift']>('Mañana');
-  const [assignedLineId, setAssignedLineId] = useState('');
   const [pin, setPin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -35,8 +34,6 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
     if (!isOpen) return;
     setName(editingUser?.name ?? '');
     setCode(editingUser?.code ?? '');
-    setShift(editingUser?.shift ?? 'Mañana');
-    setAssignedLineId(editingUser?.assignedLineId ?? '');
     setPin('');
     setPassword('');
     setError('');
@@ -54,8 +51,8 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
       setError('Ingresa el código de empleado (ej: OP-112).');
       return;
     }
-    if ((!isEdit || pin) && !/^\d{4,8}$/.test(pin)) {
-      setError('El PIN debe tener entre 4 y 8 dígitos numéricos.');
+    if ((!isEdit || pin) && !new RegExp(`^\\d{${pinMin},8}$`).test(pin)) {
+      setError(`El PIN debe tener entre ${pinMin} y 8 dígitos numéricos.`);
       return;
     }
     if (password && password.length < 4) {
@@ -66,12 +63,11 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
     setSaving(true);
     setError('');
     try {
-      const linea = assignedLineId ? lineCodeFromUiId(assignedLineId) : null;
+      // Turno y línea ya no se piden: los operarios nuevos quedan en Jornada Continua y sin línea fija
+      // (pueden trabajar en cualquier línea). Al editar no se envían, así se conservan los valores actuales.
       const saved = isEdit
         ? await updateUserRequest(editingUser!.id, {
             nombre_completo: name.trim(),
-            turno: shift,
-            linea_asignada_id: linea,
             ...(pin ? { pin } : {}),
             ...(password ? { password } : {}),
           })
@@ -80,8 +76,6 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
             codigo_empleado: code.trim().toUpperCase(),
             pin,
             ...(password ? { password } : {}),
-            turno: shift,
-            linea_asignada_id: linea,
             rol: 'operador',
           });
       onSaved(saved, !isEdit);
@@ -100,7 +94,7 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
       maxWidth="md"
       icon={isEdit ? 'manage_accounts' : 'person_add'}
       title={isEdit ? `Editar Usuario · ${editingUser!.code}` : 'Registrar Operador de Planta'}
-      subtitle={isEdit ? 'Actualiza los datos, la línea o restablece el PIN' : 'Alta de nuevo usuario para piso de producción'}
+      subtitle={isEdit ? 'Actualiza el nombre o restablece el PIN' : 'Alta de nuevo usuario para piso de producción'}
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {!isEdit && (
@@ -128,33 +122,22 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-bold text-gray-700">Código de Empleado</label>
-            <input
-              type="text"
-              value={code}
-              disabled={isEdit}
-              onChange={(e) => setCode(e.target.value)}
-              placeholder="ej: OP-112"
-              className={`${inputClass} font-bold text-[#1B4E9B] uppercase disabled:bg-[#F2F4F7]`}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-bold text-gray-700">Turno Asignado</label>
-            <select value={shift} onChange={(e) => setShift(e.target.value as UserProfile['shift'])} className={inputClass}>
-              <option value="Mañana">Mañana (06:00 - 14:00)</option>
-              <option value="Tarde">Tarde (14:00 - 22:00)</option>
-              <option value="Noche">Noche (22:00 - 06:00)</option>
-              <option value="Jornada Continua">Jornada Continua</option>
-            </select>
-          </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-bold text-gray-700">Código de Empleado</label>
+          <input
+            type="text"
+            value={code}
+            disabled={isEdit}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="ej: OP-112"
+            className={`${inputClass} font-bold text-[#1B4E9B] uppercase disabled:bg-[#F2F4F7]`}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-bold text-gray-700">
-              {isEdit ? 'Nuevo PIN (opcional)' : 'PIN (4 a 8 dígitos)'}
+              {isEdit ? 'Nuevo PIN (opcional)' : `PIN (${pinMin} a 8 dígitos)`}
             </label>
             <input
               type="password"
@@ -164,7 +147,7 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
                 setPin(e.target.value.replace(/\D/g, '').slice(0, 8));
                 setError('');
               }}
-              placeholder={isEdit ? 'Dejar vacío = no cambia' : 'ej: 4821'}
+              placeholder={isEdit ? 'Dejar vacío = no cambia' : 'ej: 482'}
               className={inputClass}
             />
           </div>
@@ -180,18 +163,6 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
               className={inputClass}
             />
           </div>
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-bold text-gray-700">Línea Asignada</label>
-          <select value={assignedLineId} onChange={(e) => setAssignedLineId(e.target.value)} className={inputClass}>
-            <option value="">-- Sin línea fija / Flotante --</option>
-            {lines.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name} ({l.code})
-              </option>
-            ))}
-          </select>
         </div>
 
         <div className="flex flex-col gap-1 pt-1">
