@@ -1,4 +1,7 @@
 import 'dotenv/config';
+// La planta trabaja en hora de Colombia. Varias horas del proceso se registran como "HH:MM" y se
+// convierten con la zona del servidor; así no dependen de cómo esté configurado el PC (TZ=... la cambia).
+process.env.TZ = process.env.TZ || 'America/Bogota';
 import cors from 'cors';
 import express, { NextFunction, Request, Response } from 'express';
 import { checkDatabase, pool } from './db';

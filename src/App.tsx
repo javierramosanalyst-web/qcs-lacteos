@@ -169,6 +169,14 @@ export default function App() {
     shift: 'Jornada Continua',
   };
 
+  // Historial del panel: lotes iniciados en los últimos N días (hora de Colombia) más los que siguen en proceso.
+  const historyDiasRef = useRef(31);
+  const [historyDias, setHistoryDias] = useState(31);
+  const historyDesde = () => {
+    const d = new Date(Date.now() - (historyDiasRef.current - 1) * 86400000);
+    return d.toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  };
+
   const loadCatalogs = useCallback(async (role: UserRole, silent = false) => {
     setLoadingData(true);
     try {
@@ -184,7 +192,7 @@ export default function App() {
       if (apiProducts.length > 0) setProducts(apiProducts);
       setUsers(apiUsers);
       if (role === 'administrador') {
-        const [logs, history] = await Promise.all([fetchAuditLogs(), fetchBatchHistory(200)]);
+        const [logs, history] = await Promise.all([fetchAuditLogs(), fetchBatchHistory(500, historyDesde())]);
         setAuditLogs(logs);
         setBatchHistory(history);
       }
@@ -789,6 +797,12 @@ export default function App() {
           onViewBatchDetail={handleViewBatchDetail}
           onCorrectBatchDetail={handleCorrectBatchDetail}
           onAnnulBatch={handleAnnulBatch}
+          historyDias={historyDias}
+          onLoadMoreHistory={() => {
+            historyDiasRef.current += 30;
+            setHistoryDias(historyDiasRef.current);
+            void loadCatalogs(userRole, true);
+          }}
         />
       )}
 

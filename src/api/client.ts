@@ -423,8 +423,100 @@ export interface BatchHistoryRow {
   anulado_por?: string | null;
 }
 
-export const fetchBatchHistory = (limit = 100) =>
-  apiFetch<BatchHistoryRow[]>(`/workspace/history?limit=${limit}`);
+export const fetchBatchHistory = (limit = 100, desde?: string) =>
+  apiFetch<BatchHistoryRow[]>(`/workspace/history?limit=${limit}${desde ? `&desde=${encodeURIComponent(desde)}` : ''}`);
+
+/** Tiempos de un lote: etapas (inicio, fin, duración, operario) y pasos con hora registrados por el operario. */
+export interface EtapaTiempo {
+  lote_id: string;
+  orden: number;
+  codigo_ui: string;
+  etapa: string;
+  estado: string;
+  inicio: string | null;
+  fin: string | null;
+  duracion_segundos: number | null;
+  operario: string | null;
+}
+
+export interface PasoTiempo {
+  lote_id: string;
+  orden: number;
+  etapa: string;
+  codigo_hito: string;
+  paso: string;
+  inicio: string | null;
+  fin: string | null;
+  duracion_segundos: number | null;
+  manual: boolean;
+}
+
+export interface TiemposLote {
+  etapas: EtapaTiempo[];
+  pasos: PasoTiempo[];
+}
+
+export const fetchBatchTimes = (idOrCode: string) =>
+  apiFetch<TiemposLote>(`/workspace/batches/${encodeURIComponent(idOrCode)}/tiempos`);
+
+/** Reporte de producción por período (filtrado en el servidor por fecha de inicio, hora de Colombia). */
+export interface ReporteLote {
+  id: string;
+  codigo_lote: string;
+  lote_dia: string | null;
+  estado: string;
+  etapa_actual_codigo: string | null;
+  etapa_actual: string | null;
+  volumen_leche_base_litros: number | null;
+  iniciado_at: string;
+  finalizado_at: string | null;
+  duracion_total_segundos: number | null;
+  observaciones_finales: string | null;
+  producto_nombre: string;
+  producto_codigo: string;
+  linea_nombre: string;
+  linea_codigo: string;
+  responsable_nombre: string;
+  operarios: string | null;
+  correcciones: number;
+  anulacion_motivo: string | null;
+  anulado_at: string | null;
+  anulado_por: string | null;
+  kg_producidos: number | null;
+  unidades_producidas: number | null;
+  rendimiento_pct: number | null;
+  sabores: string;
+}
+
+export interface ReporteProduccion {
+  generado_at: string;
+  filtros: Record<string, string | null>;
+  lotes: ReporteLote[];
+  etapas: EtapaTiempo[];
+  pasos: PasoTiempo[];
+  mediciones: { lote_id: string; orden: number; etapa: string; parametro: string; valor: string | number; unidad: string; hora: string | null; manual: boolean }[];
+  envasado: ({ lote_id: string } & NonNullable<BatchHistoryRow['detalle_produccion']>[number])[];
+  insumos: { lote_id: string; orden: number | null; etapa: string; tipo_insumo: string; insumo: string; lote_insumo: string; cantidad: string | number; unidad: string; hora: string | null; manual: boolean; derivacion: string | null }[];
+  correcciones: { lote_id: string; accion: string; fecha: string; etapa: string | null; campo: string | null; valor_anterior: string | null; valor_nuevo: string | null; unidad: string | null; motivo: string | null; justificacion: string | null; autorizado_por: string }[];
+}
+
+export interface FiltrosReporte {
+  desde?: string;
+  hasta?: string;
+  linea?: string;
+  producto?: string;
+  estado?: string;
+  responsable?: string;
+  lote?: string;
+}
+
+export const fetchProductionReport = (f: FiltrosReporte) => {
+  const qs = Object.entries(f)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+    .join('&');
+  return apiFetch<ReporteProduccion>(`/workspace/reporte${qs ? `?${qs}` : ''}`);
+};
 
 export interface RectifyPayload {
   codigoLote: string;

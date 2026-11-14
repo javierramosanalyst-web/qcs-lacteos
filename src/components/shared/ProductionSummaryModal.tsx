@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal } from '../ui';
 import { ActividadOperario, UserProfile } from '../../types';
 import { codigoDeOperario, operarioLabel } from '../../utils/operariosActividad';
-import { BatchRectificationRow, fetchBatchRectifications } from '../../api/client';
+import { BatchRectificationRow, TiemposLote, fetchBatchRectifications, fetchBatchTimes } from '../../api/client';
 
 export interface EtapaResumenItem {
   label: string;
@@ -13,6 +13,85 @@ export interface EtapaResumen {
   titulo: string;
   items: EtapaResumenItem[];
 }
+
+const TZ = 'America/Bogota';
+const horaCorta = (iso: string | null): string =>
+  iso ? new Date(iso).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: TZ }) : '';
+const diaCorto = (iso: string | null): string =>
+  iso ? new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', timeZone: TZ }) : '';
+const duracionTexto = (seg: number | null): string => {
+  if (seg === null || seg < 0) return '';
+  if (seg < 60) return `${seg} s`;
+  const min = Math.round(seg / 60);
+  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`;
+};
+const durSeg = (dur: number | null, inicio: string | null, fin: string | null): number | null => {
+  if (dur !== null && dur > 0) return dur;
+  if (inicio && fin) {
+    const d = Math.round((new Date(fin).getTime() - new Date(inicio).getTime()) / 1000);
+    return d >= 0 ? d : null;
+  }
+  return dur;
+};
+
+/** Etapas (inicio, fin, duración, operario) y los pasos con hora que registró el operario. */
+const TiemposDelProceso: React.FC<{ tiempos: TiemposLote }> = ({ tiempos }) => {
+  const etapas = [...tiempos.etapas].sort((a, b) => a.orden - b.orden);
+  if (!etapas.some((e) => e.inicio) && tiempos.pasos.length === 0) return null;
+  const diaBase = diaCorto(etapas.find((e) => e.inicio)?.inicio ?? tiempos.pasos[0]?.inicio ?? null);
+  const hora = (iso: string | null) => {
+    if (!iso) return '--:--';
+    const d = diaCorto(iso);
+    return d && d !== diaBase ? `${horaCorta(iso)} (${d})` : horaCorta(iso);
+  };
+  return (
+    <div className="p-4 bg-white rounded-2xl border border-[#D6DEEA]">
+      <h4 className="font-black text-gray-900 text-sm mb-3 flex items-center gap-2">
+        <span className="material-symbols-outlined text-[#1B4E9B] text-[20px]">schedule</span>
+        Tiempos del proceso
+      </h4>
+      <div className="flex flex-col gap-2.5">
+        {etapas.map((e) => {
+          const pasos = tiempos.pasos.filter((p) => p.orden === e.orden);
+          const dur = e.estado === 'completada' ? durSeg(e.duracion_segundos, e.inicio, e.fin) : null;
+          return (
+            <div key={e.orden} className="border-l-2 border-[#1B4E9B]/30 pl-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                <span className="text-xs font-black text-gray-900">
+                  {e.orden}. {e.etapa}
+                </span>
+                <span className="text-[11px] text-gray-600 font-mono">
+                  {e.inicio ? hora(e.inicio) : 'Sin iniciar'}
+                  {e.fin ? ` → ${hora(e.fin)}` : e.inicio ? ' → en proceso' : ''}
+                  {dur !== null && dur > 0 ? ` · ${duracionTexto(dur)}` : ''}
+                </span>
+              </div>
+              {e.operario && <div className="text-[10px] text-gray-500">Operario: {e.operario}</div>}
+              {pasos.length > 0 && (
+                <ul className="mt-1 flex flex-col gap-0.5">
+                  {pasos.map((p) => {
+                    const d = durSeg(p.duracion_segundos, p.inicio, p.fin);
+                    return (
+                      <li key={`${p.codigo_hito}-${p.inicio}`} className="text-[11px] text-gray-700 flex flex-wrap gap-x-2">
+                        <span className="font-mono font-bold text-[#143A73] w-11 shrink-0">{horaCorta(p.inicio)}</span>
+                        <span className="flex-1 min-w-0">
+                          {p.paso}
+                          {p.fin ? ` (hasta ${hora(p.fin)})` : ''}
+                          {d !== null && d > 0 ? <span className="text-gray-500"> · {duracionTexto(d)}</span> : null}
+                          {p.manual ? <span className="ml-1 text-[9px] font-bold text-amber-700 uppercase">manual</span> : null}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 export type SummaryTone = 'blue' | 'cyan' | 'emerald' | 'amber' | 'purple' | 'rose';
 
@@ -172,6 +251,25 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
   const [operariosList, setOperariosList] = useState<string[]>(inicialOperarios);
   const [showConfirmAlert, setShowConfirmAlert] = useState<boolean>(false);
   const [rectificaciones, setRectificaciones] = useState<BatchRectificationRow[]>([]);
+  const [tiempos, setTiempos] = useState<TiemposLote | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !batchId) {
+      setTiempos(null);
+      return;
+    }
+    let cancelado = false;
+    fetchBatchTimes(batchId)
+      .then((t) => {
+        if (!cancelado) setTiempos(t && Array.isArray(t.etapas) ? t : null);
+      })
+      .catch(() => {
+        if (!cancelado) setTiempos(null);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [isOpen, batchId]);
 
   useEffect(() => {
     if (!isOpen || !batchId) {
@@ -451,6 +549,7 @@ export const ProductionSummaryModal: React.FC<ProductionSummaryModalProps> = ({
           {activeTab === 'detalle' && (
             <div className="space-y-4">
               {bloqueCorrecciones}
+              {tiempos && <TiemposDelProceso tiempos={tiempos} />}
               {etapas.map((etapa) => (
                 <div key={etapa.titulo} className="p-4 bg-white rounded-2xl border border-[#D6DEEA]">
                   <h4 className="font-black text-gray-900 text-sm mb-2 flex items-center justify-between gap-3">

@@ -715,7 +715,7 @@ const derivacionesPera = (batch: any): { nombre: string; gramos: number; unidade
   return out;
 };
 
-const productionDetail = (estadoUi: any): DetalleProduccion[] => {
+export const productionDetail = (estadoUi: any): DetalleProduccion[] => {
   const batch = estadoUi?.batch ?? estadoUi;
   const out: DetalleProduccion[] = [];
   if (!batch || typeof batch !== 'object') return out;
@@ -794,14 +794,14 @@ const productionDetail = (estadoUi: any): DetalleProduccion[] => {
   return out;
 };
 
-const productionFlavors = (estadoUi: any): string => {
+export const productionFlavors = (estadoUi: any): string => {
   const batch = estadoUi?.batch ?? estadoUi;
   const lista = batch?.batidoYAdiciones?.adiciones?.sabores;
   if (!Array.isArray(lista)) return '';
   return Array.from(new Set(lista.map((s: any) => String(s?.sabor ?? '').trim()).filter(Boolean))).join(', ');
 };
 
-const productionOutcome = (estadoUi: any, lecheLitros: number | null) => {
+export const productionOutcome = (estadoUi: any, lecheLitros: number | null) => {
   // Los quesos (pasta hilada) guardan el estado bajo `.batch`; los fermentados lo guardan en la raíz.
   const batch = estadoUi?.batch ?? estadoUi;
   if (!batch || typeof batch !== 'object') {
@@ -873,7 +873,10 @@ const productionOutcome = (estadoUi: any, lecheLitros: number | null) => {
 
 export async function getBatchHistory(req: Request, res: Response): Promise<void> {
   try {
-    const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
+    // ?desde=AAAA-MM-DD trae todos los lotes iniciados desde ese día (hora de Colombia) más los que siguen
+    // en proceso, sin el tope de 500; sin `desde` se conserva el comportamiento anterior (?limit=N).
+    const desde = typeof req.query.desde === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.desde) ? req.query.desde : null;
+    const limit = desde ? 20000 : Math.min(Math.max(Number(req.query.limit) || 50, 1), 500);
     const { rows } = await pool.query(
       `SELECT lp.id, lp.codigo_lote, lp.lote_dia, lp.estado, lp.etapa_actual_codigo, lp.volumen_leche_base_litros,
               lp.iniciado_at, lp.finalizado_at, lp.duracion_total_segundos, lp.producto_ui_id, lp.estado_ui,
@@ -895,9 +898,10 @@ export async function getBatchHistory(req: Request, res: Response): Promise<void
          WHERE ar.lote_id = lp.id AND ar.accion = 'ANULACION'
          ORDER BY ar.registrado_at DESC LIMIT 1
        ) an ON lp.estado = 'ANULADO'
+       WHERE $2::date IS NULL OR (lp.iniciado_at AT TIME ZONE 'America/Bogota')::date >= $2::date OR lp.estado = 'EN_PROCESO'
        ORDER BY lp.iniciado_at DESC
        LIMIT $1;`,
-      [limit]
+      [limit, desde]
     );
     res.json(
       rows.map((r: any) => {

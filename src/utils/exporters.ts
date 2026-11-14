@@ -1,16 +1,65 @@
 export type CellValue = string | number | boolean | null | undefined;
 
+/**
+ * Formato de una columna en Excel. Las fechas, horas y duraciones se guardan como valores reales
+ * (se pueden ordenar, filtrar y restar): pasa el número que devuelven excelFecha / excelDuracion.
+ */
+export type ColumnFormat = 'fecha' | 'hora' | 'fechaHora' | 'diaHora' | 'duracion' | 'decimal';
+
 export interface ExportColumn {
   key: string;
   label: string;
   width?: number;
+  format?: ColumnFormat;
+}
+
+/** Tabla adicional debajo de la principal (p. ej. "Alertas" en la hoja Resumen). */
+export interface ExportBlock {
+  title: string;
+  columns: ExportColumn[];
+  rows: Record<string, CellValue>[];
 }
 
 export interface ExportSheet {
   name: string;
   columns: ExportColumn[];
   rows: Record<string, CellValue>[];
+  extra?: ExportBlock[];
 }
+
+/** Colombia no tiene horario de verano: hora local = UTC - 5 h. */
+const OFFSET_COLOMBIA_MS = 5 * 3600 * 1000;
+
+/** Fecha/hora ISO -> número de serie de Excel en hora de Colombia (parte entera = día, decimal = hora). */
+export const excelFecha = (iso: string | null | undefined): number | null => {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return null;
+  return (ms - OFFSET_COLOMBIA_MS) / 86400000 + 25569;
+};
+
+/** Segundos -> duración de Excel (fracción de día), para mostrar como h:mm. */
+export const excelDuracion = (segundos: number | null | undefined): number | null =>
+  segundos === null || segundos === undefined || !Number.isFinite(segundos) || segundos < 0 ? null : segundos / 86400;
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+/** Texto equivalente para el CSV (que no tiene formatos). */
+const textoFormato = (v: number, f: ColumnFormat): string => {
+  if (f === 'decimal') return String(v).replace('.', ',');
+  if (f === 'duracion') {
+    const min = Math.round(v * 1440);
+    return `${Math.floor(min / 60)}:${pad2(min % 60)}`;
+  }
+  const d = new Date(Math.round((v - 25569) * 86400000));
+  const fecha = `${pad2(d.getUTCDate())}/${pad2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+  const hora = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+  if (f === 'diaHora') return `${fecha.slice(0, 5)} ${hora}`;
+  return f === 'fecha' ? fecha : f === 'hora' ? hora : `${fecha} ${hora}`;
+};
+
+/** Estilo (índice en styles.xml) para cada formato. */
+const ESTILO_FORMATO: Record<ColumnFormat, number> = { fecha: 3, hora: 4, fechaHora: 5, duracion: 6, decimal: 7, diaHora: 9 };
 
 const toText = (v: CellValue): string => {
   if (v === null || v === undefined) return '';
@@ -19,14 +68,17 @@ const toText = (v: CellValue): string => {
 };
 
 export const buildCsv = (sheet: ExportSheet): string => {
-  const esc = (v: CellValue) => {
+  const fmt = new Map(sheet.columns.map((c) => [c.key, c.format]));
+  const esc = (v: CellValue, key?: string) => {
+    const f = key ? fmt.get(key) : undefined;
+    if (typeof v === 'number' && f) v = textoFormato(v, f);
     let s = typeof v === 'number' ? String(v).replace('.', ',') : toText(v);
     if (typeof v !== 'number' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const lines = [
     sheet.columns.map((c) => esc(c.label)).join(';'),
-    ...sheet.rows.map((r) => sheet.columns.map((c) => esc(r[c.key])).join(';')),
+    ...sheet.rows.map((r) => sheet.columns.map((c) => esc(r[c.key], c.key)).join(';')),
   ];
   return '\uFEFF' + lines.join('\r\n');
 };
@@ -50,39 +102,54 @@ const colRef = (i: number): string => {
   return s;
 };
 
-const sheetXml = (sheet: ExportSheet): string => {
-  const widths = sheet.columns.map((c) => {
-    if (c.width) return c.width;
-    const longest = sheet.rows.reduce((m, r) => Math.max(m, toText(r[c.key]).length), c.label.length);
-    return Math.min(Math.max(longest + 2, 10), 60);
-  });
-  const cols = widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('');
-  const header = `<row r="1">${sheet.columns
-    .map((c, i) => `<c r="${colRef(i)}1" t="inlineStr" s="1"><is><t>${xmlEsc(c.label)}</t></is></c>`)
-    .join('')}</row>`;
-  const body = sheet.rows
+const celda = (ref: string, v: CellValue, format?: ColumnFormat, estiloTexto = 2): string => {
+  if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}" s="${format ? ESTILO_FORMATO[format] : 2}"><v>${v}</v></c>`;
+  const t = toText(v);
+  if (!t) return '';
+  return `<c r="${ref}" t="inlineStr" s="${estiloTexto}"><is><t xml:space="preserve">${xmlEsc(t)}</t></is></c>`;
+};
+
+const filaEncabezado = (rn: number, columns: ExportColumn[]) =>
+  `<row r="${rn}">${columns.map((c, i) => `<c r="${colRef(i)}${rn}" t="inlineStr" s="1"><is><t>${xmlEsc(c.label)}</t></is></c>`).join('')}</row>`;
+
+const filasDatos = (desde: number, columns: ExportColumn[], rows: Record<string, CellValue>[]) =>
+  rows
     .map((r, ri) => {
-      const rn = ri + 2;
-      const cells = sheet.columns
-        .map((c, ci) => {
-          const v = r[c.key];
-          const ref = `${colRef(ci)}${rn}`;
-          if (typeof v === 'number' && Number.isFinite(v)) return `<c r="${ref}" s="2"><v>${v}</v></c>`;
-          const t = toText(v);
-          if (!t) return '';
-          return `<c r="${ref}" t="inlineStr" s="2"><is><t xml:space="preserve">${xmlEsc(t)}</t></is></c>`;
-        })
-        .join('');
-      return `<row r="${rn}">${cells}</row>`;
+      const rn = desde + ri;
+      return `<row r="${rn}">${columns.map((c, ci) => celda(`${colRef(ci)}${rn}`, r[c.key], c.format)).join('')}</row>`;
     })
     .join('');
+
+const sheetXml = (sheet: ExportSheet): string => {
+  const ancho = (c: ExportColumn, rows: Record<string, CellValue>[]) => {
+    if (c.width) return c.width;
+    if (c.format === 'fecha') return Math.max(12, c.label.length + 2);
+    if (c.format === 'hora' || c.format === 'duracion') return Math.max(9, c.label.length + 2);
+    if (c.format === 'fechaHora') return Math.max(17, c.label.length + 2);
+    if (c.format === 'diaHora') return Math.max(12, Math.min(c.label.length + 2, 30));
+    const longest = rows.reduce((m, r) => Math.max(m, toText(r[c.key]).length), c.label.length);
+    return Math.min(Math.max(longest + 2, 10), 60);
+  };
+  const nCols = Math.max(sheet.columns.length, ...(sheet.extra ?? []).map((b) => b.columns.length));
+  const widths = Array.from({ length: nCols }, (_, i) => {
+    const candidatos = [sheet, ...(sheet.extra ?? [])].map((t) => (t.columns[i] ? ancho(t.columns[i], t.rows) : 0));
+    return Math.max(...candidatos, 10);
+  });
+  const cols = widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('');
+  let xml = filaEncabezado(1, sheet.columns) + filasDatos(2, sheet.columns, sheet.rows);
+  let rn = sheet.rows.length + 3;
+  for (const b of sheet.extra ?? []) {
+    xml += `<row r="${rn}"><c r="A${rn}" t="inlineStr" s="8"><is><t>${xmlEsc(b.title)}</t></is></c></row>`;
+    xml += filaEncabezado(rn + 1, b.columns) + filasDatos(rn + 2, b.columns, b.rows);
+    rn += b.rows.length + 4;
+  }
   const lastRef = `${colRef(Math.max(sheet.columns.length - 1, 0))}${sheet.rows.length + 1}`;
   return (
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
     '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>' +
-    `<cols>${cols}</cols><sheetData>${header}${body}</sheetData>` +
-    (sheet.columns.length > 0 ? `<autoFilter ref="A1:${lastRef}"/>` : '') +
+    `<cols>${cols}</cols><sheetData>${xml}</sheetData>` +
+    (sheet.columns.length > 0 && !(sheet.extra ?? []).length ? `<autoFilter ref="A1:${lastRef}"/>` : '') +
     '</worksheet>'
   );
 };
@@ -90,15 +157,25 @@ const sheetXml = (sheet: ExportSheet): string => {
 const STYLES =
   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
   '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
-  '<fonts count="2"><font><sz val="10"/><name val="Calibri"/></font><font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts>' +
+  '<numFmts count="5"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/><numFmt numFmtId="165" formatCode="hh:mm"/>' +
+  '<numFmt numFmtId="166" formatCode="dd/mm/yyyy hh:mm"/><numFmt numFmtId="167" formatCode="[h]:mm"/><numFmt numFmtId="168" formatCode="dd/mm hh:mm"/></numFmts>' +
+  '<fonts count="3"><font><sz val="10"/><name val="Calibri"/></font><font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>' +
+  '<font><b/><sz val="12"/><color rgb="FF1B4E9B"/><name val="Calibri"/></font></fonts>' +
   '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>' +
   '<fill><patternFill patternType="solid"><fgColor rgb="FF1B4E9B"/><bgColor indexed="64"/></patternFill></fill></fills>' +
   '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>' +
   '<border><left style="thin"><color rgb="FFD6DEEA"/></left><right style="thin"><color rgb="FFD6DEEA"/></right><top style="thin"><color rgb="FFD6DEEA"/></top><bottom style="thin"><color rgb="FFD6DEEA"/></bottom><diagonal/></border></borders>' +
   '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
-  '<cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
-  '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment vertical="center"/></xf>' +
-  '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"><alignment vertical="top" wrapText="1"/></xf></cellXfs>' +
+  '<cellXfs count="10"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+  '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment vertical="center" wrapText="1"/></xf>' +
+  '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"><alignment vertical="top" wrapText="1"/></xf>' +
+  '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"><alignment vertical="top"/></xf>' +
+  '<xf numFmtId="165" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"><alignment vertical="top"/></xf>' +
+  '<xf numFmtId="166" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"><alignment vertical="top"/></xf>' +
+  '<xf numFmtId="167" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"><alignment vertical="top"/></xf>' +
+  '<xf numFmtId="2" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"><alignment vertical="top"/></xf>' +
+  '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+  '<xf numFmtId="168" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1"><alignment vertical="top"/></xf></cellXfs>' +
   '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
   '</styleSheet>';
 
@@ -229,7 +306,7 @@ export const buildXlsx = (sheets: ExportSheet[]): Uint8Array => {
         (() => {
           const defs = sheets
             .map((s, i) =>
-              s.columns.length > 0
+              s.columns.length > 0 && !(s.extra ?? []).length
                 ? `<definedName name="_xlnm._FilterDatabase" localSheetId="${i}" hidden="1">'${xmlEsc(names[i]).replace(/'/g, "''")}'!$A$1:$${colRef(s.columns.length - 1)}$${s.rows.length + 1}</definedName>`
                 : ''
             )
