@@ -1,0 +1,651 @@
+================================================================================
+  QCS PRO LÁCTEOS — GUÍA DE DESPLIEGUE EN LA PLANTA (PASO A PASO)
+================================================================================
+
+REGLA DE ORO: en cada paso, PRIMERO se verifica con un comando y LUEGO se hace.
+Si algo no coincide con lo que dice la guía, PARE y revise antes de seguir.
+
+Convenciones:
+  - Lo que está después de  PS>  se escribe en PowerShell de su PC (Windows).
+  - Lo que está después de  $    se escribe en la consola del servidor (Ubuntu).
+    (No escriba el  PS>  ni el  $ , solo lo que sigue.)
+  - Lo que está entre < > se reemplaza por el valor real (sin los < >).
+  - "Debe salir:" indica el resultado esperado.
+
+Orden general (no cambie el orden):
+  FASE A  En su PC, antes de ir a la planta ........................ (pasos 1-3)
+  FASE B  Reconocer el servidor, SIN cambiar nada ................... (pasos 4-6)
+  FASE C  Respaldar lo que hay ...................................... (paso 7)
+  FASE D  Instalar la versión nueva ................................. (pasos 8-14)
+  FASE E  Pruebas funcionales y de seguridad ........................ (pasos 15-17)
+  FASE F  Dejar todo limpio para producción ......................... (pasos 18-20)
+  FASE G  IP fija, apagón y tablets ................................. (pasos 21-24)
+  FASE H  Entrega ................................................... (paso 25)
+  ANEXOS  Volver atrás / clave olvidada / comandos útiles
+
+
+================================================================================
+FASE A — EN SU PC, ANTES DE IR A LA PLANTA
+================================================================================
+
+--- PASO 1. Código al día y sin cambios pendientes ----------------------------
+
+Abra PowerShell en la carpeta del proyecto:
+  Explorador de archivos -> C:\Users\jhon_\Documents\GitHub\qcs-lacteos
+  -> clic en la barra de dirección -> escriba  powershell  -> Enter.
+
+Verificar:
+  PS> git status
+  Debe salir: "nothing to commit, working tree clean"
+  (Si hay cambios: haga el commit primero.)
+
+--- PASO 2. Compilar desde cero -------------------------------------------------
+
+  PS> Remove-Item -Recurse -Force dist, backend\dist -ErrorAction SilentlyContinue
+  PS> npm run lint
+      Debe salir: nada (sin errores).
+  PS> npm run build
+      Debe salir: "✓ built in ..."
+  PS> cd backend
+  PS> npm run build
+      Debe salir: sin errores.
+  PS> cd ..
+
+Verificar que existen:
+  PS> Test-Path dist\index.html, backend\dist\server.js
+  Debe salir: True  True
+
+--- PASO 3. Armar el paquete ----------------------------------------------------
+
+  PS> tar -czf paquete-qcs.tar.gz dist backend/dist backend/package.json backend/database deploy
+
+Verificar el contenido:
+  PS> tar -tzf paquete-qcs.tar.gz | Select-String "index.html|server.js|init.sql|seed.sql|respaldo-bd.sh"
+  Debe salir (entre otras): dist/index.html, backend/dist/server.js,
+  backend/database/init.sql, backend/database/seed.sql, deploy/respaldo-bd.sh
+
+  ¡OJO! seed_demo.sql y seed_demo_lotes.* también van en el paquete, pero
+  NUNCA se ejecutan en la planta (son datos de prueba).
+
+Copie a una USB:
+  - paquete-qcs.tar.gz
+  - esta guía (deploy\GUIA-DESPLIEGUE-PLANTA.txt)
+
+Lleve anotado en papel:
+  - Clave del usuario  ubuntu  del servidor (para sudo).
+  - Datos del administrador real: nombre completo, código (ej. ADM-001), PIN y
+    contraseña (mín. 8 caracteres).
+  - Su celular con la hora correcta (se usa para poner la hora del servidor).
+
+
+================================================================================
+FASE B — RECONOCER EL SERVIDOR (SOLO MIRAR, NO CAMBIA NADA)
+================================================================================
+
+--- PASO 4. Entrar a la consola del servidor -----------------------------------
+
+Opción 1 (recomendada para todo el despliegue): monitor y teclado conectados al
+servidor. Inicie sesión con el usuario  ubuntu  y su clave.
+
+Opción 2: por SSH desde su PC, conectado al MISMO WiFi de la planta.
+  Para saber la IP del servidor, en la consola del servidor:
+    $ ip -4 addr show
+    (busque "inet 192.168.x.x" en la tarjeta que NO es "lo")
+  Desde su PC:
+    PS> ssh ubuntu@<IP_SERVIDOR>
+
+  IMPORTANTE: el paso 21 (IP fija) se hace SIEMPRE con monitor y teclado,
+  nunca por SSH (al cambiar la IP se corta la conexión).
+
+--- PASO 5. Anotar cómo está instalado -----------------------------------------
+
+Copie cada comando y ANOTE el resultado en la tabla del final de este paso.
+
+a) Dónde corre el backend:
+   $ ps aux | grep -i [n]ode
+   $ sudo ls -l /proc/$(pgrep -f "node.*server" | head -1)/cwd
+   Esperado (como en el ensayo): /home/ubuntu/backend
+
+b) Cómo arranca (servicio):
+   $ systemctl list-units --type=service | grep -i -E "lacteo|qcs|node|backend"
+   $ systemctl is-enabled lacteos
+   Esperado: lacteos.service ... running   y   enabled
+   $ cat /etc/systemd/system/lacteos.service
+   Anote WorkingDirectory y ExecStart.
+
+c) nginx:
+   $ ls /etc/nginx/sites-enabled/
+   $ grep -R -n "proxy_pass" /etc/nginx/sites-enabled/
+   Esperado: proxy_pass http://127.0.0.1:3001;
+   (Si dice http://localhost:3001 o http://0.0.0.0:3001, NO use HOST=127.0.0.1
+    en el paso 11 sin antes cambiarlo a 127.0.0.1.)
+
+d) Carpetas del proyecto:
+   $ ls -la ~ ~/backend
+   Esperado: ~/dist (frontend), ~/backend/dist, ~/backend/node_modules,
+   ~/backend/.env, ~/backend/package.json
+
+e) Configuración (.env) SIN mostrar claves:
+   $ sed -E 's/(PASSWORD|SECRET|DATABASE_URL)=.*/\1=***oculto***/' ~/backend/.env
+   Anote qué variables existen (PORT, DATABASE_URL, JWT_SECRET, TRUST_PROXY,
+   HOST, NODE_ENV, COOKIE_SECURE, HTTPS_ENABLED...).
+   COOKIE_SECURE y HTTPS_ENABLED NO deben estar en true (la planta usa HTTP).
+
+f) Base de datos:
+   $ sudo -u postgres psql -l
+   Anote el nombre de la base (en el ensayo: qsc_lacteos) y el dueño (superu).
+   $ URL=$(grep ^DATABASE_URL ~/backend/.env | cut -d= -f2- | tr -d '"' | tr -d '\r')
+   $ echo "$URL" | sed -E 's#(://[^:]+:)[^@]*@#\1****@#'
+   Debe salir algo como: postgres://superu:****@localhost:5432/qsc_lacteos
+   Anote el usuario (lo que va entre // y :) y la base (lo del final).
+   $ psql "$URL" -Atc "select current_user, current_database()"
+   Debe salir: <usuario>|<base>   (confirma que la clave del .env funciona)
+   $ sudo -u postgres psql -Atc "select rolname, rolsuper from pg_roles where rolname='<USUARIO_BD>'"
+   Debe salir: <USUARIO_BD>|f   (f = no es superusuario; correcto)
+
+g) Versiones y herramientas:
+   $ node -v
+   $ psql --version
+   $ which pg_dump pg_restore pg_isready
+   Deben existir los tres (vienen con PostgreSQL).
+
+h) Hora:
+   $ timedatectl
+   Anote "Time zone" y si la fecha/hora coinciden con su celular.
+
+i) Red:
+   $ ip -4 addr show
+   $ ip route | grep default
+   $ ls /etc/netplan/ && sudo cat /etc/netplan/*.yaml
+   Anote: tarjeta (ej. enp2s0), IP actual, router (gateway), y si el .yaml
+   dice dhcp4: false con "addresses" (IP fija ya configurada) o dhcp4: true.
+
+j) Espacio en disco:
+   $ df -h /
+   Debe haber al menos 2 GB libres.
+
+TABLA PARA ANOTAR (llénela a mano):
+  Carpeta backend ............ _______________________ (ej. /home/ubuntu/backend)
+  Carpeta frontend (dist) .... _______________________ (ej. /home/ubuntu/dist)
+  Servicio ................... _______________________ (ej. lacteos)
+  Base de datos .............. _______________________ (ej. qsc_lacteos)
+  Usuario de la base ......... _______________________ (ej. superu)
+  IP actual del servidor ..... _______________________
+  Router (gateway) ........... _______________________
+  Tarjeta de red ............. _______________________
+  ¿IP ya fija? ............... SÍ / NO
+  Zona horaria ............... _______________________
+
+SI SUS CARPETAS O NOMBRES SON DISTINTOS a los del ensayo, reemplácelos en todos
+los comandos siguientes. Esta guía usa los del ensayo:
+  backend = ~/backend    frontend = ~/dist    servicio = lacteos
+  base = qsc_lacteos     usuario de la base = superu
+
+--- PASO 6. Variables para esta sesión -----------------------------------------
+
+Cada vez que abra una consola nueva, ejecute estas 3 líneas (las usan los pasos
+siguientes):
+  $ URL=$(grep ^DATABASE_URL ~/backend/.env | cut -d= -f2- | tr -d '"' | tr -d '\r')
+  $ BD=qsc_lacteos
+  $ USUARIO_BD=superu
+Verificar:
+  $ psql "$URL" -Atc "select 1"
+  Debe salir: 1
+
+
+================================================================================
+FASE C — RESPALDAR LO QUE HAY (ANTES DE TOCAR NADA)
+================================================================================
+
+--- PASO 7. Respaldo completo de la versión anterior ---------------------------
+
+  $ mkdir -p ~/respaldo-anterior
+  $ pg_dump "$URL" -Fc -f ~/respaldo-anterior/base-anterior.dump
+  $ cp -a ~/dist ~/respaldo-anterior/front-dist
+  $ cp -a ~/backend/dist ~/respaldo-anterior/backend-dist
+  $ cp ~/backend/.env ~/backend/package.json ~/respaldo-anterior/
+  $ sudo cp /etc/nginx/sites-enabled/* ~/respaldo-anterior/ 2>/dev/null
+  $ sudo cp /etc/netplan/*.yaml ~/respaldo-anterior/ 2>/dev/null
+
+Verificar:
+  $ ls -lh ~/respaldo-anterior
+  Debe salir: base-anterior.dump (con tamaño > 0), front-dist, backend-dist,
+  .env (use ls -la para verlo), package.json
+  $ pg_restore --list ~/respaldo-anterior/base-anterior.dump | head -3
+  Debe salir: unas líneas de encabezado (si sale error, el respaldo está malo:
+  NO siga).
+
+
+================================================================================
+FASE D — INSTALAR LA VERSIÓN NUEVA
+================================================================================
+
+--- PASO 8. Pasar el paquete al servidor ----------------------------------------
+
+Opción USB (en el servidor):
+  $ lsblk
+    (identifique la USB, por ejemplo sdb1, por su tamaño)
+  $ sudo mkdir -p /mnt/usb
+  $ sudo mount /dev/sdb1 /mnt/usb
+  $ ls /mnt/usb
+    Debe salir: paquete-qcs.tar.gz
+  $ cp /mnt/usb/paquete-qcs.tar.gz ~/
+  $ sudo umount /mnt/usb
+
+Opción red (desde su PC, conectado al WiFi de la planta):
+  PS> scp paquete-qcs.tar.gz ubuntu@<IP_SERVIDOR>:/home/ubuntu/
+
+Verificar (en el servidor):
+  $ ls -lh ~/paquete-qcs.tar.gz
+  $ tar -tzf ~/paquete-qcs.tar.gz | grep -c .
+  Debe salir: el archivo con su tamaño, y un número de archivos mayor que 50.
+
+--- PASO 9. Detener el backend --------------------------------------------------
+
+  $ sudo systemctl stop lacteos
+Verificar:
+  $ systemctl is-active lacteos
+  Debe salir: inactive
+
+--- PASO 10. Reemplazar los archivos -------------------------------------------
+
+  $ rm -rf ~/nuevo && mkdir -p ~/nuevo
+  $ tar -xzf ~/paquete-qcs.tar.gz -C ~/nuevo
+  $ ls ~/nuevo ~/nuevo/backend
+    Debe salir: dist  backend  deploy   /   database  dist  package.json
+
+  $ rm -rf ~/dist ~/backend/dist ~/backend/database ~/deploy
+  $ mv ~/nuevo/dist ~/dist
+  $ mv ~/nuevo/backend/dist ~/backend/dist
+  $ mv ~/nuevo/backend/database ~/backend/database
+  $ cp ~/nuevo/backend/package.json ~/backend/package.json
+  $ mv ~/nuevo/deploy ~/deploy
+  $ rm -rf ~/nuevo
+
+  (node_modules NO se toca: las librerías del backend no cambiaron.)
+
+Verificar:
+  $ ls ~/dist/index.html ~/backend/dist/server.js ~/backend/database/init.sql ~/deploy/respaldo-bd.sh
+  Debe salir: las 4 rutas sin error.
+  $ ls ~/backend/dist/controllers/
+  NO deben aparecer batchController.js, executionController.js ni
+  packagingController.js (eran de la versión anterior).
+
+--- PASO 11. Revisar y completar el .env ---------------------------------------
+
+Ver variables actuales (sin claves):
+  $ sed -E 's/(PASSWORD|SECRET|DATABASE_URL)=.*/\1=***oculto***/' ~/backend/.env
+
+Agregar SOLO las que falten (cada línea verifica antes de agregar):
+  $ grep -q '^TRUST_PROXY=' ~/backend/.env || echo 'TRUST_PROXY=loopback' >> ~/backend/.env
+  $ grep -q '^HOST=' ~/backend/.env || echo 'HOST=127.0.0.1' >> ~/backend/.env
+
+  (HOST=127.0.0.1 solo si en el paso 5c nginx usa proxy_pass http://127.0.0.1:3001)
+
+Largo del JWT_SECRET:
+  $ grep ^JWT_SECRET ~/backend/.env | cut -d= -f2- | tr -d '"\r\n' | wc -c
+  Si sale 32 o más:
+  $ grep -q '^NODE_ENV=' ~/backend/.env || echo 'NODE_ENV=production' >> ~/backend/.env
+  Si sale menos de 32: NO agregue NODE_ENV=production (el backend no arrancaría).
+  Puede generar un secreto nuevo y largo así:
+  $ NUEVO=$(openssl rand -hex 32); sed -i "s/^JWT_SECRET=.*/JWT_SECRET=$NUEVO/" ~/backend/.env
+  y luego sí agregar NODE_ENV=production.
+  (Cambiar el JWT_SECRET solo obliga a todos a ingresar de nuevo.)
+
+Que NO estén activos:
+  $ grep -E '^(COOKIE_SECURE|HTTPS_ENABLED)=' ~/backend/.env
+  Si aparece alguno con "true", cámbielo a false o borre esa línea:
+  $ nano ~/backend/.env      (Ctrl+O, Enter para guardar; Ctrl+X para salir)
+
+Proteger el archivo:
+  $ chmod 600 ~/backend/.env
+
+Verificar resultado final:
+  $ sed -E 's/(PASSWORD|SECRET|DATABASE_URL)=.*/\1=***oculto***/' ~/backend/.env
+  Debe tener: PORT=3001, DATABASE_URL, JWT_SECRET, TRUST_PROXY=loopback,
+  HOST=127.0.0.1 y (si aplica) NODE_ENV=production. Cada variable UNA sola vez.
+
+--- PASO 12. Base de datos nueva y limpia --------------------------------------
+
+Verificar que nadie está conectado (el backend ya está detenido):
+  $ sudo -u postgres psql -Atc "select count(*) from pg_stat_activity where datname='$BD'"
+  Debe salir: 0
+  (Si sale más de 0:  sudo systemctl stop lacteos  y repita.)
+
+Borrar y crear (el dueño debe ser el usuario de la aplicación):
+  $ sudo -u postgres dropdb "$BD"
+  $ sudo -u postgres createdb -O "$USUARIO_BD" "$BD"
+
+Crear estructura y datos iniciales (CON EL USUARIO DE LA APLICACIÓN, no con
+postgres, para que las tablas queden a su nombre):
+  $ psql "$URL" -v ON_ERROR_STOP=1 -f ~/backend/database/init.sql
+  $ psql "$URL" -v ON_ERROR_STOP=1 -f ~/backend/database/seed.sql
+  Debe salir: solo líneas como CREATE TABLE, INSERT..., COMMIT. NINGÚN "ERROR".
+
+  ¡NO ejecute seed_demo.sql!
+
+Verificar:
+  $ psql "$URL" -Atc "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'"
+  Debe salir: 28
+  $ psql "$URL" -Atc "select codigo_empleado, rol from usuarios"
+  Debe salir SOLO: SA-001|superadmin
+  $ psql "$URL" -Atc "select count(*) from productos"
+  Debe salir: 7
+  $ psql "$URL" -Atc "select count(*) from lotes_produccion"
+  Debe salir: 0
+  $ psql "$URL" -Atc "select tablename, tableowner from pg_tables where schemaname='public' and tableowner <> current_user"
+  Debe salir: NADA (todas las tablas son del usuario de la aplicación).
+
+--- PASO 13. Poner la hora del servidor ----------------------------------------
+
+Mire la hora EXACTA en su celular en este momento y escríbala (formato
+AAAA-MM-DD HH:MM:SS, 24 horas). NO copie la fecha del ejemplo.
+  $ sudo timedatectl set-timezone America/Bogota
+  $ sudo timedatectl set-ntp false
+  $ sudo timedatectl set-time "<AAAA-MM-DD HH:MM:SS>"
+Verificar:
+  $ timedatectl
+  Debe salir: Time zone: America/Bogota (-05, -0500) y la fecha/hora iguales a
+  su celular (diferencia de pocos segundos).
+
+--- PASO 14. Arrancar y verificar el backend -----------------------------------
+
+  $ sudo systemctl start lacteos
+  $ sleep 3
+  $ systemctl is-active lacteos
+  Debe salir: active
+  $ journalctl -u lacteos -n 15 --no-pager
+  Debe salir:
+    [server] API escuchando en http://127.0.0.1:3001 ...
+    [server] Esquema de base de datos verificado.
+  y NINGÚN "ERROR" ni "FATAL".
+
+  $ curl -s http://127.0.0.1:3001/api/health ; echo
+  $ curl -s http://localhost/api/health ; echo
+  Ambos deben responder: {"status":"ok","database":"up",...}
+
+  $ ss -ltn | grep 3001
+  Debe salir: 127.0.0.1:3001   (NO 0.0.0.0:3001)
+
+  $ sudo systemctl status nginx --no-pager | grep Active
+  Debe salir: active (running)
+
+
+================================================================================
+FASE E — PRUEBAS (TODO LO QUE SE CREE AQUÍ SE BORRA EN LA FASE F)
+================================================================================
+
+--- PASO 15. Prueba funcional desde una tablet o celular -----------------------
+
+En el navegador de la tablet:  http://<IP_SERVIDOR>
+  [ ] Abre la pantalla de ingreso, con el aviso de datos personales abajo.
+  [ ] Ingresar con SA-001 / 123456.
+  [ ] Pestaña "Panel Superadmin" visible.
+  [ ] Crear un administrador DE PRUEBA (ej. ADM-PRUEBA, contraseña 8+).
+  [ ] Salir, entrar con ADM-PRUEBA.
+  [ ] Insumos y Lotes: registrar un lote de leche, cultivo, cuajo, sal, azúcar.
+  [ ] Registrar un sabor de yogur.
+  [ ] Usuarios: crear un operario DE PRUEBA (ej. OP-PRUEBA, PIN 123).
+  [ ] Salir, entrar con OP-PRUEBA / 123.
+  [ ] Iniciar un lote (ej. Yogur), avanzar etapas, envasar y cerrar.
+  [ ] Entrar con ADM-PRUEBA: el lote aparece en "Producción de hoy" e historial.
+  [ ] Exportar Datos: descargar el Excel y abrirlo (debe tener hoja Resumen,
+      Lotes, la hoja del producto y Correcciones).
+  [ ] Corregir un valor del lote con justificación (15+ caracteres).
+
+--- PASO 16. Pruebas de seguridad ----------------------------------------------
+
+a) Puerto directo cerrado (desde la tablet):  http://<IP_SERVIDOR>:3001
+   Debe: NO abrir (error de conexión).
+
+b) Bloqueo por intentos (en la tablet): ingrese OP-PRUEBA con un PIN malo 5
+   veces. Debe: aparecer el aviso de bloqueo por 15 minutos.
+   (Para quitarlo sin esperar:  $ sudo systemctl restart lacteos )
+
+c) Bitácora: entrar con SA-001 -> Panel Superadmin -> Bitácora de accesos.
+   Debe: verse los ingresos, los 5 intentos fallidos y "Cuenta bloqueada".
+
+d) Revocación inmediata: deje OP-PRUEBA con sesión abierta en una tablet; en
+   otra, como ADM-PRUEBA, déle de baja. Debe: la tablet del operario se sale
+   sola con el aviso de usuario dado de baja.
+
+e) Auditoría y bitácora no se pueden alterar (en el servidor):
+   $ psql "$URL" -c "DELETE FROM eventos_seguridad"
+   Debe salir: ERROR ... eventos_seguridad es de solo inserción.
+   $ psql "$URL" -c "UPDATE auditoria_rectificaciones SET justificacion_tecnica='x'"
+   Debe salir: ERROR ... auditoria_rectificaciones es de solo inserción.
+   (Si sale "UPDATE 0" es porque no hizo la corrección del paso 15: no hay filas.)
+   $ psql "$URL" -c "TRUNCATE auditoria_rectificaciones"
+   Debe salir: ERROR ...
+
+f) Lote cerrado bloqueado (en el servidor):
+   $ psql "$URL" -c "UPDATE lotes_produccion SET volumen_leche_base_litros = 1 WHERE estado='COMPLETADO'"
+   Debe salir: ERROR: SEGURIDAD INDUSTRIAL: lotes_produccion ... está COMPLETADO y
+   no admite modificaciones directas.
+   (Si sale "UPDATE 0" es porque no cerró ningún lote en el paso 15.)
+
+g) El usuario de la aplicación NO es superusuario:
+   $ psql "$URL" -Atc "select rolsuper from pg_roles where rolname = current_user"
+   Debe salir: f
+
+h) Cabecera de seguridad CSP:
+   $ curl -sI http://localhost/ | grep -i content-security
+   Debe salir: Content-Security-Policy: default-src 'self'; ...
+
+i) Claves guardadas cifradas (nunca en texto):
+   $ psql "$URL" -Atc "select codigo_empleado, left(pin_hash,7) from usuarios"
+   Debe salir: los códigos con "$2a$10$" (formato bcrypt), nunca el PIN real.
+
+--- PASO 17. Copias de seguridad y restauración --------------------------------
+
+  $ sudo bash ~/deploy/instalar-respaldos.sh
+  Debe terminar con: "Listo. Copias automáticas activadas" y mostrar los
+  próximos horarios 12:00 y 16:30.
+
+Verificar:
+  $ systemctl list-timers 'qcs-respaldo-*' --no-pager
+  $ systemctl is-enabled qcs-respaldo@arranque.service
+  Debe salir: 2 temporizadores y "enabled".
+
+Probar restaurar:
+  $ sudo systemctl stop lacteos
+  $ bash ~/deploy/restaurar-bd.sh
+    -> escriba el NÚMERO de la copia (1 = la más reciente), Enter
+    -> escriba SI (mayúsculas), Enter
+  Debe terminar con: "Restauración terminada."
+  $ sudo systemctl start lacteos
+  Entre de nuevo en la tablet: los datos de prueba siguen ahí.
+
+
+================================================================================
+FASE F — DEJAR TODO LIMPIO PARA PRODUCCIÓN
+================================================================================
+
+--- PASO 18. Base de datos en cero (como recién instalada) ---------------------
+
+  $ sudo systemctl stop lacteos
+  $ sudo -u postgres psql -Atc "select count(*) from pg_stat_activity where datname='$BD'"
+    Debe salir: 0
+  $ sudo -u postgres dropdb "$BD"
+  $ sudo -u postgres createdb -O "$USUARIO_BD" "$BD"
+  $ psql "$URL" -v ON_ERROR_STOP=1 -f ~/backend/database/init.sql
+  $ psql "$URL" -v ON_ERROR_STOP=1 -f ~/backend/database/seed.sql
+
+Verificar (todo debe estar vacío salvo catálogos y SA-001):
+  $ psql "$URL" -Atc "select codigo_empleado from usuarios"
+    Debe salir SOLO: SA-001
+  $ psql "$URL" -Atc "select (select count(*) from lotes_produccion), (select count(*) from insumos_lotes), (select count(*) from sabores_yogur), (select count(*) from auditoria_rectificaciones), (select count(*) from eventos_seguridad)"
+    Debe salir: 0|0|0|0|0
+
+--- PASO 19. Borrar las copias de seguridad de las pruebas ---------------------
+
+  $ ls /var/backups/qcs-lacteos/
+  $ rm -f /var/backups/qcs-lacteos/qcs_*.dump
+  $ : > /var/backups/qcs-lacteos/respaldos.log
+  $ sudo systemctl start lacteos
+  $ bash ~/deploy/respaldo-bd.sh inicial
+  Verificar:
+  $ ls -lh /var/backups/qcs-lacteos/
+  Debe salir: UNA sola copia ..._inicial.dump
+
+--- PASO 20. Limpieza de archivos sobrantes ------------------------------------
+
+  $ rm -f ~/paquete-qcs.tar.gz ~/backend.tar.gz ~/front.tar.gz
+  $ ls ~
+  Deben quedar: backend, dist, deploy, respaldo-anterior (y paquetes_base si
+  existía). Conserve ~/respaldo-anterior al menos 1 mes.
+
+  Borrar el historial de comandos (tiene la URL de la base escrita en pantalla):
+  $ history -c && history -w
+
+
+================================================================================
+FASE G — IP FIJA, APAGÓN Y TABLETS
+================================================================================
+
+--- PASO 21. IP fija (CON MONITOR Y TECLADO, NO POR SSH) -----------------------
+
+Verificar primero:
+  $ sudo cat /etc/netplan/*.yaml
+  Si ya dice  dhcp4: false  y  addresses: [<IP>/24]  -> YA ES FIJA. Salte al
+  paso 22.
+
+Si dice dhcp4: true:
+  a) Elija la IP (la del acceso directo de la planta es 192.168.18.10; si el
+     servidor ya tiene una IP que todos usan, mantenga esa):
+     $ ping -c 3 <IP_ELEGIDA>
+     Si responde y NO es este mismo servidor: esa IP está ocupada, elija otra.
+  b) Cree el archivo (cambie tarjeta, IP y router por los anotados en el paso 5i):
+     $ sudo nano /etc/netplan/99-ip-fija.yaml
+     Escriba EXACTAMENTE (respete los espacios, no use tabulador):
+
+network:
+  version: 2
+  ethernets:
+    <TARJETA>:
+      dhcp4: false
+      addresses: [<IP_ELEGIDA>/24]
+      routes:
+        - to: default
+          via: <ROUTER>
+
+     Guarde: Ctrl+O, Enter. Salga: Ctrl+X.
+  c) $ sudo chmod 600 /etc/netplan/99-ip-fija.yaml
+  d) $ sudo netplan try
+     Tiene 120 segundos: desde la tablet abra http://<IP_ELEGIDA>
+     Si abre -> vuelva al servidor y presione Enter (queda fija).
+     Si NO abre -> no presione nada: a los 120 s vuelve sola a como estaba.
+  e) Que no se pierda al reiniciar:
+     $ echo "network: {config: disabled}" | sudo tee /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg
+
+--- PASO 22. Prueba de apagón --------------------------------------------------
+
+  $ sudo reboot
+  (o desconecte la corriente y vuelva a conectar)
+
+Al encender, entre de nuevo y verifique:
+  $ ip -4 addr show                      -> la IP fija sigue
+  $ timedatectl                          -> la hora sigue correcta
+  $ systemctl is-active lacteos nginx    -> active  active
+  $ ls /var/backups/qcs-lacteos/         -> apareció una copia ..._arranque.dump
+  En la tablet: http://<IP_SERVIDOR> abre y deja ingresar.
+
+--- PASO 23. Tablets (cada una) ------------------------------------------------
+
+  [ ] Ajustes -> Sistema -> Fecha y hora: zona horaria Bogotá (GMT-5).
+  [ ] Hora puesta a mano IGUAL a la del servidor (compare con  $ date ).
+  [ ] Chrome: abrir http://<IP_SERVIDOR> -> menú (⋮) -> "Agregar a pantalla
+      de inicio". (En Android con HTTP se abre con la barra del navegador; es
+      normal.)
+  [ ] Probar ingreso y salir.
+  [ ] PCs de oficina: ejecutar deploy\Instalar-Lacteos-Colombia.bat (revise que
+      la IP dentro del .bat sea la del servidor).
+
+--- PASO 24. Superadmin y administrador real -----------------------------------
+
+  [ ] En la tablet o PC: ingresar con SA-001 / 123456.
+  [ ] Panel Superadmin -> Mi cuenta: poner clave actual 123456, nuevo PIN y
+      nueva contraseña. ANOTARLOS EN PAPEL ANTES de guardar.
+  [ ] Salir y volver a entrar con la clave nueva (confirmar que funciona).
+  [ ] Panel Superadmin -> Crear administrador: los datos reales del ingeniero.
+  [ ] El administrador entra con su cuenta y la cambia en Mi cuenta si quiere.
+  [ ] Bitácora de accesos: deben verse solo los eventos de este paso.
+
+
+================================================================================
+FASE H — ENTREGA
+================================================================================
+
+--- PASO 25. Lista final -------------------------------------------------------
+
+  [ ] systemctl is-active lacteos nginx -> active active
+  [ ] Hora del servidor y tablets correctas, zona Bogotá.
+  [ ] IP fija y acceso directo funcionando en tablets y PCs.
+  [ ] Base limpia: solo SA-001 (clave cambiada) y el administrador real.
+  [ ] Copias automáticas: list-timers muestra 12:00 y 16:30.
+  [ ] Una copia "inicial" en /var/backups/qcs-lacteos.
+  [ ] ~/respaldo-anterior guardado (versión vieja, por si acaso).
+  [ ] Paquete y .tar.gz viejos borrados del servidor.
+  [ ] Claves del superadmin y del servidor anotadas y guardadas en lugar seguro.
+  [ ] El administrador sabe: registrar operarios, insumos y sabores; que las
+      copias son automáticas; y que si el servidor falla se usa papel.
+
+Recomendaciones de operación (dígaselas al administrador):
+  - Revisar la bitácora de accesos una vez por semana.
+  - Comparar la hora del servidor con un celular una vez al mes.
+  - Llevar una copia de /var/backups/qcs-lacteos a una USB una vez por semana.
+
+
+================================================================================
+ANEXO 1 — SI ALGO SALE MAL: VOLVER A LA VERSIÓN ANTERIOR
+================================================================================
+
+  $ sudo systemctl stop lacteos
+  $ rm -rf ~/dist ~/backend/dist
+  $ cp -a ~/respaldo-anterior/front-dist ~/dist
+  $ cp -a ~/respaldo-anterior/backend-dist ~/backend/dist
+  $ cp ~/respaldo-anterior/.env ~/respaldo-anterior/package.json ~/backend/
+  $ sudo -u postgres dropdb "$BD"
+  $ sudo -u postgres createdb -O "$USUARIO_BD" "$BD"
+  $ pg_restore --no-owner -d "$URL" ~/respaldo-anterior/base-anterior.dump
+  (Puede mostrar avisos sobre EXTENSION o COMMENT: no importan.)
+  $ sudo systemctl start lacteos
+  $ systemctl is-active lacteos     -> active
+
+  Si el backend nuevo no arranca, vea el motivo con:
+  $ journalctl -u lacteos -n 40 --no-pager
+
+
+================================================================================
+ANEXO 2 — EL SUPERADMIN OLVIDÓ SU CLAVE
+================================================================================
+
+(Solo con acceso al servidor.)
+  $ sudo -u postgres psql -d qsc_lacteos -c "UPDATE usuarios SET pin_hash = crypt('123456', gen_salt('bf', 10)), password_hash = crypt('123456', gen_salt('bf', 10)), sesiones_desde = NOW() WHERE codigo_empleado = 'SA-001';"
+  Debe salir: UPDATE 1
+  $ sudo systemctl restart lacteos     (quita un bloqueo de 15 min si lo hay)
+  Entrar con SA-001 / 123456 y cambiarla de inmediato en Mi cuenta.
+
+  Si el ADMINISTRADOR olvidó la suya: el superadmin se la restablece desde
+  Panel Superadmin -> Administradores -> Editar.
+  Si un OPERARIO olvidó su PIN: el administrador se lo restablece en Usuarios.
+
+
+================================================================================
+ANEXO 3 — COMANDOS ÚTILES DEL DÍA A DÍA
+================================================================================
+
+  Estado de todo:        systemctl is-active lacteos nginx postgresql
+  Reiniciar backend:     sudo systemctl restart lacteos
+  Últimos mensajes:      journalctl -u lacteos -n 30 --no-pager
+  Copia manual:          bash ~/deploy/respaldo-bd.sh
+  Historial de copias:   cat /var/backups/qcs-lacteos/respaldos.log
+  Próximas copias:       systemctl list-timers 'qcs-respaldo-*'
+  Restaurar:             (detener backend) bash ~/deploy/restaurar-bd.sh
+  Hora:                  timedatectl
+  IP:                    ip -4 addr show
+  Espacio en disco:      df -h /
+  Bitácora por consola:
+    sudo -u postgres psql -d qsc_lacteos -c "SET timezone='America/Bogota'; SELECT e.registrado_at, e.evento, COALESCE(u.codigo_empleado, e.codigo_empleado) AS codigo, e.detalle, e.ip FROM eventos_seguridad e LEFT JOIN usuarios u ON u.id = e.usuario_id ORDER BY e.registrado_at DESC LIMIT 20;"
+
+================================================================================

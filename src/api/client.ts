@@ -128,7 +128,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
   }
   const body = await res.json().catch(() => ({}));
   if (res.status === 401 && hasSession() && !path.startsWith('/auth/login')) {
-    window.dispatchEvent(new CustomEvent('qcs:session-expired', { detail: { error: body.error } }));
+    window.dispatchEvent(new CustomEvent('qcs:session-expired', { detail: { error: body.error, message: body.message } }));
   }
   if (!res.ok) throw new ApiError(res.status, body.message ?? 'Error del servidor.', body);
   return body as T;
@@ -140,9 +140,6 @@ const LINE_UI_IDS: Record<string, string> = {
 };
 
 export const lineUiId = (code: string): string => LINE_UI_IDS[code] ?? code;
-export const lineCodeFromUiId = (uiId: string): string =>
-  Object.entries(LINE_UI_IDS).find(([, v]) => v === uiId)?.[0] ?? uiId;
-
 export const productUiIdFromCode = (code: string): string =>
   INITIAL_PRODUCTS.find((p) => p.code === code)?.id ?? code;
 export const productCodeFromUiId = (uiId: string): string =>
@@ -157,6 +154,7 @@ export const toProfile = (u: ApiUser): UserProfile => ({
   role: u.rol === 'superadmin' ? 'administrador' : u.rol,
   shift: u.turno,
   assignedLineId: u.linea_codigo ? lineUiId(u.linea_codigo) : undefined,
+  ...(u.rol === 'superadmin' ? { isSuperAdmin: true } : {}),
 });
 
 export async function loginRequest(code: string, password: string): Promise<UserProfile> {
@@ -267,9 +265,6 @@ export interface LinePayload {
   productos: string[];
 }
 
-export const createLineRequest = (payload: LinePayload) =>
-  apiFetch<{ id: string }>('/catalogs/lines', { method: 'POST', body: JSON.stringify(payload) });
-
 export const updateLineRequest = (code: string, payload: Partial<LinePayload>) =>
   apiFetch<{ id: string }>(`/catalogs/lines/${encodeURIComponent(code)}`, {
     method: 'PUT',
@@ -292,6 +287,8 @@ export interface UserPayload {
   turno?: UserProfile['shift'];
   linea_asignada_id?: string | null;
   rol?: UserRole;
+  /** Clave actual: obligatoria cuando el usuario cambia su propio PIN o contraseña. */
+  clave_actual?: string;
 }
 
 export async function createUserRequest(payload: UserPayload): Promise<UserProfile> {
@@ -302,6 +299,29 @@ export async function createUserRequest(payload: UserPayload): Promise<UserProfi
 export async function updateUserRequest(id: string, payload: UserPayload): Promise<UserProfile> {
   const row = await apiFetch<ApiUser>(`/users/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
   return toProfile(row);
+}
+
+/** Fila de la bitácora de accesos (solo superadmin). */
+export interface SecurityEventRow {
+  id: string;
+  evento: string;
+  registrado_at: string;
+  ip: string | null;
+  detalle: string | null;
+  codigo: string | null;
+  nombre: string | null;
+  actor_codigo: string | null;
+  actor_nombre: string | null;
+}
+
+export async function fetchSecurityEvents(params: { dias?: number; evento?: string; q?: string } = {}) {
+  const qs = new URLSearchParams();
+  if (params.dias) qs.set('dias', String(params.dias));
+  if (params.evento) qs.set('evento', params.evento);
+  if (params.q) qs.set('q', params.q);
+  return apiFetch<{ dias: number; limite: number; eventos: SecurityEventRow[] }>(
+    `/users/eventos-seguridad${qs.toString() ? `?${qs.toString()}` : ''}`
+  );
 }
 
 export const deactivateUserRequest = (id: string) =>
@@ -383,11 +403,6 @@ export interface OpenDraftRow {
 }
 
 export const fetchOpenDrafts = () => apiFetch<OpenDraftRow[]>('/workspace/drafts');
-
-export const discardDraftRequest = (productUiId: string) =>
-  apiFetch<{ message: string }>(`/workspace/drafts/${encodeURIComponent(productUiId)}`, {
-    method: 'DELETE',
-  });
 
 export interface BatchHistoryRow {
   id: string;
@@ -661,8 +676,11 @@ export async function fetchInactiveUsers(): Promise<UserProfile[]> {
   return rows.map(toProfile);
 }
 
-export const reactivateUserRequest = (id: string, pin: string) =>
-  apiFetch<{ message: string }>(`/users/${id}/reactivar`, { method: 'POST', body: JSON.stringify({ pin }) });
+export const reactivateUserRequest = (id: string, pin: string, password?: string) =>
+  apiFetch<{ message: string }>(`/users/${id}/reactivar`, {
+    method: 'POST',
+    body: JSON.stringify(password ? { pin, password } : { pin }),
+  });
 
 export interface InactiveLine {
   id: string;

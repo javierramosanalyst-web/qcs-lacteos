@@ -1,9 +1,24 @@
 import { pool } from './db';
 
+/**
+ * Actualizador de la base al arrancar el backend.
+ *
+ * Una base NUEVA se crea completa con database/init.sql + database/seed.sql; sobre ella
+ * todo lo de aquí no cambia nada (IF NOT EXISTS / ON CONFLICT DO NOTHING / CREATE OR REPLACE).
+ * Esto existe para las bases creadas con versiones anteriores: les agrega las tablas,
+ * columnas, funciones y catálogos nuevos SIN borrar datos.
+ *
+ * Regla para cambios futuros de estructura: agregarlos en init.sql (instalaciones nuevas)
+ * Y aquí de forma idempotente (bases que ya están trabajando).
+ */
 const MIGRATIONS = `
 ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS estado_ui JSONB;
 ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS producto_ui_id VARCHAR(60);
 ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS finalizado_por_id UUID REFERENCES usuarios(id) ON DELETE SET NULL;
+
+-- Revocación de sesiones: los tokens emitidos antes de esta fecha dejan de servir (baja, reactivación,
+-- clave restablecida por otra persona).
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sesiones_desde TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_lotes_produccion_producto_ui ON lotes_produccion(producto_ui_id, estado);
 
@@ -208,6 +223,33 @@ SELECT l.id AS lote_id,
             THEN ROUND(e.total_kg_envasados / l.volumen_leche_base_litros * 100, 2) END AS rendimiento_s_leche_pct
 FROM lotes_produccion l
 LEFT JOIN envasado e ON e.lote_id = l.id;
+
+-- Bitácora de accesos (inicios de sesión, intentos fallidos, bloqueos, cambios de usuarios y claves).
+-- La escribe el servidor automáticamente; nunca guarda PIN ni contraseñas. Solo inserción: no se
+-- puede editar ni borrar fila por fila. Para dejarla en cero antes de producción se usa
+-- deploy/limpiar-datos-de-prueba.sh (TRUNCATE, solo con acceso directo a la base).
+CREATE TABLE IF NOT EXISTS eventos_seguridad (
+    id              BIGSERIAL PRIMARY KEY,
+    evento          VARCHAR(40) NOT NULL,
+    usuario_id      UUID,
+    codigo_empleado VARCHAR(40),
+    actor_id        UUID,
+    detalle         VARCHAR(300),
+    ip              VARCHAR(64),
+    registrado_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_eventos_seguridad_fecha ON eventos_seguridad(registrado_at DESC);
+
+CREATE OR REPLACE FUNCTION fn_eventos_seguridad_inmutable() RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'eventos_seguridad es de solo inserción.' USING ERRCODE = 'P0001';
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_eventos_seguridad_inmutable ON eventos_seguridad;
+CREATE TRIGGER trg_eventos_seguridad_inmutable
+    BEFORE UPDATE OR DELETE ON eventos_seguridad
+    FOR EACH ROW EXECUTE FUNCTION fn_eventos_seguridad_inmutable();
 `;
 
 export async function ensureSchema(): Promise<void> {

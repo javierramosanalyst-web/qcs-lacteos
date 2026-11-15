@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { registrarEvento } from '../services/eventosSeguridad';
 
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ATTEMPTS_PER_IP = 30;
@@ -65,7 +66,12 @@ export function loginGuard(req: Request, res: Response, next: NextFunction): voi
   res.on('finish', () => {
     if (!code) return;
     const at = Date.now();
-    if (res.statusCode === 401) bump(byUser, code, LOCK_MS, at);
+    if (res.statusCode === 401) {
+      const fallos = bump(byUser, code, LOCK_MS, at);
+      if (fallos.count === MAX_FAILS_PER_USER) {
+        void registrarEvento({ evento: 'CUENTA_BLOQUEADA', codigo: code, detalle: `${MAX_FAILS_PER_USER} intentos fallidos: bloqueada 15 min`, req });
+      }
+    }
     else if (res.statusCode === 200) byUser.delete(code);
   });
 

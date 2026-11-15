@@ -1,17 +1,24 @@
 -- ============================================================================
--- QCS PRO LÁCTEOS · INICIALIZACIÓN DE BASE DE DATOS (PostgreSQL)
--- Fuente de la verdad: docs/arquitectura_backend_postgresql.md (v1.1, firmada)
+-- QCS PRO LÁCTEOS · ESTRUCTURA COMPLETA DE LA BASE DE DATOS (PostgreSQL)
 --
--- USO (base de datos NUEVA y vacía):
+-- Este archivo crea TODA la estructura: tipos, tablas, índices, funciones, vistas
+-- y triggers de protección. No carga datos: los catálogos y el superadmin inicial
+-- están en seed.sql.
+--
+-- USO (base de datos NUEVA y vacía), en este orden:
 --   psql -U <usuario> -d <base> -f backend/database/init.sql
+--   psql -U <usuario> -d <base> -f backend/database/seed.sql
 --
--- Este script NO es idempotente (CREATE TYPE / CREATE TABLE sin IF NOT EXISTS):
--- está pensado para una instalación limpia. No incluye datos semilla.
+-- No es idempotente (CREATE TYPE / CREATE TABLE sin IF NOT EXISTS): es para una
+-- instalación limpia. Las bases ya existentes las actualiza el backend al arrancar
+-- (backend/src/schema.ts), sin borrar datos.
 -- ============================================================================
 
 BEGIN;
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- pgcrypto: hashes bcrypt de PIN y contraseñas (crypt / gen_salt).
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ============================================================================
 -- 0. TIPOS ENUMERADOS
@@ -49,6 +56,7 @@ CREATE TABLE usuarios (
     password_hash VARCHAR(255) NOT NULL,
     linea_asignada_id UUID REFERENCES lineas_produccion(id) ON DELETE SET NULL,
     activo BOOLEAN NOT NULL DEFAULT TRUE,   -- los usuarios no se borran: baja lógica
+    sesiones_desde TIMESTAMPTZ,             -- sesiones emitidas antes de esta fecha quedan revocadas
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -119,22 +127,6 @@ CREATE TABLE tipos_insumo (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-INSERT INTO tipos_insumo (codigo, nombre, unidad_base, gestionable_admin) VALUES
-  ('leche_fresca', 'Leche fresca de proveedor', 'L', TRUE),
-  ('cultivo', 'Cultivo láctico', 'g', TRUE),
-  ('cuajo', 'Cuajo (coagulante)', 'ml', TRUE),
-  ('sal', 'Sal', 'kg', TRUE),
-  ('azucar', 'Azúcar', 'kg', TRUE),
-  ('saborizante', 'Saborizante', 'ml', TRUE),
-  ('colorante', 'Colorante', 'ml', TRUE),
-  ('leche_acida', 'Leche ácida', 'L', FALSE),
-  ('cultivo_lactico', 'Cultivo láctico (proceso)', 'g', FALSE),
-  ('estevia', 'Estevia', 'g', TRUE),
-  ('acido_acetico', 'Ácido acético', 'ml', TRUE),
-  ('agua', 'Agua', 'ml', FALSE),
-  ('especia', 'Especia', 'g', TRUE),
-  ('arequipe', 'Arequipe', 'g', TRUE),
-  ('bocadillo', 'Bocadillo', 'g', TRUE);
 
 CREATE TABLE insumos_catalogo (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -147,7 +139,7 @@ CREATE TABLE insumos_catalogo (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Lotes de insumo recibidos (bultos, frascos). Permite trazabilidad hacia atrás.
+-- Sabores de yogur que registra el administrador (se eligen en el batido).
 CREATE TABLE sabores_yogur (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     nombre VARCHAR(80) NOT NULL,
@@ -156,15 +148,18 @@ CREATE TABLE sabores_yogur (
 );
 CREATE UNIQUE INDEX uq_sabores_yogur_nombre ON sabores_yogur (LOWER(nombre));
 
+-- Lotes de insumo recibidos (bultos, frascos). Permite trazabilidad hacia atrás.
 CREATE TABLE insumos_lotes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     insumo_id UUID NOT NULL REFERENCES insumos_catalogo(id) ON DELETE RESTRICT,
     codigo_lote VARCHAR(80) NOT NULL,
+    descripcion VARCHAR(200),
     proveedor VARCHAR(150),
     fecha_vencimiento DATE,
     cantidad_recibida NUMERIC(12,3)
         CONSTRAINT chk_insumos_lotes_cantidad CHECK (cantidad_recibida IS NULL OR cantidad_recibida >= 0),
     activo BOOLEAN NOT NULL DEFAULT TRUE,
+    eliminado_at TIMESTAMPTZ,               -- en papelera (se borra solo pasado el plazo)
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (insumo_id, codigo_lote)
 );
@@ -182,6 +177,8 @@ CREATE TABLE formatos_envase (
 
 -- ============================================================================
 -- 3. LOTES PADRE (RECEPCIÓN DE LECHE)
+--    Reservado para registrar la leche recibida antes de repartirla en lotes. La
+--    aplicación todavía no tiene esa pantalla: hoy cada lote empieza con su propio volumen.
 -- ============================================================================
 CREATE TABLE lotes_padre (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -230,7 +227,8 @@ CREATE TABLE lote_padre_recepcion (
 CREATE TABLE lotes_produccion (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     codigo_lote VARCHAR(50) UNIQUE NOT NULL,
-    lote_dia VARCHAR(5),                -- Lote visible por día en letras (DD+M+AA); lo asigna el backend
+    lote_dia VARCHAR(5),                -- Lote visible por día en letras (DD+M+AA); lo asigna trg_asignar_lote_dia
+    producto_ui_id VARCHAR(60),         -- id del producto en la aplicación (prod-yogur, prod-queso-pera...)
     lote_padre_id UUID REFERENCES lotes_padre(id) ON DELETE RESTRICT,       -- leche de origen (NULL en quesos directos)
     lote_origen_id UUID REFERENCES lotes_produccion(id) ON DELETE RESTRICT, -- lote del que se desvió el volumen (Kumis/Griego desde Yogur)
     producto_id UUID NOT NULL REFERENCES productos(id) ON DELETE RESTRICT,
@@ -262,6 +260,10 @@ CREATE TABLE lotes_produccion (
     lote_producto_terminado VARCHAR(80),
     fecha_vencimiento DATE,
     observaciones_finales TEXT,
+    finalizado_por_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+
+    -- Estado completo del lote tal como lo registró la aplicación (de aquí se reparte a las tablas de detalle)
+    estado_ui JSONB,
 
     -- Anulación manual por administrador (decisión #1)
     anulado_at TIMESTAMPTZ,
@@ -293,6 +295,18 @@ CREATE TABLE lote_operarios_intervinientes (
     rol_en_proceso VARCHAR(80) NOT NULL DEFAULT 'Operador de Etapa',
     asignado_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (lote_id, usuario_id)
+);
+
+-- Operarios que trabajaron en cada etapa (primera y última acción)
+CREATE TABLE lote_etapa_operarios (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    lote_id UUID NOT NULL REFERENCES lotes_produccion(id) ON DELETE CASCADE,
+    etapa_codigo VARCHAR(40) NOT NULL,
+    fase_nombre VARCHAR(120) NOT NULL,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
+    primera_accion_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    ultima_accion_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (lote_id, etapa_codigo, usuario_id)
 );
 
 -- Historial append-only de desvíos de volumen (Kumis / Griego) con reversibilidad
@@ -424,6 +438,34 @@ CREATE UNIQUE INDEX uq_presentacion_derivacion_formato
     WHERE derivacion_id IS NOT NULL;
 
 -- ============================================================================
+-- 6.1 TRABAJO EN CURSO (lo que el operario va registrando antes y durante el lote)
+-- ============================================================================
+-- Borrador de cada producto: se guarda solo mientras el operario trabaja. Al iniciar el
+-- lote queda enlazado (lote_id); los borradores sin lote se borran tras 8 h sin cambios.
+CREATE TABLE borradores_lote (
+    producto_ui_id VARCHAR(60) PRIMARY KEY,
+    linea_id UUID NOT NULL REFERENCES lineas_produccion(id) ON DELETE RESTRICT,
+    estado JSONB NOT NULL,
+    etapa_actual VARCHAR(40) NOT NULL DEFAULT 'acidificar',
+    version INTEGER NOT NULL DEFAULT 1,
+    lote_id UUID REFERENCES lotes_produccion(id) ON DELETE SET NULL,
+    actualizado_por_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Estado de la pantalla de cada línea (qué producto está abierto, etc.).
+CREATE TABLE espacio_trabajo_linea (
+    linea_id UUID PRIMARY KEY REFERENCES lineas_produccion(id) ON DELETE CASCADE,
+    estado JSONB NOT NULL,
+    version INTEGER NOT NULL DEFAULT 1,
+    actualizado_por_id UUID REFERENCES usuarios(id) ON DELETE SET NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Consecutivo del código interno de lote (PRODUCTO-AAAAMMDD-NNN).
+CREATE SEQUENCE seq_codigo_lote START 1;
+
+-- ============================================================================
 -- 7. AUDITORÍA INMUTABLE (RECTIFICACIONES Y ANULACIONES)
 -- ============================================================================
 CREATE TABLE auditoria_rectificaciones (
@@ -457,6 +499,8 @@ CREATE INDEX idx_lotes_produccion_fecha     ON lotes_produccion(iniciado_at);
 CREATE INDEX idx_lotes_produccion_padre     ON lotes_produccion(lote_padre_id);
 CREATE INDEX idx_lotes_produccion_origen    ON lotes_produccion(lote_origen_id);
 CREATE INDEX idx_lotes_produccion_producto  ON lotes_produccion(producto_id, iniciado_at);
+CREATE INDEX idx_lotes_produccion_producto_ui ON lotes_produccion(producto_ui_id, estado);
+CREATE INDEX idx_lotes_produccion_lote_dia  ON lotes_produccion(lote_dia);
 CREATE INDEX idx_hitos_lote                 ON lote_hitos_proceso(lote_id, codigo_hito);
 CREATE INDEX idx_mediciones_lote_param      ON mediciones_fisicoquimicas(lote_id, parametro_codigo, registrado_at);
 CREATE INDEX idx_insumos_usados_lote        ON lote_insumos_utilizados(lote_id);
@@ -465,6 +509,11 @@ CREATE INDEX idx_extracciones_origen        ON lote_extracciones_sublote(lote_or
 CREATE INDEX idx_auditoria_lote             ON auditoria_rectificaciones(lote_id);
 CREATE INDEX idx_auditoria_padre            ON auditoria_rectificaciones(lote_padre_id);
 CREATE INDEX idx_auditoria_fecha            ON auditoria_rectificaciones(registrado_at);
+CREATE INDEX idx_insumos_catalogo_tipo      ON insumos_catalogo(tipo_insumo);
+CREATE INDEX idx_insumos_utilizados_tipo    ON lote_insumos_utilizados(tipo_insumo);
+CREATE INDEX idx_lote_etapa_operarios_lote  ON lote_etapa_operarios(lote_id);
+CREATE INDEX idx_lote_etapa_operarios_usuario ON lote_etapa_operarios(usuario_id);
+CREATE INDEX idx_borradores_lote_linea      ON borradores_lote(linea_id);
 
 -- ============================================================================
 -- 9. VISTA DE BALANCE DE MATERIA (matemática estricta, sin tolerancias)
@@ -610,6 +659,10 @@ CREATE TRIGGER trg_lock_lote_extracciones_sublote
     BEFORE INSERT OR UPDATE OR DELETE ON lote_extracciones_sublote
     FOR EACH ROW EXECUTE FUNCTION fn_bloquear_hijas_de_lote_cerrado();
 
+CREATE TRIGGER trg_lock_lote_etapa_operarios
+    BEFORE INSERT OR UPDATE OR DELETE ON lote_etapa_operarios
+    FOR EACH ROW EXECUTE FUNCTION fn_bloquear_hijas_de_lote_cerrado();
+
 -- 10.3 La auditoría es append-only para TODOS, incluido SuperAdmin
 CREATE OR REPLACE FUNCTION fn_auditoria_inmutable() RETURNS TRIGGER AS $$
 BEGIN
@@ -627,5 +680,59 @@ CREATE TRIGGER trg_auditoria_sin_truncate
     FOR EACH STATEMENT EXECUTE FUNCTION fn_auditoria_inmutable();
 
 REVOKE UPDATE, DELETE, TRUNCATE ON auditoria_rectificaciones FROM PUBLIC;
+
+-- ============================================================================
+-- 11. LOTE POR DÍA (5 letras): DD + M + AA, con la fecha de INICIO del lote en hora
+-- de Colombia. Dígitos 1..9,0 -> A..J ; meses enero..diciembre -> A..L.
+-- Ej.: 12/10/2026 -> "AB" + "J" + "BF" = ABJBF. Todos los lotes que arrancan el mismo
+-- día comparten estas letras; el código interno (codigo_lote) y el id siguen siendo únicos.
+-- ============================================================================
+CREATE FUNCTION fn_lote_dia(ts TIMESTAMPTZ) RETURNS VARCHAR(5)
+LANGUAGE sql STABLE AS $$
+    SELECT translate(to_char(ts AT TIME ZONE 'America/Bogota', 'DD'), '1234567890', 'ABCDEFGHIJ')
+        || substr('ABCDEFGHIJKL', EXTRACT(MONTH FROM ts AT TIME ZONE 'America/Bogota')::int, 1)
+        || translate(to_char(ts AT TIME ZONE 'America/Bogota', 'YY'), '1234567890', 'ABCDEFGHIJ');
+$$;
+
+CREATE FUNCTION fn_asignar_lote_dia() RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.lote_dia IS NULL THEN
+        NEW.lote_dia := fn_lote_dia(COALESCE(NEW.iniciado_at, NOW()));
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_asignar_lote_dia
+    BEFORE INSERT ON lotes_produccion
+    FOR EACH ROW EXECUTE FUNCTION fn_asignar_lote_dia();
+
+-- ============================================================================
+-- 12. BITÁCORA DE ACCESOS (inicios de sesión, intentos fallidos, bloqueos, cambios de
+-- usuarios y claves). La escribe el servidor automáticamente; nunca guarda PIN ni
+-- contraseñas. Solo inserción: no se puede editar ni borrar fila por fila. Para dejarla
+-- en cero antes de producción se usa deploy/limpiar-datos-de-prueba.sh.
+-- ============================================================================
+CREATE TABLE eventos_seguridad (
+    id              BIGSERIAL PRIMARY KEY,
+    evento          VARCHAR(40) NOT NULL,
+    usuario_id      UUID,
+    codigo_empleado VARCHAR(40),
+    actor_id        UUID,
+    detalle         VARCHAR(300),
+    ip              VARCHAR(64),
+    registrado_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_eventos_seguridad_fecha ON eventos_seguridad(registrado_at DESC);
+
+CREATE FUNCTION fn_eventos_seguridad_inmutable() RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'eventos_seguridad es de solo inserción.' USING ERRCODE = 'P0001';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_eventos_seguridad_inmutable
+    BEFORE UPDATE OR DELETE ON eventos_seguridad
+    FOR EACH ROW EXECUTE FUNCTION fn_eventos_seguridad_inmutable();
 
 COMMIT;

@@ -7,10 +7,7 @@ import express, { NextFunction, Request, Response } from 'express';
 import { checkDatabase, pool } from './db';
 import authRoutes from './routes/authRoutes';
 import auditRoutes from './routes/auditRoutes';
-import batchRoutes from './routes/batchRoutes';
 import catalogRoutes from './routes/catalogRoutes';
-import executionRoutes from './routes/executionRoutes';
-import packagingRoutes from './routes/packagingRoutes';
 import userRoutes from './routes/userRoutes';
 import insumoLoteRoutes from './routes/insumoLoteRoutes';
 import saborYogurRoutes from './routes/saborYogurRoutes';
@@ -63,6 +60,14 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'same-origin');
+  // CSP: el navegador solo ejecuta código y carga recursos de este mismo servidor. La aplicación no usa
+  // nada externo (fuentes e íconos van en /public), así que no cambia lo que se ve.
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
+      "font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; " +
+      "base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+  );
   next();
 });
 app.use(express.json({ limit: '5mb' }));
@@ -80,9 +85,6 @@ app.get('/api/health', async (_req: Request, res: Response) => {
 
 // Rutas de API
 app.use('/api/auth', authRoutes);
-app.use('/api/batches', batchRoutes);
-app.use('/api/batches', executionRoutes);
-app.use('/api/batches', packagingRoutes);
 app.use('/api/batches', auditRoutes);
 app.use('/api/catalogs', catalogRoutes);
 app.use('/api/users', userRoutes);
@@ -111,8 +113,11 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error interno del servidor.' });
 });
 
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`[server] API escuchando en http://localhost:${PORT} (CORS: ${allowedOrigins.join(', ')})`);
+// HOST=127.0.0.1 en el .env del servidor: Node solo atiende a nginx (nadie entra directo por IP:3001).
+// Sin la variable se comporta como siempre (toda la red).
+const HOST = (process.env.HOST ?? '').trim() || '0.0.0.0';
+const server = app.listen(PORT, HOST, () => {
+  console.log(`[server] API escuchando en http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT} (CORS: ${allowedOrigins.join(', ')})`);
 });
 
 // HTTPS opcional, APAGADO por defecto: solo se enciende con HTTPS_ENABLED=true en backend/.env y si existen

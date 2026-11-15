@@ -298,17 +298,6 @@ export interface BatidoYAdicionesYogurState {
   };
 }
 
-export interface EnvasadoFormatoYogur {
-  unidades: number;
-  volumenMlPorUnidad: number;
-  subtotalLitros: number;
-  // compat
-  gramosPorUnidad?: number;
-  kilosPorUnidad?: number;
-  subtotalGramos?: number;
-  subtotalKilos?: number;
-}
-
 export interface EnvasadoYAlmacenamientoYogurState {
   // Etiquetado
   loteProductoTerminado: string; // 'YOG-01-20261020'

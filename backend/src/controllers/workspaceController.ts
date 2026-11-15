@@ -585,25 +585,6 @@ export async function getDraftStatus(req: Request, res: Response): Promise<void>
   }
 }
 
-/** DELETE /api/workspace/drafts/:productUiId  (descarta un borrador sin lote oficial) */
-export async function discardDraft(req: Request, res: Response): Promise<void> {
-  try {
-    const { rows } = await pool.query(
-      `SELECT lote_id FROM borradores_lote WHERE producto_ui_id = $1;`,
-      [req.params.productUiId]
-    );
-    if (rows[0]?.lote_id) {
-      res.status(409).json({ error: 'BATCH_STARTED', message: 'El lote ya fue iniciado y no puede descartarse.' });
-      return;
-    }
-    await pool.query(`DELETE FROM borradores_lote WHERE producto_ui_id = $1;`, [req.params.productUiId]);
-    res.json({ message: 'Borrador descartado.' });
-  } catch (error) {
-    console.error('[workspace] Error al descartar borrador:', error);
-    res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al descartar el borrador.' });
-  }
-}
-
 /** GET /api/workspace/history?limit=50  Lotes (en proceso y cerrados) para el panel de administración */
 const FORMAT_LITERS: Record<string, number> = {
   botella120ml: 0.12,

@@ -10,6 +10,95 @@
 
 ¿Por qué no HTTPS? Con un certificado propio, cada tablet Android tiene que instalar `lacteos-ca.crt` a mano; si no, ve una pantalla completa de error ("La conexión no es privada"). Para HTTPS sin tocar los equipos hace falta un certificado público (dominio propio). Las secciones de HTTPS de abajo quedan para cuando se decida eso.
 
+### Riesgo aceptado: HTTP en la red local
+
+Por la naturaleza de la planta, el sistema funciona **solo en la red local y por HTTP**. Es una decisión tomada, con estas condiciones:
+
+- El servidor **no se publica en internet** (ningún puerto abierto hacia afuera).
+- El WiFi de la planta tiene **contraseña (WPA2 o superior)** y **no es el mismo** que el de visitantes.
+- Node atiende solo a nginx (`HOST=127.0.0.1`, ver abajo), así que nadie entra directo por `IP:3001`.
+- Compensan la falta de cifrado: bloqueo tras 5 intentos fallidos, cierre por inactividad, bitácora de accesos y copias de seguridad diarias.
+
+Si algún día se necesita entrar desde fuera de la planta, primero hay que activar HTTPS con un certificado público.
+
+## Ajustes de seguridad en `backend/.env` del servidor
+
+| Variable | Valor en la planta | Para qué |
+| --- | --- | --- |
+| `TRUST_PROXY` | `loopback` | El límite de intentos de login se cuenta por tablet (nginx en el mismo PC). |
+| `HOST` | `127.0.0.1` | Node solo escucha a nginx: nadie de la red entra directo por el puerto 3001. Sin la variable escucha en toda la red, como antes. **Solo póngala si nginx usa `proxy_pass http://127.0.0.1:3001`.** |
+| `NODE_ENV` | `production` | El servidor no arranca sin un `JWT_SECRET` de 32 caracteres o más. |
+
+Después de cambiar el `.env`, reinicie el backend. Para comprobar `HOST`: desde otro equipo `http://IP:3001/api/health` ya no debe abrir, y `http://IP` (nginx) sí.
+
+## Copias de seguridad automáticas
+
+Se hace una copia de la base: **al encender el servidor** (también después de un corte de luz), **a las 12:00** y **a las 16:30**, hora de Colombia. No detiene la planta. Se guardan en `/var/backups/qcs-lacteos` y se conservan las **últimas 60** (unas tres semanas).
+
+Instalar una sola vez en el servidor, desde la carpeta del proyecto:
+
+```bash
+sudo apt install -y postgresql-client     # si pg_dump no está instalado
+sudo bash deploy/instalar-respaldos.sh
+```
+
+Al terminar hace una copia de prueba y muestra la carpeta y los próximos horarios.
+
+**Copia fuera del servidor (recomendado):** si se daña el disco del servidor, se pierden también las copias guardadas en él. Conecte una USB o un disco, móntelo (por ejemplo en `/media/respaldo`) y agregue en `backend/.env`:
+
+```bash
+RESPALDO_COPIA_EXTERNA=/media/respaldo
+```
+
+Si la USB no está conectada a la hora de la copia, la copia local se hace igual y queda un aviso en `/var/backups/qcs-lacteos/respaldos.log`. Lleve esa USB fuera del servidor al menos una vez por semana.
+
+Otros comandos:
+
+```bash
+bash deploy/respaldo-bd.sh                       # copia manual en cualquier momento
+cat /var/backups/qcs-lacteos/respaldos.log       # historial de copias (OK / ERROR)
+systemctl list-timers 'qcs-respaldo-*'           # próximos horarios
+sudo bash deploy/instalar-respaldos.sh --quitar  # desactivar las copias automáticas
+```
+
+### Restaurar una copia
+
+Reemplaza **todos** los datos actuales por los de la copia elegida. Antes de restaurar, detenga el backend y pida que nadie registre en las tablets.
+
+```bash
+bash deploy/restaurar-bd.sh
+```
+
+Muestra las últimas copias, pregunta cuál y pide escribir `SI`. Antes de restaurar guarda una copia de lo que hay ("antes-de-restaurar"), y si algo falla la base queda como estaba. **Pruebe una restauración una vez antes de salir a producción.**
+
+## Base de datos nueva en el servidor
+
+En el servidor, con PostgreSQL instalado (cambie el nombre de usuario y de base si usan otros):
+
+```bash
+sudo -u postgres createdb qcs_lacteos
+sudo -u postgres psql -d qcs_lacteos -v ON_ERROR_STOP=1 -f backend/database/init.sql
+sudo -u postgres psql -d qcs_lacteos -v ON_ERROR_STOP=1 -f backend/database/seed.sql
+```
+
+`init.sql` crea toda la estructura y `seed.sql` los catálogos y un único usuario:
+
+- **SA-001**, PIN `123456`, contraseña `123456` (**temporal**).
+
+Arranque el backend, entre con SA-001, cambie su clave en **Panel Superadmin → Mi cuenta** y registre al administrador. Él registra a los operarios, los lotes de insumos y los sabores.
+
+**No ejecute `seed_demo.sql` ni `npm run seed:demo` en el servidor:** son datos de prueba para desarrollo.
+
+## Si hicieron pruebas en el servidor: borrar los datos de prueba
+
+Con el backend detenido y todos fuera de sesión:
+
+```bash
+bash deploy/limpiar-datos-de-prueba.sh
+```
+
+Pide escribir `BORRAR` y antes hace una copia de seguridad. Borra lotes (con etapas, mediciones, insumos usados y envasado), borradores, auditoría de correcciones y bitácora de accesos, y el contador de códigos de lote vuelve a 001. **No toca** usuarios, líneas, productos, catálogos, lotes de insumos ni sabores. Los usuarios de prueba se dan de baja desde el **Panel Superadmin**, y el superadmin cambia su clave en **Mi cuenta**.
+
 ### Solo el nombre, sin HTTPS (opcional)
 
 Sin acceso al router, el nombre `.local` solo se puede anunciar desde el servidor (mDNS). Funciona en iPhone/iPad, Mac y Windows 10/11; en Android depende del equipo. En el servidor:

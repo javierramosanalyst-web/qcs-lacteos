@@ -216,17 +216,6 @@ export interface BatidoYAdicionesKumisState {
   };
 }
 
-export interface EnvasadoFormatoKumis {
-  unidades: number;
-  volumenLitrosPorUnidad: number;
-  subtotalLitros: number;
-  // compat
-  gramosPorUnidad?: number;
-  kilosPorUnidad?: number;
-  subtotalGramos?: number;
-  subtotalKilos?: number;
-}
-
 export interface EnvasadoYAlmacenamientoKumisState {
   // Rotulado y trazabilidad
   loteProductoTerminado: string; // ej: 'KUM-01-20261020'

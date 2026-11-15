@@ -13,8 +13,9 @@ Cada fase, medición, insumo, formato de envase y resumen final queda guardado e
 | --- | --- |
 | `/` (raíz) | Frontend: React + Vite + TypeScript + Tailwind (puerto 3000) |
 | `backend/` | API: Node.js + Express + PostgreSQL (puerto 3001) |
-| `backend/database/` | `init.sql` (crea las tablas) y `seed.sql` (catálogos y usuarios iniciales) |
-| `docs/` | Documentación de arquitectura |
+| `backend/database/` | `init.sql` (toda la estructura), `seed.sql` (catálogos + superadmin inicial) y datos de prueba (`seed_demo*`) |
+| `deploy/` | Instalación en la planta, copias de seguridad y restauración |
+| `docs/` | Diseño original de la base de datos (referencia histórica) |
 
 ## 1. Programas que debes instalar
 
@@ -59,6 +60,19 @@ psql -U postgres -d qcs_lacteos -f backend/database/init.sql
 psql -U postgres -d qcs_lacteos -f backend/database/seed.sql
 ```
 
+Con eso la base queda completa y lista: no hace falta nada más. `seed.sql` solo crea los catálogos y el superadmin `SA-001`.
+
+**Solo en tu PC de desarrollo**, para tener usuarios, insumos y sabores de prueba:
+
+```powershell
+psql -U postgres -d qcs_lacteos -f backend/database/seed_demo.sql
+cd backend; npm run seed:demo        # opcional: lotes de demostración de los 7 productos
+```
+
+Nunca ejecutes `seed_demo.sql` ni `seed:demo` en el servidor de la planta.
+
+Si ya tienes una base de una versión anterior, no la borres: al arrancar, el backend le agrega lo que falte sin tocar los datos (`backend/src/schema.ts`).
+
 ## 4. Configurar el backend
 
 ```powershell
@@ -79,6 +93,8 @@ JWT_SECRET=<TEXTO_LARGO_Y_ALEATORIO>
 El archivo `.env` no se sube a git. Cada persona crea el suyo.
 
 En producción el backend queda detrás de nginx (puerto 80, en el mismo PC). En el `.env` del servidor agrega `TRUST_PROXY=loopback`, para que el límite de intentos de login use la IP real de cada tablet. Sin esa línea, todos los equipos de la planta comparten el límite de 30 intentos cada 15 minutos. nginx debe enviar la cabecera `X-Forwarded-For` (`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`).
+
+En el servidor de la planta también va `HOST=127.0.0.1` (Node solo atiende a nginx). En tu PC de desarrollo no la pongas. Las copias de seguridad automáticas, la restauración y la limpieza de datos de prueba están en `deploy/COMO-INSTALAR.md`.
 
 HTTPS está apagado por defecto: solo se activa con `HTTPS_ENABLED=true` en `backend/.env` (y certificados en `backend/certs`). Antes de activarlo lean `deploy/COMO-INSTALAR.md`: con certificado propio, las tablets Android sin el certificado instalado ven una pantalla de error, y con `COOKIE_SECURE=true` el login solo funciona por HTTPS.
 
@@ -112,20 +128,41 @@ Todos ingresan con su **código de empleado** (ej. `OP-104`) y su **PIN**. El mi
 | Administradores y superadmin | 4 a 8 dígitos | Obligatoria al crearlos: mínimo 8 caracteres y distinta del PIN. |
 
 - El administrador asigna o restablece el PIN en **Usuarios → Editar**. Al cambiarle el PIN a un operario, el PIN anterior deja de servir.
+- Cada usuario cambia su propio nombre, PIN o contraseña en **Usuarios → Mi cuenta**.
 - Después de 5 intentos fallidos, el usuario queda bloqueado 15 minutos.
 
-### Usuarios iniciales
+### Quién gestiona a quién
 
-Los crea `seed.sql`. Si tu equipo cambió los PIN, usa los que defina el administrador.
+| Rol | Puede |
+| --- | --- |
+| Superadmin | Todo lo del administrador, más la pestaña **Panel Superadmin**: crear, editar, dar de baja y reactivar administradores. |
+| Administrador | Crear, editar, dar de baja y reactivar operarios. No puede crear ni modificar administradores. |
+| Operario | Registrar lotes en planta. |
+
+Al reactivar un administrador, el superadmin le asigna un PIN y una contraseña nuevos.
+
+- Dar de baja a alguien cierra su sesión al instante. Si otra persona le restablece la clave, también se cierra su sesión abierta.
+- Para cambiar la propia clave se pide la contraseña o el PIN actual.
+- El superadmin ve en su panel la **bitácora de accesos**: ingresos, intentos fallidos, bloqueos y cambios de usuarios y claves. Se registra sola y nunca guarda PIN ni contraseñas.
+
+### Usuario inicial
+
+`seed.sql` crea un solo usuario:
 
 | Código | Rol | PIN | Contraseña |
 | --- | --- | --- | --- |
-| `SA-001` | Superadmin | `1234` | `1234` |
-| `ADM-901` | Administrador | `9090` | `admin` |
+| `SA-001` | Superadmin | `123456` | `123456` (temporal) |
+
+Al entrar por primera vez, cambia el PIN y la contraseña en **Panel Superadmin → Mi cuenta** y registra al administrador de la planta. Él registra a los operarios, los lotes de insumos y los sabores.
+
+### Usuarios de prueba (solo desarrollo, con `seed_demo.sql`)
+
+| Código | Rol | PIN | Contraseña |
+| --- | --- | --- | --- |
+| `ADM-901` / `ADM-902` | Administrador | `9090` / `9091` | `admin` |
 | `OP-104` | Operario Pasta Hilada | `1040` | `1234` |
 | `OP-105` | Operario Fermentados | `1050` | `1234` |
-
-Cambia estos PIN y contraseñas antes de usar el sistema en producción.
+| `OP-106` a `OP-108` | Operarios | `1060` a `1080` | `1234` |
 
 ## 7. Comandos útiles
 
@@ -136,6 +173,7 @@ Cambia estos PIN y contraseñas antes de usar el sistema en producción.
 | raíz | `npm run lint` | Revisa los tipos de TypeScript |
 | `backend/` | `npm run dev` | API en modo desarrollo |
 | `backend/` | `npx tsc --noEmit` | Revisa los tipos del backend |
+| raíz y `backend/` | `npm audit` | Revisa si alguna librería tiene fallas de seguridad conocidas. Solo lee; no cambia nada |
 
 ## 8. Problemas frecuentes
 

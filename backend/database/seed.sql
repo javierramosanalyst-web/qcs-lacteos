@@ -1,6 +1,13 @@
 -- ============================================================================
--- QCS PRO LÁCTEOS · DATOS SEMILLA DE CATÁLOGOS MAESTROS (PostgreSQL)
+-- QCS PRO LÁCTEOS · DATOS INICIALES PARA PRODUCCIÓN (PostgreSQL)
 -- Requiere: backend/database/init.sql ya ejecutado.
+--
+-- Carga lo mínimo para que el sistema funcione en la planta:
+--   - catálogos (líneas, productos, etapas, parámetros de medición, tipos de insumo,
+--     formatos de envase)
+--   - UN usuario superadmin con clave TEMPORAL (ver sección 6)
+-- Todo lo demás lo registra el administrador desde la aplicación: operarios, lotes de
+-- insumos y sabores de yogur. Para pruebas en desarrollo: seed_demo.sql.
 --
 -- USO:
 --   psql -U <usuario> -d <base> -f backend/database/seed.sql
@@ -11,7 +18,7 @@
 -- hay que editarlo en la base (o recrearla) para que se refleje.
 --
 -- ORIGEN DE LOS VALORES (frontend React, sin modificarlo):
---   lineas / productos / usuarios ... src/data/initialData.ts
+--   lineas / productos .............. src/data/initialData.ts
 --   etapas_catalogo ................. src/layouts/Sidebar.tsx (navItems por producto)
 --   formatos_envase ................. src/features/fermentados/common/EnvasadoStageCommon.tsx,
 --                                     src/features/fermentados/griego/EnvasadoGriegoStage.tsx,
@@ -25,13 +32,9 @@
 --                                        prod-queso-7-cueros         -> Q7C-2026
 --   prod-yogur -> YOG-101   prod-kumis -> KUM-102   prod-yogur-griego -> YGR-103
 --   prod-manjar -> MNJ-201  prod-panelitas -> PNL-202  prod-cortado -> DTC-203
---   usr-admin-1 -> ADM-901  usr-op-1 -> OP-104   (SA-001 no existe en el frontend)
 -- ============================================================================
 
 BEGIN;
-
--- pgcrypto: genera hashes bcrypt directamente en SQL para los usuarios de prueba.
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- ============================================================================
 -- 1. LÍNEAS DE PRODUCCIÓN  (INITIAL_LINES)
@@ -175,7 +178,41 @@ INSERT INTO parametros_medicion (codigo, nombre, unidad) VALUES
     ('ph_hilado',                        'pH de hilado',                                                  'pH'),
     ('temperatura_salmuera_hilado',      'Temperatura de la salmuera caliente de hilado',                 '°C'),
     ('peso_total_queso_kg',              'Peso total de queso obtenido',                                  'kg'),
-    ('numero_moldes',                    'Número de moldes llenados',                                     'unid')
+    ('numero_moldes',                    'Número de moldes llenados',                                     'unid'),
+    ('ph_leche_acida',                   'pH leche ácida',                                                'pH'),
+    ('acidez_hilado',                    'Acidez de la masa al hilar',                                    '% LA')
+ON CONFLICT DO NOTHING;
+
+-- ============================================================================
+-- 4.1 TIPOS DE INSUMO
+--     gestionable_admin = TRUE: el administrador registra sus lotes en "Insumos"
+--     (leche, cultivo, cuajo, sal, azúcar, saborizante, colorante, estevia, ácido
+--     acético, especias, arequipe y bocadillo). Los demás solo se usan en el proceso.
+-- ============================================================================
+INSERT INTO tipos_insumo (codigo, nombre, unidad_base, gestionable_admin) VALUES
+    ('leche_fresca',    'Leche fresca de proveedor', 'L',  TRUE),
+    ('cultivo',         'Cultivo láctico',           'g',  TRUE),
+    ('cuajo',           'Cuajo (coagulante)',        'ml', TRUE),
+    ('sal',             'Sal',                       'kg', TRUE),
+    ('azucar',          'Azúcar',                    'kg', TRUE),
+    ('saborizante',     'Saborizante',               'ml', TRUE),
+    ('colorante',       'Colorante',                 'ml', TRUE),
+    ('leche_acida',     'Leche ácida',               'L',  FALSE),
+    ('cultivo_lactico', 'Cultivo láctico (proceso)', 'g',  FALSE),
+    ('estevia',         'Estevia',                   'g',  TRUE),
+    ('acido_acetico',   'Ácido acético',             'ml', TRUE),
+    ('agua',            'Agua',                      'ml', FALSE),
+    ('especia',         'Especia',                   'g',  TRUE),
+    ('arequipe',        'Arequipe',                  'g',  TRUE),
+    ('bocadillo',       'Bocadillo',                 'g',  TRUE)
+ON CONFLICT DO NOTHING;
+
+-- Insumos de catálogo fijos. Los demás (INS-SAL, INS-AZUCAR...) los crea la aplicación
+-- la primera vez que el administrador registra un lote de ese tipo.
+INSERT INTO insumos_catalogo (codigo, nombre, tipo_insumo, unidad_base) VALUES
+    ('INS-ACIDO-ACETICO', 'Ácido acético', 'acido_acetico', 'ml'),
+    ('INS-AREQUIPE',      'Arequipe',      'arequipe',      'g'),
+    ('INS-BOCADILLO',     'Bocadillo',     'bocadillo',     'g')
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
@@ -234,33 +271,20 @@ INSERT INTO formatos_envase (codigo, descripcion, tipo_linea, categoria_variedad
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
--- 6. USUARIOS DE PRUEBA  (SOLO DESARROLLO)
+-- 6. SUPERADMIN INICIAL
 --
--- !! NO usar estas credenciales fuera de desarrollo. Cambiarlas o desactivarlas
--- !! (activo = FALSE) antes de cualquier despliegue real.
+--   Código: SA-001   PIN: 123456   Contraseña: 123456   (TEMPORALES)
 --
--- Hash: bcrypt ($2a$, costo 10) generado aquí con pgcrypto -> crypt(clave, gen_salt('bf', 10)).
--- Es compatible con bcrypt.compare() de Node (paquete `bcrypt` / `bcryptjs`).
--- Un PIN de 4 dígitos tiene solo 10.000 combinaciones: aunque esté hasheado, se puede
--- adivinar por fuerza bruta; la API debe limitar intentos antes de usarlo en serio.
+-- !! Al entrar por primera vez, cambie el PIN y la contraseña en
+-- !! Panel Superadmin -> Mi cuenta. Después registre al administrador de la planta;
+-- !! él registra a los operarios, los lotes de insumos y los sabores.
 --
---   Código    Rol            PIN    Password      Origen
---   SA-001    superadmin     1234   1234          nuevo (no existe en el frontend)
---   ADM-901   administrador  9090   admin         INITIAL_USERS (usr-admin-1)
---   OP-104    operador       1040   1234          INITIAL_USERS (usr-op-1)
+-- Hash bcrypt generado aquí con pgcrypto: crypt(clave, gen_salt('bf', 10)).
 -- ============================================================================
 INSERT INTO usuarios (codigo_empleado, nombre_completo, rol, turno, pin_hash, password_hash, linea_asignada_id)
 VALUES
-    ('SA-001',  'Superadmin QCS',       'superadmin',    'Jornada Continua',
-        crypt('1234', gen_salt('bf', 10)), crypt('1234',  gen_salt('bf', 10)), NULL),
-    ('ADM-901', 'Ing. David Rojas',     'administrador', 'Jornada Continua',
-        crypt('9090', gen_salt('bf', 10)), crypt('admin', gen_salt('bf', 10)), NULL),
-    ('OP-104',  'Carlos Mendoza',       'operador',      'Jornada Continua',
-        crypt('1040', gen_salt('bf', 10)), crypt('1234',  gen_salt('bf', 10)),
-        (SELECT id FROM lineas_produccion WHERE codigo = 'L-HILADA-01')),
-    ('OP-105',  'Luisa Ramírez',        'operador',      'Jornada Continua',
-        crypt('1050', gen_salt('bf', 10)), crypt('1234',  gen_salt('bf', 10)),
-        (SELECT id FROM lineas_produccion WHERE codigo = 'L-FERMENT-02'))
+    ('SA-001', 'Superadmin QCS', 'superadmin', 'Jornada Continua',
+        crypt('123456', gen_salt('bf', 10)), crypt('123456', gen_salt('bf', 10)), NULL)
 ON CONFLICT DO NOTHING;
 
 COMMIT;

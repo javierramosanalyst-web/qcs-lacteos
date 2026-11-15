@@ -217,7 +217,7 @@ export const AdminCorrectionModal: React.FC<AdminCorrectionModalProps> = ({
     setErrorMsg('');
   };
 
-  const isJustificationValid = justification.trim().length >= 20;
+  const isJustificationValid = justification.trim().length >= 15;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -234,7 +234,7 @@ export const AdminCorrectionModal: React.FC<AdminCorrectionModalProps> = ({
     }
 
     if (!isJustificationValid) {
-      setErrorMsg('La justificación técnica es obligatoria y debe tener al menos 20 caracteres.');
+      setErrorMsg('La justificación técnica es obligatoria y debe tener al menos 15 caracteres.');
       return;
     }
 
@@ -405,7 +405,7 @@ export const AdminCorrectionModal: React.FC<AdminCorrectionModalProps> = ({
             </select>
           </div>
 
-          {/* Justification Textarea (MANDATORY >= 20 chars) */}
+          {/* Justification Textarea (MANDATORY >= 15 chars) */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
@@ -417,7 +417,7 @@ export const AdminCorrectionModal: React.FC<AdminCorrectionModalProps> = ({
                   isJustificationValid ? 'text-emerald-700' : 'text-red-600'
                 }`}
               >
-                {justification.trim().length} / 20 caracteres requeridos{' '}
+                {justification.trim().length} / 15 caracteres requeridos{' '}
                 {isJustificationValid ? '✓' : '(Mínimo 20 obligatorios)'}
               </span>
             </div>

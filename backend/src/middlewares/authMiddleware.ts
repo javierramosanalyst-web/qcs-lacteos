@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { pool } from '../db';
 import { NextFunction, Request, Response } from 'express';
 
 /**
@@ -60,12 +61,14 @@ declare global {
 
 const ROLES_VALIDOS: readonly RolUsuario[] = ['superadmin', 'administrador', 'operador'];
 
-interface JwtPayload {
+export interface JwtPayload {
   sub?: unknown;
   rol?: unknown;
   linea_asignada_id?: unknown;
   sid?: unknown;
   exp?: unknown;
+  iat?: unknown;
+  iat_ms?: unknown;
 }
 
 function decodeBase64Url(segment: string): Buffer {
@@ -79,9 +82,12 @@ export function signJwtHS256(
   expiresInSeconds = 28800
 ): string {
   const header = { alg: 'HS256', typ: 'JWT' };
-  const now = Math.floor(Date.now() / 1000);
+  const ahoraMs = Date.now();
+  const now = Math.floor(ahoraMs / 1000);
   const fullPayload = {
     iat: now,
+    // Momento exacto de emisión (ms): para revocar sesiones sin ambigüedad dentro del mismo segundo.
+    iat_ms: ahoraMs,
     exp: now + expiresInSeconds,
     ...payload,
   };
@@ -96,7 +102,7 @@ export function signJwtHS256(
 }
 
 /** Devuelve el payload si el token es válido; lanza Error con un motivo si no. */
-function verifyJwtHS256(token: string, secret: string): JwtPayload {
+export function verifyJwtHS256(token: string, secret: string): JwtPayload {
   const parts = token.split('.');
   if (parts.length !== 3) throw new Error('Formato de token inválido.');
   const [headerB64, payloadB64, signatureB64] = parts;
@@ -117,6 +123,44 @@ function verifyJwtHS256(token: string, secret: string): JwtPayload {
     throw new Error('Token expirado o sin expiración.');
   }
   return payload;
+}
+
+/**
+ * Revocación inmediata: además del token, cada petición confirma en la base que el usuario sigue
+ * activo y toma su rol actual. Así, dar de baja a alguien le cierra la sesión al instante (antes
+ * seguía entrando hasta que vencía el token de 8 h). Se guarda 5 s en memoria para no consultar
+ * la base en cada petición seguida; dar de baja o editar un usuario borra su entrada al momento.
+ */
+interface UsuarioVigente {
+  activo: boolean;
+  rol: RolUsuario;
+  linea_asignada_id: string | null;
+  /** Milisegundos (epoch). Los tokens emitidos antes quedan sin validez (baja, reactivación o clave restablecida). */
+  sesiones_desde: number | null;
+}
+const VIGENCIA_CACHE_MS = 5000;
+const cacheUsuarios = new Map<string, { datos: UsuarioVigente | null; hasta: number }>();
+
+export function olvidarUsuarioEnCache(id: string): void {
+  cacheUsuarios.delete(id);
+}
+
+async function usuarioVigente(id: string): Promise<UsuarioVigente | null> {
+  const ahora = Date.now();
+  const enCache = cacheUsuarios.get(id);
+  if (enCache && enCache.hasta > ahora) return enCache.datos;
+  const { rows } = await pool.query(
+    `SELECT activo, rol::text AS rol, linea_asignada_id,
+            FLOOR(EXTRACT(EPOCH FROM sesiones_desde) * 1000)::bigint AS sesiones_desde
+     FROM usuarios WHERE id::text = $1;`,
+    [id]
+  );
+  const datos = rows[0]
+    ? ({ ...rows[0], sesiones_desde: rows[0].sesiones_desde === null ? null : Number(rows[0].sesiones_desde) } as UsuarioVigente)
+    : null;
+  if (cacheUsuarios.size > 1000) cacheUsuarios.clear();
+  cacheUsuarios.set(id, { datos, hasta: ahora + VIGENCIA_CACHE_MS });
+  return datos;
 }
 
 export function authMiddleware(req: Request, res: Response, next: NextFunction): void {
@@ -173,7 +217,34 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
       }
     }
 
-    next();
+    const usuario = req.user;
+    const emitidoEn =
+      typeof payload.iat_ms === 'number' ? payload.iat_ms : typeof payload.iat === 'number' ? payload.iat * 1000 : 0;
+    usuarioVigente(usuario.id)
+      .then((vigente) => {
+        if (vigente && vigente.activo && vigente.sesiones_desde !== null && emitidoEn < vigente.sesiones_desde) {
+          res.status(401).json({
+            error: 'SESSION_REVOKED',
+            message: 'Tu clave fue cambiada por un administrador. Ingresa de nuevo.',
+          });
+          return;
+        }
+        if (!vigente || !vigente.activo || !ROLES_VALIDOS.includes(vigente.rol)) {
+          res.status(401).json({
+            error: 'SESSION_REVOKED',
+            message: 'Tu usuario fue dado de baja. Consulta con el administrador.',
+          });
+          return;
+        }
+        // Rol y línea vigentes en la base (no los del token, que pudo emitirse antes de un cambio).
+        usuario.rol = vigente.rol;
+        usuario.lineaAsignadaId = vigente.linea_asignada_id;
+        next();
+      })
+      .catch((error) => {
+        console.error('[auth] No se pudo validar el usuario en la base:', error instanceof Error ? error.message : error);
+        res.status(503).json({ error: 'DB_UNAVAILABLE', message: 'No se pudo validar la sesión. Intenta de nuevo.' });
+      });
   } catch (error) {
     res.status(401).json({
       error: 'INVALID_TOKEN',
