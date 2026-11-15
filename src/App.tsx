@@ -90,6 +90,7 @@ export default function App() {
   const [batchHistory, setBatchHistory] = useState<BatchHistoryRow[]>([]);
   const [loadingData, setLoadingData] = useState<boolean>(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
+  const [newUserRole, setNewUserRole] = useState<UserRole>('operador');
   const [editingLine, setEditingLine] = useState<ProductionLine | null>(null);
 
   // 3. Notificaciones (Toasts)
@@ -338,13 +339,19 @@ export default function App() {
       const now = Date.now();
       if (now - last < 30000) return;
       last = now;
-      const detalle = (event as CustomEvent<{ error?: string }>).detail;
+      const detalle = (event as CustomEvent<{ error?: string; message?: string }>).detail;
       if (detalle?.error === 'SESSION_REPLACED') {
         showToast(
           'Se inició sesión con otro usuario en este dispositivo. Esta pestaña se cerró; ingresa de nuevo.',
           'warning'
         );
         handleLogoutRef.current('Se inició sesión con otro usuario en este dispositivo.');
+        return;
+      }
+      if (detalle?.error === 'SESSION_REVOKED') {
+        const motivo = detalle.message || 'Tu sesión fue cerrada por un administrador. Ingresa de nuevo.';
+        showToast(motivo, 'warning');
+        handleLogoutRef.current(motivo);
         return;
       }
       showToast('Tu sesion vencio y los cambios no se estan guardando en el servidor. Cierra sesion e ingresa de nuevo; tu avance local se conserva.', 'warning');
@@ -584,6 +591,10 @@ export default function App() {
 
   const handleUserSaved = (user: UserProfile, isNew: boolean) => {
     showToast(`Usuario "${user.name}" ${isNew ? 'registrado' : 'actualizado'}.`, 'success');
+    // Si el usuario editó su propia cuenta, el encabezado muestra el nombre nuevo.
+    if (!isNew && currentUser && user.id === currentUser.id) {
+      setCurrentUser((prev) => (prev ? { ...prev, name: user.name } : prev));
+    }
     void loadCatalogs(userRole, true);
   };
 
@@ -781,8 +792,9 @@ export default function App() {
             setCreateLineModalOpen(true);
           }}
           onDeactivateLine={handleDeactivateLine}
-          onCreateUser={() => {
+          onCreateUser={(role) => {
             setEditingUser(null);
+            setNewUserRole(role === 'administrador' ? 'administrador' : 'operador');
             setCreateUserModalOpen(true);
           }}
           onEditUser={(user) => {
@@ -1019,6 +1031,9 @@ export default function App() {
         lines={lines}
         editingUser={editingUser}
         onSaved={handleUserSaved}
+        canCreateAdmin={Boolean(currentUser?.isSuperAdmin)}
+        initialRole={newUserRole}
+        currentUserId={currentUser?.id}
       />
 
       <AuditTrailModal

@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { pool } from '../db';
+import { olvidarUsuarioEnCache } from '../middlewares/authMiddleware';
+import { registrarEvento } from '../services/eventosSeguridad';
 
 const TURNOS = ['Jornada Continua', 'Mañana', 'Tarde', 'Noche'];
 
@@ -47,6 +49,44 @@ const pinMinimo = (rol: unknown): number => (rol === 'operador' ? PIN_MIN_OPERAR
 const pinValido = (pin: string, rol: unknown): boolean => new RegExp(`^\\d{${pinMinimo(rol)},8}$`).test(pin);
 const mensajePin = (rol: unknown): string => `El PIN debe tener entre ${pinMinimo(rol)} y 8 dígitos.`;
 
+/**
+ * Cambio de la propia clave: se exige la contraseña o el PIN actual. Tras 5 intentos fallidos
+ * el cambio queda bloqueado 15 minutos para ese usuario (evita adivinar el PIN con una sesión abierta).
+ */
+const CLAVE_ACTUAL_MAX_FALLOS = 5;
+const CLAVE_ACTUAL_BLOQUEO_MS = 15 * 60 * 1000;
+const fallosClaveActual = new Map<string, { count: number; resetAt: number }>();
+
+async function verificarClaveActual(id: string, claveActual: unknown, req: Request, res: Response): Promise<boolean> {
+  const ahora = Date.now();
+  const registro = fallosClaveActual.get(id);
+  if (registro && registro.resetAt > ahora && registro.count >= CLAVE_ACTUAL_MAX_FALLOS) {
+    const min = Math.max(1, Math.ceil((registro.resetAt - ahora) / 60000));
+    res.status(429).json({ error: 'TOO_MANY_ATTEMPTS', message: `Demasiados intentos con la clave actual. Intenta de nuevo en ${min} min.` });
+    return false;
+  }
+  const actual = String(claveActual ?? '').trim();
+  if (!actual) {
+    res.status(400).json({ error: 'CURRENT_REQUIRED', message: 'Escribe tu contraseña o PIN actual para cambiar tu clave.' });
+    return false;
+  }
+  const ok = await pool.query(
+    `SELECT 1 FROM usuarios
+     WHERE id::text = $1 AND (password_hash = crypt($2, password_hash) OR pin_hash = crypt($2, pin_hash));`,
+    [id, actual]
+  );
+  if (ok.rows.length === 0) {
+    const vigente = registro && registro.resetAt > ahora ? registro : { count: 0, resetAt: ahora + CLAVE_ACTUAL_BLOQUEO_MS };
+    vigente.count += 1;
+    fallosClaveActual.set(id, vigente);
+    void registrarEvento({ evento: 'CLAVE_ACTUAL_INCORRECTA', usuarioId: id, req, detalle: `Intento ${vigente.count} de ${CLAVE_ACTUAL_MAX_FALLOS}` });
+    res.status(400).json({ error: 'WRONG_CURRENT', message: 'La contraseña o PIN actual no es correcto.' });
+    return false;
+  }
+  fallosClaveActual.delete(id);
+  return true;
+}
+
 export async function createUser(req: Request, res: Response): Promise<void> {
   try {
     const nombre = String(req.body.nombre_completo ?? '').trim();
@@ -85,6 +125,14 @@ export async function createUser(req: Request, res: Response): Promise<void> {
       `SELECT ${USER_COLUMNS} FROM usuarios u LEFT JOIN lineas_produccion l ON l.id = u.linea_asignada_id WHERE u.id = $1;`,
       [rows[0].id]
     );
+    void registrarEvento({
+      evento: 'USUARIO_CREADO',
+      usuarioId: rows[0].id,
+      codigo,
+      actorId: req.user?.id,
+      detalle: `Rol: ${rolSolicitado}`,
+      req,
+    });
     res.status(201).json(created.rows[0]);
   } catch (error: any) {
     if (error.code === '23505') {
@@ -99,7 +147,10 @@ export async function createUser(req: Request, res: Response): Promise<void> {
 export async function updateUser(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    const target = await pool.query(`SELECT rol FROM usuarios WHERE id::text = $1 AND activo = TRUE;`, [id]);
+    const target = await pool.query(
+      `SELECT rol, nombre_completo, codigo_empleado FROM usuarios WHERE id::text = $1 AND activo = TRUE;`,
+      [id]
+    );
     if (target.rows.length === 0) {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Usuario no encontrado.' });
       return;
@@ -117,9 +168,18 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
       res.status(400).json({ error: 'INVALID_PIN', message: mensajePin(rolDestino) });
       return;
     }
+    // Cambiar la propia clave exige la actual (si alguien deja la sesión abierta, otro no puede cambiarla).
+    const cambiaClave = Boolean(pin) || Boolean(req.body.password && String(req.body.password).trim());
+    if (cambiaClave && req.user?.id === id && !(await verificarClaveActual(id, req.body.clave_actual, req, res))) {
+      return;
+    }
     // Operarios: el PIN es su única clave. Al restablecerlo se reemplaza también la contraseña
     // (que al crearlos sin contraseña quedó igual al PIN) para que el PIN anterior deje de servir.
     const passwordInput = req.body.password ? String(req.body.password).trim() : null;
+    if (passwordInput && rolDestino !== 'operador' && (passwordInput.length < 8 || passwordInput === pin)) {
+      res.status(400).json({ error: 'INVALID_PASSWORD', message: 'La contraseña de un administrador debe tener al menos 8 caracteres y ser distinta del PIN.' });
+      return;
+    }
     const password = passwordInput ?? (pin && rolDestino === 'operador' ? pin : null);
     const lineaProvided = Object.prototype.hasOwnProperty.call(req.body, 'linea_asignada_id');
     const lineaId = lineaProvided ? await resolveLine(req.body.linea_asignada_id) : null;
@@ -131,14 +191,41 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
          pin_hash = CASE WHEN $4::text IS NULL THEN pin_hash ELSE crypt($4, gen_salt('bf', 10)) END,
          password_hash = CASE WHEN $5::text IS NULL THEN password_hash ELSE crypt($5, gen_salt('bf', 10)) END,
          linea_asignada_id = CASE WHEN $6 THEN $7::uuid ELSE linea_asignada_id END,
+         sesiones_desde = CASE WHEN $8 THEN NOW() ELSE sesiones_desde END,
          updated_at = NOW()
        WHERE id::text = $1;`,
-      [id, nombre, turno, pin, password, lineaProvided, lineaId]
+      // Si otra persona le restablece la clave, sus sesiones abiertas se cierran (las propias no).
+      [id, nombre, turno, pin, password, lineaProvided, lineaId, Boolean(pin || password) && req.user?.id !== id]
     );
     const updated = await pool.query(
       `SELECT ${USER_COLUMNS} FROM usuarios u LEFT JOIN lineas_produccion l ON l.id = u.linea_asignada_id WHERE u.id::text = $1;`,
       [id]
     );
+    olvidarUsuarioEnCache(id);
+    // Bitácora: qué cambió (nunca el valor de la clave).
+    const codigoDestino = target.rows[0].codigo_empleado;
+    const esPropia = req.user?.id === id;
+    if (pin || passwordInput) {
+      const que = pin && passwordInput ? 'PIN y contraseña' : pin ? 'PIN' : 'Contraseña';
+      void registrarEvento({
+        evento: esPropia ? 'CLAVE_CAMBIADA' : 'CLAVE_RESTABLECIDA',
+        usuarioId: id,
+        codigo: codigoDestino,
+        actorId: req.user?.id,
+        detalle: que,
+        req,
+      });
+    }
+    if (nombre && nombre !== target.rows[0].nombre_completo) {
+      void registrarEvento({
+        evento: 'USUARIO_EDITADO',
+        usuarioId: id,
+        codigo: codigoDestino,
+        actorId: req.user?.id,
+        detalle: `Nombre: ${target.rows[0].nombre_completo} → ${nombre}`,
+        req,
+      });
+    }
     res.json(updated.rows[0]);
   } catch (error) {
     console.error('[users] Error al actualizar usuario:', error);
@@ -153,7 +240,7 @@ export async function deactivateUser(req: Request, res: Response): Promise<void>
       res.status(400).json({ error: 'SELF_DELETE', message: 'No puedes darte de baja a ti mismo.' });
       return;
     }
-    const target = await pool.query(`SELECT rol FROM usuarios WHERE id::text = $1 AND activo = TRUE;`, [id]);
+    const target = await pool.query(`SELECT rol, codigo_empleado FROM usuarios WHERE id::text = $1 AND activo = TRUE;`, [id]);
     if (target.rows.length === 0) {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Usuario no encontrado.' });
       return;
@@ -162,7 +249,9 @@ export async function deactivateUser(req: Request, res: Response): Promise<void>
       res.status(403).json({ error: 'FORBIDDEN_ROLE', message: 'Solo el superadmin puede dar de baja administradores.' });
       return;
     }
-    await pool.query(`UPDATE usuarios SET activo = FALSE, updated_at = NOW() WHERE id::text = $1;`, [id]);
+    await pool.query(`UPDATE usuarios SET activo = FALSE, sesiones_desde = NOW(), updated_at = NOW() WHERE id::text = $1;`, [id]);
+    olvidarUsuarioEnCache(id);
+    void registrarEvento({ evento: 'USUARIO_BAJA', usuarioId: id, codigo: target.rows[0].codigo_empleado, actorId: req.user?.id, req });
     res.json({ message: 'Usuario dado de baja.' });
   } catch (error) {
     console.error('[users] Error al dar de baja usuario:', error);
@@ -173,7 +262,7 @@ export async function deactivateUser(req: Request, res: Response): Promise<void>
 export async function reactivateUser(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
-    const target = await pool.query(`SELECT rol FROM usuarios WHERE id::text = $1 AND activo = FALSE;`, [id]);
+    const target = await pool.query(`SELECT rol, codigo_empleado FROM usuarios WHERE id::text = $1 AND activo = FALSE;`, [id]);
     if (target.rows.length === 0) {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Usuario inactivo no encontrado.' });
       return;
@@ -188,10 +277,22 @@ export async function reactivateUser(req: Request, res: Response): Promise<void>
       res.status(400).json({ error: 'INVALID_PIN', message: `Al reactivar debes asignar un PIN nuevo de ${pinMinimo(rolDestino)} a 8 dígitos.` });
       return;
     }
+    // Operarios: la contraseña queda igual al PIN nuevo. Administradores: se exige una contraseña
+    // propia (mínimo 8, distinta del PIN), igual que al crearlos.
+    let newPassword = newPin;
+    if (rolDestino !== 'operador') {
+      newPassword = String(req.body?.password ?? '').trim();
+      if (newPassword.length < 8 || newPassword === newPin) {
+        res.status(400).json({ error: 'INVALID_PASSWORD', message: 'Al reactivar un administrador debes asignar una contraseña de al menos 8 caracteres, distinta del PIN.' });
+        return;
+      }
+    }
     await pool.query(
-      `UPDATE usuarios SET activo = TRUE, pin_hash = crypt($2, gen_salt('bf', 10)), password_hash = crypt($2, gen_salt('bf', 10)), updated_at = NOW() WHERE id::text = $1;`,
-      [id, newPin]
+      `UPDATE usuarios SET activo = TRUE, pin_hash = crypt($2, gen_salt('bf', 10)), password_hash = crypt($3, gen_salt('bf', 10)), sesiones_desde = NOW(), updated_at = NOW() WHERE id::text = $1;`,
+      [id, newPin, newPassword]
     );
+    olvidarUsuarioEnCache(id);
+    void registrarEvento({ evento: 'USUARIO_REACTIVADO', usuarioId: id, codigo: target.rows[0].codigo_empleado, actorId: req.user?.id, req });
     res.json({ message: 'Usuario reactivado.' });
   } catch (error) {
     console.error('[users] Error al reactivar usuario:', error);

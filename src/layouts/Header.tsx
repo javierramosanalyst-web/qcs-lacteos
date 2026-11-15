@@ -150,6 +150,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-xs font-bold text-[#143A73] leading-tight">{currentUser.name}</span>
             <span className="text-[10px] text-gray-500 font-medium leading-tight">
               {currentUser.code}
+              {currentUser.isSuperAdmin ? ' · Superadmin' : ''}
             </span>
           </div>
           <button

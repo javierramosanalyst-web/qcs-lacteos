@@ -22,6 +22,8 @@ export interface UserProfile {
   pin?: string;
   password?: string;
   assignedLineId?: string;
+  /** Rol real "superadmin" en la base. En pantalla trabaja como administrador, más el panel propio. */
+  isSuperAdmin?: boolean;
 }
 
 export interface ActividadOperario {

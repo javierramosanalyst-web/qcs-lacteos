@@ -158,6 +158,10 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               </span>
               <span>La sesión se mantiene al recargar</span>
             </div>
+            <p className="mt-3 text-[10px] leading-relaxed text-gray-500">
+              Tu nombre y código de empleado se usan solo para registrar la producción y la trazabilidad de la planta
+              (Ley 1581 de 2012). No se comparten fuera de Lácteos Colombia.
+            </p>
           </div>
         </div>
       </main>

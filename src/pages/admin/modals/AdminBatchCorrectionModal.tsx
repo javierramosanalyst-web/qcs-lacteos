@@ -235,7 +235,7 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
 
   if (!isOpen) return null;
 
-  const justificationValid = justification.trim().length >= 20;
+  const justificationValid = justification.trim().length >= 15;
 
   const handleSelect = (path: string) => {
     setSelectedPath(path);
@@ -263,7 +263,7 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
       return;
     }
     if (!justificationValid) {
-      setErrorMsg('La justificación debe tener al menos 20 caracteres.');
+      setErrorMsg('La justificación debe tener al menos 15 caracteres.');
       return;
     }
     setSaving(true);
@@ -438,7 +438,7 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
                 <div className="flex items-center justify-between gap-2">
                   <label className="text-xs font-bold text-gray-800">4. JUSTIFICACIÓN TÉCNICA OBLIGATORIA</label>
                   <span className={`text-[11px] font-bold shrink-0 ${justificationValid ? 'text-emerald-700' : 'text-red-600'}`}>
-                    {justification.trim().length} / 20
+                    {justification.trim().length} / 15
                   </span>
                 </div>
                 <textarea

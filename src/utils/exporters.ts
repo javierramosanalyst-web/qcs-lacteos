@@ -344,9 +344,6 @@ export const downloadBlob = (data: BlobPart, filename: string, mime: string) => 
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
-export const exportCsv = (sheet: ExportSheet, filename: string) =>
-  downloadBlob(buildCsv(sheet), `${filename}.csv`, 'text/csv;charset=utf-8');
-
 export const exportZip = (files: { name: string; content: string }[], filename: string) =>
   downloadBlob(zipStore(files) as unknown as BlobPart, `${filename}.zip`, 'application/zip');
 

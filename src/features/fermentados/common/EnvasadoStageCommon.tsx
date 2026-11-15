@@ -145,11 +145,6 @@ export const ALL_FORMAT_CONFIGS_SIN_AZUCAR: FormatConfig[] = [
   ...FORMAT_CONFIGS_CON_STEVIA,
 ];
 
-export const FORMAT_CONFIGS_YOGUR = FORMAT_CONFIGS_YOGUR_CON_AZUCAR;
-export const FORMAT_CONFIGS_KUMIS = FORMAT_CONFIGS_KUMIS_CON_AZUCAR;
-export const FORMAT_CONFIGS_YOGUR_SIN_AZUCAR = ALL_FORMAT_CONFIGS_SIN_AZUCAR;
-export const FORMAT_CONFIGS_KUMIS_SIN_AZUCAR = ALL_FORMAT_CONFIGS_SIN_AZUCAR;
-
 export interface EnvasadoStageCommonProps {
   productType: 'yogur' | 'kumis';
   batch: YogurBatchData | KumisBatchData;

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ProductDefinition, ProductionLine, UserProfile } from '../../types';
+import { ProductDefinition, ProductionLine, UserProfile, UserRole } from '../../types';
 import {
   BatchHistoryRow,
   InactiveLine,
@@ -12,6 +12,8 @@ import {
 } from '../../api/client';
 import { InsumosManager } from './InsumosManager';
 import { ExportCenter } from './ExportCenter';
+import { SuperadminPanel } from './SuperadminPanel';
+import { ReactivateUserModal } from './modals/ReactivateUserModal';
 import { loteDeFila } from '../../utils/lote';
 
 interface AdminGlobalDashboardProps {
@@ -26,7 +28,8 @@ interface AdminGlobalDashboardProps {
   onManageLineActivation: () => void;
   onEditLine: (line: ProductionLine) => void;
   onDeactivateLine: (line: ProductionLine) => void;
-  onCreateUser: () => void;
+  /** Abre el registro de usuario; el superadmin puede pedirlo ya con el rol de administrador. */
+  onCreateUser: (role?: UserRole) => void;
   onEditUser: (user: UserProfile) => void;
   onDeactivateUser: (user: UserProfile) => void;
   onOpenAuditTrail: () => void;
@@ -93,7 +96,7 @@ const producidoTexto = (h: BatchHistoryRow): string => {
 
 const card = 'bg-white rounded-2xl border border-[#D6DEEA] shadow-xs';
 
-type AdminTab = 'produccion' | 'usuarios' | 'insumos' | 'anulados' | 'exportar';
+type AdminTab = 'superadmin' | 'produccion' | 'usuarios' | 'insumos' | 'anulados' | 'exportar';
 
 type HistorySortKey =
   | 'codigo_lote'
@@ -125,6 +128,16 @@ const ADMIN_TABS: { key: AdminTab; label: string; icon: string }[] = [
   { key: 'anulados', label: 'Lotes Anulados', icon: 'block' },
   { key: 'exportar', label: 'Exportar Datos', icon: 'download' },
 ];
+
+/** Pestaña extra que solo ve el superadmin (va primero en la barra). */
+const SUPERADMIN_TAB: { key: AdminTab; label: string; icon: string } = {
+  key: 'superadmin',
+  label: 'Panel Superadmin',
+  icon: 'shield_person',
+};
+
+const rolTexto = (u: UserProfile): string =>
+  u.isSuperAdmin ? 'Superadmin' : u.role === 'administrador' ? 'Administrador' : 'Operador';
 
 export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
   lines,
@@ -174,6 +187,10 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
     setAnnulText('');
     setAnnulError('');
   };
+
+  const isSuper = Boolean(currentUser.isSuperAdmin);
+  const tabs = isSuper ? [SUPERADMIN_TAB, ...ADMIN_TABS] : ADMIN_TABS;
+  const [reactivateTarget, setReactivateTarget] = useState<UserProfile | null>(null);
 
   const [inactiveUsers, setInactiveUsers] = useState<UserProfile[]>([]);
   const [inactiveLines, setInactiveLines] = useState<InactiveLine[]>([]);
@@ -409,7 +426,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
             <span>Activar o Desactivar Línea</span>
           </button>
           <button
-            onClick={onCreateUser}
+            onClick={() => onCreateUser('operador')}
             className="px-4 py-2.5 rounded-xl bg-[#5FAF32] hover:bg-[#4E9628] font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer active:scale-95"
           >
             <span className="material-symbols-outlined text-[18px]">person_add</span>
@@ -446,7 +463,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
       </div>
 
       <div className="flex flex-nowrap overflow-x-auto sm:flex-wrap gap-2 bg-white rounded-2xl border border-[#D6DEEA] shadow-xs p-1.5 sticky top-16 z-20">
-        {ADMIN_TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
@@ -1086,6 +1103,28 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
         </>
       )}
 
+      {tab === 'superadmin' && isSuper && (
+        <SuperadminPanel
+          users={users}
+          inactiveUsers={inactiveUsers}
+          currentUser={currentUser}
+          onCreateAdmin={() => onCreateUser('administrador')}
+          onCreateOperator={() => onCreateUser('operador')}
+          onEditUser={onEditUser}
+          onDeactivateUser={onDeactivateUser}
+          onReactivateUser={setReactivateTarget}
+        />
+      )}
+
+      <ReactivateUserModal
+        user={reactivateTarget}
+        onClose={() => setReactivateTarget(null)}
+        onDone={() => {
+          void loadInactive();
+          onRefresh();
+        }}
+      />
+
       {tab === 'usuarios' && (
         <>
         <div className={`${card} p-5 flex flex-col gap-3`}>
@@ -1094,14 +1133,22 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
               <span className="material-symbols-outlined text-[#5FAF32] text-[20px]">group</span>
               <h3 className="text-sm font-bold text-gray-900">Usuarios del Sistema ({users.length})</h3>
             </div>
-            <button onClick={onCreateUser} className="text-xs text-[#1B4E9B] font-bold hover:underline cursor-pointer">
-              + Agregar operador
-            </button>
+            <div className="flex items-center gap-3 shrink-0">
+              {isSuper && (
+                <button onClick={() => onCreateUser('administrador')} className="text-xs text-[#143A73] font-bold hover:underline cursor-pointer">
+                  + Administrador
+                </button>
+              )}
+              <button onClick={() => onCreateUser('operador')} className="text-xs text-[#1B4E9B] font-bold hover:underline cursor-pointer">
+                + Agregar operador
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {users.map((u) => {
               const isSelf = u.id === currentUser.id;
-              const canManage = !isSelf && u.role === 'operador';
+              // Administradores gestionan operarios; el superadmin, también a los administradores.
+              const canManage = !isSelf && (u.role === 'operador' || isSuper);
               return (
                 <div key={u.id} className="p-3 rounded-xl bg-[#F2F4F7] border border-[#D6DEEA] flex items-center justify-between gap-2 text-xs">
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -1117,10 +1164,21 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                         {u.name} {isSelf && <span className="text-[10px] text-gray-500">(tú)</span>}
                       </div>
                       <div className="text-[10px] text-gray-500 truncate">
-                        {u.code} · {u.role === 'administrador' ? 'Administrador' : 'Operador'} · {lineName(u.assignedLineId)}
+                        {u.code} · {rolTexto(u)} · {lineName(u.assignedLineId)}
                       </div>
                     </div>
                   </div>
+                  {isSelf && (
+                    <button
+                      onClick={() => onEditUser(u)}
+                      title="Cambiar mi nombre, PIN o contraseña"
+                      aria-label="Mi cuenta"
+                      className="px-2.5 h-8 rounded-lg bg-white border border-[#D6DEEA] hover:bg-[#1B4E9B]/5 text-[#1B4E9B] text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">key</span>
+                      Mi cuenta
+                    </button>
+                  )}
                   {canManage && (
                     <div className="flex gap-1 shrink-0">
                       <button
@@ -1158,15 +1216,19 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                   <div className="min-w-0">
                     <div className="font-bold text-gray-700 truncate">{u.name}</div>
                     <div className="text-[10px] text-gray-500 truncate">
-                      {u.code} · {u.role === 'administrador' ? 'Administrador' : 'Operador'}
+                      {u.code} · {rolTexto(u)}
                     </div>
                   </div>
-                  <button
-                    onClick={() => reactivate('user', u.id, u.role)}
-                    className="px-3 h-8 rounded-lg bg-white border border-[#5FAF32]/60 text-[#3F7F1E] font-bold hover:bg-[#5FAF32]/10 cursor-pointer shrink-0"
-                  >
-                    Reactivar
-                  </button>
+                  {u.role === 'administrador' && !isSuper ? (
+                    <span className="text-[10px] text-gray-500 font-bold shrink-0">Solo el superadmin</span>
+                  ) : (
+                    <button
+                      onClick={() => (u.role === 'administrador' ? setReactivateTarget(u) : reactivate('user', u.id, u.role))}
+                      className="px-3 h-8 rounded-lg bg-white border border-[#5FAF32]/60 text-[#3F7F1E] font-bold hover:bg-[#5FAF32]/10 cursor-pointer shrink-0"
+                    >
+                      Reactivar
+                    </button>
+                  )}
                 </div>
               ))}
               {inactiveLines.map((l) => (

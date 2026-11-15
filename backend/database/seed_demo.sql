@@ -1,10 +1,9 @@
 -- ============================================================================
 -- QCS PRO LÁCTEOS · DATOS DE PRUEBA (SOLO DESARROLLO)
--- Lotes de insumos y sabores para poder probar los desplegables
--- (lote de leche, cultivo, cuajo, sal, azúcar, saborizante, colorante, stevia).
+-- Usuarios de prueba, lotes de insumos y sabores para poder probar la aplicación
+-- (lote de leche, cultivo, cuajo, sal, azúcar, saborizante, colorante, stevia...).
 --
--- Requiere: init.sql + seed.sql, y haber arrancado el backend una vez
--- (ensureSchema agrega columnas que usa la API).
+-- Requiere: init.sql + seed.sql.
 --
 -- USO:  psql -U <usuario> -d <base> -f backend/database/seed_demo.sql
 -- Idempotente: se puede correr varias veces.
@@ -55,9 +54,24 @@ INSERT INTO sabores_yogur (nombre)
 SELECT s FROM (VALUES ('Fresa'), ('Mora'), ('Melocotón'), ('Guanábana'), ('Natural')) AS v(s)
 WHERE NOT EXISTS (SELECT 1 FROM sabores_yogur y WHERE LOWER(y.nombre) = LOWER(v.s));
 
--- 4. Usuarios adicionales de prueba (mismos PIN/password que los de seed.sql)
+-- 4. Usuarios de prueba
+--   Código    Rol            PIN    Contraseña
+--   ADM-901   administrador  9090   admin
+--   ADM-902   administrador  9091   admin
+--   OP-104    operador       1040   1234
+--   OP-105    operador       1050   1234
+--   OP-106..108 operadores   1060/1070/1080   1234
+--   (El superadmin SA-001 lo crea seed.sql con la clave temporal 123456.)
 INSERT INTO usuarios (codigo_empleado, nombre_completo, rol, turno, pin_hash, password_hash, linea_asignada_id)
 VALUES
+    ('ADM-901', 'Ing. David Rojas',      'administrador', 'Jornada Continua',
+        crypt('9090', gen_salt('bf', 10)), crypt('admin', gen_salt('bf', 10)), NULL),
+    ('OP-104',  'Carlos Mendoza',        'operador',      'Jornada Continua',
+        crypt('1040', gen_salt('bf', 10)), crypt('1234',  gen_salt('bf', 10)),
+        (SELECT id FROM lineas_produccion WHERE codigo = 'L-HILADA-01')),
+    ('OP-105',  'Luisa Ramírez',         'operador',      'Jornada Continua',
+        crypt('1050', gen_salt('bf', 10)), crypt('1234',  gen_salt('bf', 10)),
+        (SELECT id FROM lineas_produccion WHERE codigo = 'L-FERMENT-02')),
     ('ADM-902', 'Ing. Paola Restrepo',   'administrador', 'Jornada Continua',
         crypt('9091', gen_salt('bf', 10)), crypt('admin', gen_salt('bf', 10)), NULL),
     ('OP-106',  'María Fernanda López',  'operador',      'Mañana',

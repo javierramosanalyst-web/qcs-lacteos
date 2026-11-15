@@ -4,9 +4,12 @@ import { randomBytes } from 'node:crypto';
 import {
   SESSION_COOKIE,
   SESSION_ID_COOKIE,
+  readCookie,
   sessionCookieOptions,
   signJwtHS256,
+  verifyJwtHS256,
 } from '../middlewares/authMiddleware';
+import { registrarEvento } from '../services/eventosSeguridad';
 
 /**
  * POST /api/auth/login
@@ -61,6 +64,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     const result = await pool.query(query, [String(codigo_empleado), String(password_o_pin)]);
 
     if (result.rows.length === 0) {
+      void registrarEvento({ evento: 'INGRESO_FALLIDO', codigo: String(codigo_empleado), req });
       res.status(401).json({
         error: 'INVALID_CREDENTIALS',
         message: 'Código de empleado o contraseña/PIN incorrectos.',
@@ -86,6 +90,8 @@ export async function login(req: Request, res: Response): Promise<void> {
       `${SESSION_COOKIE}=${encodeURIComponent(token)}; ${sessionCookieOptions(8 * 3600)}`,
       `${SESSION_ID_COOKIE}=${sessionId}; ${sessionCookieOptions(8 * 3600)}`,
     ]);
+
+    void registrarEvento({ evento: 'INGRESO', usuarioId: user.id, codigo: user.codigo_empleado, req });
 
     res.status(200).json({
       session_id: sessionId,
@@ -129,7 +135,18 @@ export async function me(req: Request, res: Response): Promise<void> {
 }
 
 /** POST /api/auth/logout  Borra la cookie de sesión httpOnly. */
-export async function logout(_req: Request, res: Response): Promise<void> {
+export async function logout(req: Request, res: Response): Promise<void> {
+  // Bitácora: si la sesión era válida, se anota quién salió (sin bloquear la salida si no lo es).
+  try {
+    const token = readCookie(req, SESSION_COOKIE);
+    const secret = process.env.JWT_SECRET;
+    if (token && secret) {
+      const payload = verifyJwtHS256(token, secret);
+      if (typeof payload.sub === 'string') void registrarEvento({ evento: 'SALIDA', usuarioId: payload.sub, req });
+    }
+  } catch {
+    void 0;
+  }
   res.setHeader('Set-Cookie', [
     `${SESSION_COOKIE}=; ${sessionCookieOptions(0)}`,
     `${SESSION_ID_COOKIE}=; ${sessionCookieOptions(0)}`,
