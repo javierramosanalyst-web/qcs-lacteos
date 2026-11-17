@@ -191,12 +191,22 @@ const ENVASES_KUMIS: [string, string][] = [
   ['botella1L', 'Envases · Botella 1 L'],
   ['botella2L', 'Envases · Botella 2 L'],
 ];
-const ENVASES_GRIEGO = (grupo: 'formatosSinEstevia' | 'formatosConEstevia', nombre: string): [string, string][] => [
-  [`${grupo}.tarrina1000g`, `Envases ${nombre} · Tarrina / vaso 1000 g`],
-  [`${grupo}.tarrina500g`, `Envases ${nombre} · Tarrina / vaso 500 g`],
-  [`${grupo}.tarrina120g`, `Envases ${nombre} · Tarrina / vaso 120 g`],
-  [`${grupo}.bolsa4L`, `Envases ${nombre} · Bolsa 4 L`],
-];
+// El griego guarda cada cantidad con dos nombres (tarro1L y tarrina1000g...): se corrigen los dos.
+const ENVASES_GRIEGO = (grupo: 'formatosSinEstevia' | 'formatosConEstevia', nombre: string): DefNumero[] =>
+  (
+    [
+      [['tarro1L', 'tarrina1000g'], 'Tarrina / vaso 1000 g'],
+      [['tarro500ml', 'tarrina500g'], 'Tarrina / vaso 500 g'],
+      [['vasito120ml', 'tarrina120g'], 'Tarrina / vaso 120 g'],
+      [['bolsa4L'], 'Bolsa 4 L'],
+    ] as [string[], string][]
+  ).map(([claves, label]) => ({
+    tipo: 'numero',
+    etapa: 'moldeo',
+    label: `Envases ${nombre} · ${label}`,
+    unidad: 'unid',
+    paths: claves.map((k) => `envasado.${grupo}.${k}`),
+  }));
 
 function catalogoYogurKumis(batch: any, esYogur: boolean): Catalogo {
   const adiciones = batch?.[B]?.adiciones ?? {};
@@ -204,7 +214,9 @@ function catalogoYogurKumis(batch: any, esYogur: boolean): Catalogo {
   const sabores: any[] = Array.isArray(adiciones.sabores) ? adiciones.sabores : [];
   const campos: (DefNumero | DefHora)[] = [
     { tipo: 'numero', etapa: 'acidificar', label: 'Leche fresca', unidad: 'L', paths: [`${P}.litrosLeche`] },
-    { tipo: 'numero', etapa: 'acidificar', label: 'Azúcar agregada en la pasteurización', unidad: 'kg', paths: [`${P}.azucar.cantidadKg`] },
+    ...(llevaAzucar
+      ? [{ tipo: 'numero', etapa: 'acidificar', label: 'Azúcar agregada en la pasteurización', unidad: 'kg', paths: [`${P}.azucar.cantidadKg`] } as DefNumero]
+      : []),
     ...horasPasteurizacion(),
     { tipo: 'numero', etapa: 'calentar-y-cuajar', label: 'Cultivo láctico', unidad: 'cdas', paths: [`${I}.cantidadCultivoCucharadas`, `${I}.cantidadCultivoGramos`] },
     { tipo: 'numero', etapa: 'calentar-y-cuajar', label: 'Tiempo de mezclado del cultivo', unidad: 'min', paths: [`${I}.tiempoMezcladoMinutos`] },
@@ -333,7 +345,8 @@ function catalogoGriego(): Catalogo {
       label: 'Fin del batido y envasado',
       horas: [`${B}.batido.horaFin`, `${B}.lotesSabor.*.batidoFin`, `${B}.lotesSabor.*.envasadoFin`],
     },
-    ...envases('envasado', [...ENVASES_GRIEGO('formatosSinEstevia', 'naturales'), ...ENVASES_GRIEGO('formatosConEstevia', 'con stevia')]),
+    ...ENVASES_GRIEGO('formatosSinEstevia', 'naturales'),
+    ...ENVASES_GRIEGO('formatosConEstevia', 'con stevia'),
     { tipo: 'hora', etapa: 'moldeo', clave: 'ingreso', label: 'Ingreso al cuarto frío', horas: ['envasado.almacenamientoCuartoFrio.horaIngreso'] },
   ];
   const duraciones: DefDuracion[] = [

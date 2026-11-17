@@ -327,7 +327,7 @@ postgres, para que las tablas queden a su nombre):
 
 Verificar:
   $ psql "$URL" -Atc "select count(*) from information_schema.tables where table_schema='public' and table_type='BASE TABLE'"
-  Debe salir: 28
+  Debe salir: 27
   $ psql "$URL" -Atc "select codigo_empleado, rol from usuarios"
   Debe salir SOLO: SA-001|superadmin
   $ psql "$URL" -Atc "select count(*) from productos"
