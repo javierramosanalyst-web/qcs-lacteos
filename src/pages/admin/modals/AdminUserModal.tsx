@@ -33,7 +33,11 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
 }) => {
   const isEdit = Boolean(editingUser);
   const isSelf = isEdit && Boolean(currentUserId) && editingUser!.id === currentUserId;
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [middleName, setMiddleName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [secondLastName, setSecondLastName] = useState('');
+  const [cedula, setCedula] = useState('');
   const [code, setCode] = useState('');
   const [pin, setPin] = useState('');
   const [password, setPassword] = useState('');
@@ -44,7 +48,14 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    setName(editingUser?.name ?? '');
+    // Usuarios creados antes de separar nombres: se reparten desde el nombre completo.
+    const partesViejas = (editingUser?.name ?? '').trim().split(/\s+/);
+    const tienePartes = Boolean(editingUser?.firstName);
+    setFirstName(tienePartes ? editingUser!.firstName! : partesViejas[0] ?? '');
+    setMiddleName(tienePartes ? editingUser?.middleName ?? '' : '');
+    setLastName(tienePartes ? editingUser?.lastName ?? '' : partesViejas.slice(1).join(' '));
+    setSecondLastName(tienePartes ? editingUser?.secondLastName ?? '' : '');
+    setCedula(editingUser?.cedula ?? '');
     setCode(editingUser?.code ?? '');
     setPin('');
     setPassword('');
@@ -63,12 +74,35 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim().length < 3) {
-      setError('Ingresa el nombre completo (mínimo 3 letras).');
+    const nombreValido = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' .-]{2,60}$/;
+    if (!firstName.trim()) {
+      setError('El primer nombre es obligatorio.');
       return;
     }
-    if (!isEdit && code.trim().length < 2) {
+    if (!lastName.trim()) {
+      setError('El primer apellido es obligatorio.');
+      return;
+    }
+    for (const v of [firstName, middleName, lastName, secondLastName]) {
+      const t = v.replace(/\s+/g, ' ').trim();
+      if (t && !nombreValido.test(t)) {
+        setError(`"${t}" no es válido: use solo letras (mínimo 2), espacios, guion o apóstrofo.`);
+        return;
+      }
+    }
+    const cedulaLimpia = cedula.replace(/[\s.\-]/g, '');
+    if (!/^\d{5,12}$/.test(cedulaLimpia)) {
+      setError('La cédula es obligatoria: solo números, entre 5 y 12 dígitos.');
+      return;
+    }
+    const codigoLimpio = code.trim().toUpperCase();
+    const cambiaCodigo = isEdit && !isSelf && codigoLimpio !== editingUser!.code.toUpperCase();
+    if (!isEdit && !codigoLimpio) {
       setError(isAdminTarget ? 'Ingresa el código del administrador (ej: ADM-902).' : 'Ingresa el código de empleado (ej: OP-112).');
+      return;
+    }
+    if ((!isEdit || cambiaCodigo) && !/^[A-Z0-9-]{2,30}$/.test(codigoLimpio)) {
+      setError('El código debe tener de 2 a 30 caracteres: solo letras (sin tildes ni Ñ), números y guion, sin espacios.');
       return;
     }
     if ((!isEdit || pin) && !new RegExp(`^\\d{${pinMin},8}$`).test(pin)) {
@@ -98,6 +132,15 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
       return;
     }
 
+    const limpio = (v: string) => v.replace(/\s+/g, ' ').trim();
+    const nombresPayload = {
+      primer_nombre: limpio(firstName),
+      segundo_nombre: limpio(middleName),
+      primer_apellido: limpio(lastName),
+      segundo_apellido: limpio(secondLastName),
+      cedula: cedulaLimpia,
+    };
+
     setSaving(true);
     setError('');
     try {
@@ -105,14 +148,15 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
       // (pueden trabajar en cualquier línea). Al editar no se envían, así se conservan los valores actuales.
       const saved = isEdit
         ? await updateUserRequest(editingUser!.id, {
-            nombre_completo: name.trim(),
+            ...nombresPayload,
+            ...(cambiaCodigo ? { codigo_empleado: codigoLimpio } : {}),
             ...(pin ? { pin } : {}),
             ...(password ? { password } : {}),
             ...(isSelf && (pin || password) ? { clave_actual: currentKey.trim() } : {}),
           })
         : await createUserRequest({
-            nombre_completo: name.trim(),
-            codigo_empleado: code.trim().toUpperCase(),
+            ...nombresPayload,
+            codigo_empleado: codigoLimpio,
             pin,
             ...(password ? { password } : {}),
             rol: isAdminTarget ? 'administrador' : 'operador',
@@ -216,16 +260,47 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
           </div>
         )}
 
+        <div className="grid grid-cols-2 gap-3">
+          {(
+            [
+              { label: 'Primer nombre', value: firstName, set: setFirstName, ph: 'ej: Santiago', req: true },
+              { label: 'Segundo nombre (opcional)', value: middleName, set: setMiddleName, ph: 'ej: Andrés', req: false },
+              { label: 'Primer apellido', value: lastName, set: setLastName, ph: 'ej: Betancur', req: true },
+              { label: 'Segundo apellido (opcional)', value: secondLastName, set: setSecondLastName, ph: 'ej: Ríos', req: false },
+            ] as const
+          ).map((f) => (
+            <div key={f.label} className="flex flex-col gap-1 min-w-0">
+              <label className="text-xs font-bold text-gray-700">{f.label}</label>
+              <input
+                type="text"
+                value={f.value}
+                maxLength={60}
+                autoComplete="off"
+                onChange={(e) => {
+                  f.set(e.target.value);
+                  setError('');
+                }}
+                placeholder={f.ph}
+                className={inputClass}
+                required={f.req}
+              />
+            </div>
+          ))}
+        </div>
+
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-bold text-gray-700">Nombre Completo</label>
+          <label className="text-xs font-bold text-gray-700">Cédula</label>
           <input
             type="text"
-            value={name}
+            inputMode="numeric"
+            autoComplete="off"
+            value={cedula}
+            maxLength={15}
             onChange={(e) => {
-              setName(e.target.value);
+              setCedula(e.target.value.replace(/[^\d]/g, '').slice(0, 12));
               setError('');
             }}
-            placeholder="ej: Santiago Betancur"
+            placeholder="Solo números, sin puntos"
             className={inputClass}
             required
           />
@@ -236,11 +311,17 @@ export const AdminUserModal: React.FC<AdminUserModalProps> = ({
           <input
             type="text"
             value={code}
-            disabled={isEdit}
-            onChange={(e) => setCode(e.target.value)}
+            disabled={isSelf}
+            maxLength={30}
+            onChange={(e) => setCode(e.target.value.toUpperCase().replace(/\s/g, ''))}
             placeholder={isAdminTarget ? 'ej: ADM-902' : 'ej: OP-112'}
             className={`${inputClass} font-bold text-[#1B4E9B] uppercase disabled:bg-[#F2F4F7]`}
           />
+          {isEdit && !isSelf && code.trim().toUpperCase() !== editingUser!.code.toUpperCase() && (
+            <p className="text-[11px] font-bold text-amber-700">
+              Al guardar, su sesión se cerrará y deberá entrar con el código nuevo (el PIN no cambia).
+            </p>
+          )}
         </div>
 
         {isSelf && (

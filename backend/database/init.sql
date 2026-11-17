@@ -48,8 +48,13 @@ CREATE TABLE lineas_produccion (
 
 CREATE TABLE usuarios (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    codigo_empleado VARCHAR(30) UNIQUE NOT NULL,
-    nombre_completo VARCHAR(120) NOT NULL,
+    codigo_empleado VARCHAR(30) UNIQUE NOT NULL,   -- con el que ingresa (lo define el administrador)
+    primer_nombre VARCHAR(60),
+    segundo_nombre VARCHAR(60),
+    primer_apellido VARCHAR(60),
+    segundo_apellido VARCHAR(60),
+    nombre_completo VARCHAR(120) NOT NULL,         -- se arma solo con nombres y apellidos
+    cedula VARCHAR(20) UNIQUE,                     -- solo dígitos; no se repite
     rol rol_usuario_enum NOT NULL,
     turno VARCHAR(40) NOT NULL DEFAULT 'Jornada Continua',
     pin_hash VARCHAR(255) NOT NULL,

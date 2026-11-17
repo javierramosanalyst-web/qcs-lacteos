@@ -24,6 +24,15 @@ export interface UserProfile {
   assignedLineId?: string;
   /** Rol real "superadmin" en la base. En pantalla trabaja como administrador, más el panel propio. */
   isSuperAdmin?: boolean;
+  /** Nombres y apellidos por separado (name = todos unidos). */
+  firstName?: string;
+  middleName?: string;
+  lastName?: string;
+  secondLastName?: string;
+  /** Cédula: solo llega a administradores y superadmin. */
+  cedula?: string;
+  /** Fecha de registro (ISO). */
+  createdAt?: string;
 }
 
 export interface ActividadOperario {

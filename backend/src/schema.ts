@@ -20,6 +20,19 @@ ALTER TABLE lotes_produccion ADD COLUMN IF NOT EXISTS finalizado_por_id UUID REF
 -- clave restablecida por otra persona).
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS sesiones_desde TIMESTAMPTZ;
 
+-- Nombres y apellidos por separado, y cédula. En bases anteriores se rellenan desde
+-- nombre_completo (primera palabra = nombre; el resto = apellido) para no dejar huecos;
+-- el administrador puede corregirlos al editar.
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS primer_nombre VARCHAR(60);
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS segundo_nombre VARCHAR(60);
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS primer_apellido VARCHAR(60);
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS segundo_apellido VARCHAR(60);
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cedula VARCHAR(20) UNIQUE;
+UPDATE usuarios
+   SET primer_nombre = LEFT(split_part(btrim(nombre_completo), ' ', 1), 60),
+       primer_apellido = LEFT(NULLIF(btrim(substr(btrim(nombre_completo), length(split_part(btrim(nombre_completo), ' ', 1)) + 1)), ''), 60)
+ WHERE primer_nombre IS NULL;
+
 CREATE INDEX IF NOT EXISTS idx_lotes_produccion_producto_ui ON lotes_produccion(producto_ui_id, estado);
 
 CREATE TABLE IF NOT EXISTS borradores_lote (

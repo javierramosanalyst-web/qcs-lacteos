@@ -57,6 +57,12 @@ export interface ApiUser {
   turno: UserProfile['shift'];
   linea_asignada_id: string | null;
   linea_codigo?: string | null;
+  primer_nombre?: string | null;
+  segundo_nombre?: string | null;
+  primer_apellido?: string | null;
+  segundo_apellido?: string | null;
+  cedula?: string | null;
+  created_at?: string | null;
 }
 
 export class ApiError extends Error {
@@ -155,6 +161,12 @@ export const toProfile = (u: ApiUser): UserProfile => ({
   shift: u.turno,
   assignedLineId: u.linea_codigo ? lineUiId(u.linea_codigo) : undefined,
   ...(u.rol === 'superadmin' ? { isSuperAdmin: true } : {}),
+  ...(u.primer_nombre ? { firstName: u.primer_nombre } : {}),
+  ...(u.segundo_nombre ? { middleName: u.segundo_nombre } : {}),
+  ...(u.primer_apellido ? { lastName: u.primer_apellido } : {}),
+  ...(u.segundo_apellido ? { secondLastName: u.segundo_apellido } : {}),
+  ...(u.cedula ? { cedula: u.cedula } : {}),
+  ...(u.created_at ? { createdAt: u.created_at } : {}),
 });
 
 export async function loginRequest(code: string, password: string): Promise<UserProfile> {
@@ -281,6 +293,11 @@ export async function fetchUsers(): Promise<UserProfile[]> {
 
 export interface UserPayload {
   nombre_completo?: string;
+  primer_nombre?: string;
+  segundo_nombre?: string;
+  primer_apellido?: string;
+  segundo_apellido?: string;
+  cedula?: string;
   codigo_empleado?: string;
   pin?: string;
   password?: string;

@@ -155,6 +155,10 @@ Al reactivar un administrador, el superadmin le asigna un PIN y una contraseña 
 
 Al entrar por primera vez, cambia el PIN y la contraseña en **Panel Superadmin → Mi cuenta** y registra al administrador de la planta. Él registra a los operarios, los lotes de insumos y los sabores.
 
+### Datos de cada usuario
+
+Primer nombre y primer apellido (obligatorios), segundo nombre y segundo apellido (opcionales), cédula (solo números, no se repite), código de empleado (con el que ingresa; puede ser un apodo: letras sin tildes ni Ñ, números y guion, sin espacios, no se repite) y PIN. El administrador puede corregir el código de un operario (y el superadmin el de un administrador): queda en la bitácora y la sesión de esa persona se cierra para que entre con el código nuevo. La fecha de registro y la de baja las guarda el sistema solo. Las cédulas solo las ven el administrador y el superadmin.
+
 ### Usuarios de prueba (solo desarrollo, con `seed_demo.sql`)
 
 | Código | Rol | PIN | Contraseña |
