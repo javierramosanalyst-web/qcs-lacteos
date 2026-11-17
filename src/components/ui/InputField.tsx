@@ -143,6 +143,10 @@ export const InputField: React.FC<InputFieldProps> = ({
       onChange?.(e);
       return;
     }
+    // Ningún campo numérico acepta negativos (el signo se quita si llegara a colarse).
+    if (isNumberInput && e.target.value.startsWith('-')) {
+      e.target.value = e.target.value.replace(/^-+/, '');
+    }
     setRawValue(e.target.value);
     onChange?.(e);
   };

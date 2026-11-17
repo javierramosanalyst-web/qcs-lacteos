@@ -8,6 +8,7 @@ import {
   saveDraftRequest,
   saveWorkspaceRequest,
 } from '../api/client';
+import { alinearMarcasDeTiempo } from '../utils/camposCorreccion';
 
 type AnyBatch = {
   id: string;
@@ -434,7 +435,8 @@ export function useBatchPersistence({
         const res = await saveDraftRequest(pid, {
           lineCode: p.lineCode,
           productCode: productCodeFromUiId(pid),
-          estado: { batch: b, stage },
+          // Las horas corregidas a mano también corrigen la marca interna que va a la trazabilidad.
+          estado: { batch: alinearMarcasDeTiempo(b, pid), stage },
           etapaActual: stage ?? 'acidificar',
           stageStatuses: b.stageStatuses,
           version: versions.current[pid] ?? 0,

@@ -10,7 +10,6 @@ import auditRoutes from './routes/auditRoutes';
 import catalogRoutes from './routes/catalogRoutes';
 import userRoutes from './routes/userRoutes';
 import insumoLoteRoutes from './routes/insumoLoteRoutes';
-import saborYogurRoutes from './routes/saborYogurRoutes';
 import workspaceRoutes from './routes/workspaceRoutes';
 import { ensureSchema } from './schema';
 import { purgeExpiredInsumoLotes } from './controllers/insumoLoteController';
@@ -89,7 +88,6 @@ app.use('/api/batches', auditRoutes);
 app.use('/api/catalogs', catalogRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/insumos-lotes', insumoLoteRoutes);
-app.use('/api/sabores-yogur', saborYogurRoutes);
 app.use('/api/workspace', workspaceRoutes);
 
 // Frontend compilado (npm run build en la raíz): el mismo servidor lo sirve en producción.

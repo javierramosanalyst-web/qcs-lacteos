@@ -38,7 +38,7 @@ export const excelFecha = (iso: string | null | undefined): number | null => {
   return (ms - OFFSET_COLOMBIA_MS) / 86400000 + 25569;
 };
 
-/** Segundos -> duración de Excel (fracción de día), para mostrar como h:mm. */
+/** Segundos -> duración de Excel (fracción de día), para mostrar como h:mm:ss. */
 export const excelDuracion = (segundos: number | null | undefined): number | null =>
   segundos === null || segundos === undefined || !Number.isFinite(segundos) || segundos < 0 ? null : segundos / 86400;
 
@@ -48,8 +48,8 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 const textoFormato = (v: number, f: ColumnFormat): string => {
   if (f === 'decimal') return String(v).replace('.', ',');
   if (f === 'duracion') {
-    const min = Math.round(v * 1440);
-    return `${Math.floor(min / 60)}:${pad2(min % 60)}`;
+    const seg = Math.round(v * 86400);
+    return `${Math.floor(seg / 3600)}:${pad2(Math.floor(seg / 60) % 60)}:${pad2(seg % 60)}`;
   }
   const d = new Date(Math.round((v - 25569) * 86400000));
   const fecha = `${pad2(d.getUTCDate())}/${pad2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
@@ -158,7 +158,7 @@ const STYLES =
   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
   '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
   '<numFmts count="5"><numFmt numFmtId="164" formatCode="dd/mm/yyyy"/><numFmt numFmtId="165" formatCode="hh:mm"/>' +
-  '<numFmt numFmtId="166" formatCode="dd/mm/yyyy hh:mm"/><numFmt numFmtId="167" formatCode="[h]:mm"/><numFmt numFmtId="168" formatCode="dd/mm hh:mm"/></numFmts>' +
+  '<numFmt numFmtId="166" formatCode="dd/mm/yyyy hh:mm"/><numFmt numFmtId="167" formatCode="[h]:mm:ss"/><numFmt numFmtId="168" formatCode="dd/mm hh:mm"/></numFmts>' +
   '<fonts count="3"><font><sz val="10"/><name val="Calibri"/></font><font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>' +
   '<font><b/><sz val="12"/><color rgb="FF1B4E9B"/><name val="Calibri"/></font></fonts>' +
   '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>' +

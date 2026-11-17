@@ -7,7 +7,7 @@
 # BORRA: lotes (padre e hijos) con todas sus etapas, mediciones, insumos usados y envasado;
 #        borradores y estado de las líneas; auditoría de correcciones; bitácora de accesos.
 #        El contador de códigos de lote vuelve a empezar en 001.
-# NO TOCA: usuarios, líneas, productos, catálogos, lotes de insumos ni sabores.
+# NO TOCA: usuarios, líneas, productos, catálogos ni lotes de insumos.
 #          (Los usuarios de prueba se dan de baja desde el Panel Superadmin.)
 #
 # Úsalo UNA sola vez, el día de arranque, con el backend detenido y todos fuera de sesión.

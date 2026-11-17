@@ -158,7 +158,7 @@ export async function getProductionReport(req: Request, res: Response): Promise<
          ORDER BY ar.registrado_at DESC LIMIT 1
        ) an ON lp.estado = 'ANULADO'
        ${sqlWhere}
-       ORDER BY lp.iniciado_at ASC;`,
+       ORDER BY lp.iniciado_at DESC, lp.codigo_lote DESC;`,
       params
     );
 
@@ -223,7 +223,7 @@ export async function getProductionReport(req: Request, res: Response): Promise<
              FROM auditoria_rectificaciones ar
              JOIN usuarios u ON u.id = ar.autorizado_por_id
              WHERE ar.lote_id = ANY($1::uuid[])
-             ORDER BY ar.registrado_at;`,
+             ORDER BY ar.registrado_at DESC;`,
             [ids]
           )
         ).rows

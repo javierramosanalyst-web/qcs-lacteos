@@ -35,7 +35,6 @@ import {
   fetchLines,
   fetchProducts,
   fetchUsers,
-  fetchSaboresYogur,
   hasSession,
   logoutRequest,
   meRequest,
@@ -55,7 +54,7 @@ import {
   UserProfile,
   UserRole,
 } from './types';
-import { setInsumoLotes, setSaboresYogur, useInsumoLotesVersion } from './data/insumoLotes';
+import { setInsumoLotes, useInsumoLotesVersion } from './data/insumoLotes';
 import { loteDeFila, loteVisible } from './utils/lote';
 
 const ACTIVITY_KEY = 'qcs_last_activity';
@@ -188,7 +187,6 @@ export default function App() {
         fetchInsumoLotes().catch(() => []),
       ]);
       setInsumoLotes(apiInsumos);
-      fetchSaboresYogur().then(setSaboresYogur).catch(() => undefined);
       setLines(apiLines);
       if (apiProducts.length > 0) setProducts(apiProducts);
       setUsers(apiUsers);
@@ -328,7 +326,6 @@ export default function App() {
     if (!isAuthenticated) return;
     const id = window.setInterval(() => {
       fetchInsumoLotes().then(setInsumoLotes).catch(() => undefined);
-      fetchSaboresYogur().then(setSaboresYogur).catch(() => undefined);
     }, 60000);
     return () => window.clearInterval(id);
   }, [isAuthenticated]);
@@ -675,6 +672,13 @@ export default function App() {
     let cursor = nextBatch;
     for (let i = 0; i < keys.length - 1; i += 1) cursor = cursor?.[keys[i]];
     if (cursor === undefined || cursor === null) return 'No se encontró la variable en el lote.';
+    // Se aplican el dato corregido y los que dependen de él (duraciones, totales, copias).
+    for (const c of payload.cambios) {
+      const k = c.path.split('.');
+      let cur = nextBatch;
+      for (let i = 0; i < k.length - 1 && cur; i += 1) cur = cur[k[i]];
+      if (cur && typeof cur === 'object') cur[k[k.length - 1]] = c.value;
+    }
     cursor[keys[keys.length - 1]] = payload.newValue;
     const estado = { ...viewerDetail.estado_ui, batch: nextBatch };
     try {
@@ -687,8 +691,12 @@ export default function App() {
         fieldLabel: payload.label,
         oldValue: payload.oldValue,
         newValue: payload.newValue,
+        unit: payload.unit,
         reasonCategory: payload.reasonCategory,
         justification: payload.justification,
+        extras: payload.cambios.filter((c) => c.path !== payload.path),
+        textoAnterior: payload.textoAnterior,
+        textoNuevo: payload.textoNuevo,
       });
     } catch (err) {
       return err instanceof Error ? err.message : 'No se pudo registrar la corrección.';
@@ -697,7 +705,7 @@ export default function App() {
     const actualizado = await fetchBatchDetail(viewerDetail.id).catch(() => null);
     setViewerDetail(actualizado?.estado_ui?.batch ? actualizado : { ...viewerDetail, estado_ui: estado });
     void loadCatalogs(userRole, true);
-    showToast(`Corrección guardada: ${payload.label} ajustado a ${payload.newValue}.`, 'success');
+    showToast(`Corrección guardada: ${payload.label} → ${payload.textoNuevo}.`, 'success');
     return null;
   };
 

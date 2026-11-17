@@ -85,7 +85,7 @@ sudo -u postgres psql -d qcs_lacteos -v ON_ERROR_STOP=1 -f backend/database/seed
 
 - **SA-001**, PIN `123456`, contraseña `123456` (**temporal**).
 
-Arranque el backend, entre con SA-001, cambie su clave en **Panel Superadmin → Mi cuenta** y registre al administrador. Él registra a los operarios, los lotes de insumos y los sabores.
+Arranque el backend, entre con SA-001, cambie su clave en **Panel Superadmin → Mi cuenta** y registre al administrador. Él registra a los operarios y los lotes de insumos (en cada lote de saborizante escribe su sabor: de ahí salen los sabores de yogur).
 
 **No ejecute `seed_demo.sql` ni `npm run seed:demo` en el servidor:** son datos de prueba para desarrollo.
 
@@ -97,7 +97,7 @@ Con el backend detenido y todos fuera de sesión:
 bash deploy/limpiar-datos-de-prueba.sh
 ```
 
-Pide escribir `BORRAR` y antes hace una copia de seguridad. Borra lotes (con etapas, mediciones, insumos usados y envasado), borradores, auditoría de correcciones y bitácora de accesos, y el contador de códigos de lote vuelve a 001. **No toca** usuarios, líneas, productos, catálogos, lotes de insumos ni sabores. Los usuarios de prueba se dan de baja desde el **Panel Superadmin**, y el superadmin cambia su clave en **Mi cuenta**.
+Pide escribir `BORRAR` y antes hace una copia de seguridad. Borra lotes (con etapas, mediciones, insumos usados y envasado), borradores, auditoría de correcciones y bitácora de accesos, y el contador de códigos de lote vuelve a 001. **No toca** usuarios, líneas, productos, catálogos ni lotes de insumos. Los usuarios de prueba se dan de baja desde el **Panel Superadmin**, y el superadmin cambia su clave en **Mi cuenta**.
 
 ### Solo el nombre, sin HTTPS (opcional)
 

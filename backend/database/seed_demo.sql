@@ -1,6 +1,6 @@
 -- ============================================================================
 -- QCS PRO LÁCTEOS · DATOS DE PRUEBA (SOLO DESARROLLO)
--- Usuarios de prueba, lotes de insumos y sabores para poder probar la aplicación
+-- Usuarios de prueba y lotes de insumos (con sus sabores de saborizante) para probar la aplicación
 -- (lote de leche, cultivo, cuajo, sal, azúcar, saborizante, colorante, stevia...).
 --
 -- Requiere: init.sql + seed.sql.
@@ -34,8 +34,10 @@ FROM (VALUES
     ('sal',          'SAL-DEMO-002', 'Sal Marina Refinada', 'Refisal',             720,   50),
     ('azucar',       'AZU-DEMO-001', 'Azúcar Blanco Especial', 'Ingenio Manuelita',   365,  100),
     ('azucar',       'AZU-DEMO-002', 'Azúcar Blanco Especial', 'Ingenio Riopaila',    365,  100),
-    ('saborizante',  'SAB-DEMO-001', 'Sabor Fresa', 'Proveedor Sabores',   365, 5000),
-    ('saborizante',  'SAB-DEMO-002', 'Sabor Melocotón', 'Proveedor Sabores',   365, 5000),
+    ('saborizante',  'SAB-DEMO-001', 'Fresa',     'Proveedor Sabores',   365, 5000),
+    ('saborizante',  'SAB-DEMO-002', 'Melocotón', 'Proveedor Sabores',   365, 5000),
+    ('saborizante',  'SAB-DEMO-003', 'Mora',      'Proveedor Sabores',   365, 5000),
+    ('saborizante',  'SAB-DEMO-004', 'Fresa',     'Otro Proveedor',      365, 5000),
     ('colorante',    'COL-DEMO-001', 'Carmín Rojo Vegetal', 'Proveedor Colorantes',365, 2000),
     ('colorante',    'COL-DEMO-002', 'Carmín Rojo Vegetal', 'Proveedor Colorantes',365, 2000),
     ('estevia',      'EST-DEMO-001', 'Extracto Stevia 98%', 'Proveedor Stevia',    365, 3000),
@@ -49,10 +51,7 @@ FROM (VALUES
 JOIN insumos_catalogo c ON c.tipo_insumo = v.tipo
 ON CONFLICT (insumo_id, codigo_lote) DO NOTHING;
 
--- 3. Sabores de yogur
-INSERT INTO sabores_yogur (nombre)
-SELECT s FROM (VALUES ('Fresa'), ('Mora'), ('Melocotón'), ('Guanábana'), ('Natural')) AS v(s)
-WHERE NOT EXISTS (SELECT 1 FROM sabores_yogur y WHERE LOWER(y.nombre) = LOWER(v.s));
+-- 3. Sabores de yogur: salen de los lotes de saborizante de arriba (Fresa tiene dos lotes).
 
 -- 4. Usuarios de prueba
 --   Código    Rol            PIN    Contraseña

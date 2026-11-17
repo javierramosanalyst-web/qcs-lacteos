@@ -27,13 +27,6 @@ export const LOTES_ACIDO_ACETICO_CATALOG: string[] = [];
 export const LOTES_ESPECIA_CATALOG: string[] = [];
 export const LOTES_AREQUIPE_CATALOG: string[] = [];
 export const LOTES_BOCADILLO_CATALOG: string[] = [];
-export const SABORES_YOGUR_CATALOG: string[] = [];
-
-export interface SaborYogurRow {
-  id: string;
-  nombre: string;
-  activo: boolean;
-}
 
 const BY_TIPO: Record<InsumoTipo, string[]> = {
   leche_fresca: LOTES_LECHE_PROVEEDOR_DEFAULT,
@@ -66,16 +59,47 @@ export function setInsumoLotes(rows: InsumoLoteRow[]): void {
   listeners.forEach((l) => l());
 }
 
-export function setSaboresYogur(rows: SaborYogurRow[]): void {
-  SABORES_YOGUR_CATALOG.splice(0, SABORES_YOGUR_CATALOG.length, ...rows.filter((r) => r.activo).map((r) => r.nombre));
-  version += 1;
-  listeners.forEach((l) => l());
-}
-
-export const saborOptions = (): { value: string; label: string }[] =>
-  SABORES_YOGUR_CATALOG.map((n) => ({ value: n, label: n }));
-
 let detailByCode = new Map<string, InsumoLoteRow>();
+
+// ---------------------------------------------------------------------------
+// Sabores de yogur: salen de los lotes de saborizante activos (el administrador
+// escribe el sabor al registrar cada lote). No hay una lista de sabores aparte.
+// "fresa", "Fresa" y "FRESA" son el mismo sabor; las tildes tampoco cuentan.
+// ---------------------------------------------------------------------------
+export const claveSabor = (s: string | null | undefined): string =>
+  String(s ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+/** Sabor registrado en un lote de saborizante ('' si no se conoce). */
+export const saborDeLote = (codigo: string): string =>
+  (detailByCode.get(`saborizante:${codigo}`)?.descripcion ?? '').trim();
+
+/** Sabores disponibles: uno por cada sabor distinto entre los lotes de saborizante activos. */
+export const saborOptions = (): { value: string; label: string }[] => {
+  const vistos = new Map<string, string>();
+  for (const codigo of LOTES_SABORIZANTE_CATALOG) {
+    const sabor = saborDeLote(codigo);
+    const clave = claveSabor(sabor);
+    if (clave && !vistos.has(clave)) vistos.set(clave, sabor);
+  }
+  return Array.from(vistos.values())
+    .sort((a, b) => a.localeCompare(b, 'es'))
+    .map((n) => ({ value: n, label: n }));
+};
+
+/** Lotes de saborizante activos de un sabor. */
+export const lotesSaborizanteDe = (sabor: string): { value: string; label: string }[] => {
+  const clave = claveSabor(sabor);
+  if (!clave) return [];
+  return LOTES_SABORIZANTE_CATALOG.filter((c) => claveSabor(saborDeLote(c)) === clave).map((c) => ({
+    value: c,
+    label: insumoLabel('saborizante', c),
+  }));
+};
 
 export const getInsumoLoteDetail = (tipo: InsumoTipo, codigo: string): InsumoLoteRow | undefined =>
   detailByCode.get(`${tipo}:${codigo}`);
