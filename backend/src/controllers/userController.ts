@@ -6,8 +6,82 @@ import { registrarEvento } from '../services/eventosSeguridad';
 const TURNOS = ['Jornada Continua', 'Mañana', 'Tarde', 'Noche'];
 
 const USER_COLUMNS = `
-  u.id, u.codigo_empleado, u.nombre_completo, u.rol, u.turno,
+  u.id, u.codigo_empleado, u.nombre_completo, u.primer_nombre, u.segundo_nombre,
+  u.primer_apellido, u.segundo_apellido, u.cedula, u.rol, u.turno,
   u.linea_asignada_id, l.codigo AS linea_codigo, u.activo, u.created_at`;
+
+/*
+ * Nombres y cédula. Primer nombre y primer apellido son obligatorios; los segundos, opcionales.
+ * nombre_completo se arma solo (es el que se muestra en lotes, reportes y bitácora).
+ * La cédula se guarda solo con dígitos (se quitan puntos y espacios) y no se puede repetir.
+ */
+interface PartesNombre {
+  primer_nombre: string | null;
+  segundo_nombre: string | null;
+  primer_apellido: string | null;
+  segundo_apellido: string | null;
+}
+const CAMPOS_NOMBRE: (keyof PartesNombre)[] = ['primer_nombre', 'segundo_nombre', 'primer_apellido', 'segundo_apellido'];
+const NOMBRE_VALIDO = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' .-]{2,60}$/;
+const limpiarTexto = (v: unknown): string | null => {
+  const t = String(v ?? '').replace(/\s+/g, ' ').trim();
+  return t ? t.slice(0, 60) : null;
+};
+const unirNombre = (p: PartesNombre): string =>
+  [p.primer_nombre, p.segundo_nombre, p.primer_apellido, p.segundo_apellido].filter(Boolean).join(' ').slice(0, 120);
+
+/** Devuelve el mensaje de error, o null si los nombres son válidos. */
+function errorNombres(p: PartesNombre): string | null {
+  if (!p.primer_nombre) return 'El primer nombre es obligatorio.';
+  if (!p.primer_apellido) return 'El primer apellido es obligatorio.';
+  for (const campo of CAMPOS_NOMBRE) {
+    const v = p[campo];
+    if (v && !NOMBRE_VALIDO.test(v)) {
+      return `"${v}" no es válido: use solo letras (mínimo 2), espacios, guion o apóstrofo.`;
+    }
+  }
+  return null;
+}
+
+/** Compatibilidad: si solo llega nombre_completo, primera palabra = nombre, el resto = apellido. */
+function partesDesdeCompleto(completo: unknown): PartesNombre {
+  const t = limpiarTexto(String(completo ?? '').slice(0, 120)) ?? '';
+  const [primero, ...resto] = t.split(' ');
+  return { primer_nombre: primero || null, segundo_nombre: null, primer_apellido: limpiarTexto(resto.join(' ')), segundo_apellido: null };
+}
+
+const normalizarCedula = (v: unknown): string => String(v ?? '').replace(/[\s.\-]/g, '');
+const cedulaValida = (c: string): boolean => /^\d{5,12}$/.test(c);
+
+async function mensajeCedulaRepetida(cedula: string): Promise<string> {
+  const { rows } = await pool.query(`SELECT codigo_empleado, activo FROM usuarios WHERE cedula = $1;`, [cedula]);
+  if (!rows[0]) return 'Ya existe un usuario con esa cédula.';
+  return rows[0].activo
+    ? `La cédula ya está registrada para el usuario ${rows[0].codigo_empleado}.`
+    : `La cédula pertenece a ${rows[0].codigo_empleado}, que está dado de baja: reactívelo en lugar de crear uno nuevo.`;
+}
+
+// Código de empleado: letras sin tilde, números y guion; de 2 a 30 caracteres (se guarda en mayúsculas).
+const CODIGO_VALIDO = /^[A-Z0-9-]{2,30}$/;
+const MENSAJE_CODIGO = 'El código de empleado debe tener de 2 a 30 caracteres: solo letras (sin tildes ni Ñ), números y guion, sin espacios.';
+const normalizarCodigo = (v: unknown): string => String(v ?? '').trim().toUpperCase();
+
+// El ingreso no distingue mayúsculas, así que tampoco puede haber dos códigos que solo difieran en eso.
+async function codigoOcupado(codigo: string, excluirId: string | null): Promise<boolean> {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM usuarios WHERE UPPER(TRIM(codigo_empleado)) = $1 AND ($2::text IS NULL OR id::text <> $2) LIMIT 1;`,
+    [codigo, excluirId]
+  );
+  return rows.length > 0;
+}
+
+async function mensajeCodigoRepetido(codigo: string): Promise<string> {
+  const { rows } = await pool.query(`SELECT activo FROM usuarios WHERE UPPER(TRIM(codigo_empleado)) = $1 LIMIT 1;`, [codigo]);
+  if (rows[0] && rows[0].activo === false) {
+    return `El código ${codigo} pertenece a un usuario dado de baja: use otro código (por ejemplo ${codigo}2) o reactive ese usuario.`;
+  }
+  return `El código ${codigo} ya está en uso por otro usuario. Use uno diferente (por ejemplo ${codigo}2).`;
+}
 
 async function resolveLine(identifier: unknown): Promise<string | null> {
   if (!identifier) return null;
@@ -32,6 +106,10 @@ export async function listUsers(req: Request, res: Response): Promise<void> {
        ORDER BY u.rol, u.nombre_completo;`,
       [!inactivos]
     );
+    // La cédula es un dato personal: solo la ven administradores y superadmin.
+    if (req.user?.rol === 'operador') {
+      for (const r of rows) delete r.cedula;
+    }
     res.json(rows);
   } catch (error) {
     console.error('[users] Error al listar usuarios:', error);
@@ -89,8 +167,18 @@ async function verificarClaveActual(id: string, claveActual: unknown, req: Reque
 
 export async function createUser(req: Request, res: Response): Promise<void> {
   try {
-    const nombre = String(req.body.nombre_completo ?? '').trim();
-    const codigo = String(req.body.codigo_empleado ?? '').trim().toUpperCase();
+    const traePartes = CAMPOS_NOMBRE.some((c) => Object.prototype.hasOwnProperty.call(req.body, c));
+    const partes: PartesNombre = traePartes
+      ? {
+          primer_nombre: limpiarTexto(req.body.primer_nombre),
+          segundo_nombre: limpiarTexto(req.body.segundo_nombre),
+          primer_apellido: limpiarTexto(req.body.primer_apellido),
+          segundo_apellido: limpiarTexto(req.body.segundo_apellido),
+        }
+      : partesDesdeCompleto(req.body.nombre_completo);
+    const nombre = unirNombre(partes);
+    const cedula = normalizarCedula(req.body.cedula);
+    const codigo = normalizarCodigo(req.body.codigo_empleado);
     const pin = String(req.body.pin ?? '').trim();
     const passwordInput = String(req.body.password ?? '').trim();
     const password = passwordInput || pin;
@@ -101,8 +189,25 @@ export async function createUser(req: Request, res: Response): Promise<void> {
       res.status(403).json({ error: 'FORBIDDEN_ROLE', message: 'Solo el superadmin puede crear administradores.' });
       return;
     }
-    if (nombre.length < 3 || codigo.length < 2) {
-      res.status(400).json({ error: 'MISSING_FIELDS', message: 'Nombre y código de empleado son obligatorios.' });
+    const errNombre = errorNombres(partes);
+    if (errNombre) {
+      res.status(400).json({ error: 'INVALID_NAME', message: errNombre });
+      return;
+    }
+    if (!cedulaValida(cedula)) {
+      res.status(400).json({ error: 'INVALID_CEDULA', message: 'La cédula es obligatoria: solo números, entre 5 y 12 dígitos.' });
+      return;
+    }
+    if (!codigo) {
+      res.status(400).json({ error: 'MISSING_FIELDS', message: 'El código de empleado es obligatorio.' });
+      return;
+    }
+    if (!CODIGO_VALIDO.test(codigo)) {
+      res.status(400).json({ error: 'INVALID_CODE', message: MENSAJE_CODIGO });
+      return;
+    }
+    if (await codigoOcupado(codigo, null)) {
+      res.status(409).json({ error: 'DUPLICATE_CODE', message: await mensajeCodigoRepetido(codigo) });
       return;
     }
     if (!pinValido(pin, rolSolicitado)) {
@@ -116,10 +221,14 @@ export async function createUser(req: Request, res: Response): Promise<void> {
 
     const lineaId = await resolveLine(req.body.linea_asignada_id);
     const { rows } = await pool.query(
-      `INSERT INTO usuarios (codigo_empleado, nombre_completo, rol, turno, pin_hash, password_hash, linea_asignada_id)
-       VALUES ($1, $2, $3, $4, crypt($5, gen_salt('bf', 10)), crypt($6, gen_salt('bf', 10)), $7)
+      `INSERT INTO usuarios (codigo_empleado, nombre_completo, primer_nombre, segundo_nombre, primer_apellido,
+                             segundo_apellido, cedula, rol, turno, pin_hash, password_hash, linea_asignada_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, crypt($10, gen_salt('bf', 10)), crypt($11, gen_salt('bf', 10)), $12)
        RETURNING id;`,
-      [codigo, nombre, rolSolicitado, turno, pin, password, lineaId]
+      [
+        codigo, nombre, partes.primer_nombre, partes.segundo_nombre, partes.primer_apellido, partes.segundo_apellido,
+        cedula, rolSolicitado, turno, pin, password, lineaId,
+      ]
     );
     const created = await pool.query(
       `SELECT ${USER_COLUMNS} FROM usuarios u LEFT JOIN lineas_produccion l ON l.id = u.linea_asignada_id WHERE u.id = $1;`,
@@ -136,7 +245,11 @@ export async function createUser(req: Request, res: Response): Promise<void> {
     res.status(201).json(created.rows[0]);
   } catch (error: any) {
     if (error.code === '23505') {
-      res.status(409).json({ error: 'DUPLICATE_CODE', message: 'Ya existe un usuario con ese código de empleado.' });
+      if (String(error.constraint ?? '').includes('cedula')) {
+        res.status(409).json({ error: 'DUPLICATE_CEDULA', message: await mensajeCedulaRepetida(normalizarCedula(req.body.cedula)) });
+        return;
+      }
+      res.status(409).json({ error: 'DUPLICATE_CODE', message: await mensajeCodigoRepetido(normalizarCodigo(req.body.codigo_empleado)) });
       return;
     }
     console.error('[users] Error al crear usuario:', error);
@@ -148,7 +261,8 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
   try {
     const { id } = req.params;
     const target = await pool.query(
-      `SELECT rol, nombre_completo, codigo_empleado FROM usuarios WHERE id::text = $1 AND activo = TRUE;`,
+      `SELECT rol, nombre_completo, codigo_empleado, cedula, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido
+       FROM usuarios WHERE id::text = $1 AND activo = TRUE;`,
       [id]
     );
     if (target.rows.length === 0) {
@@ -160,7 +274,46 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const nombre = req.body.nombre_completo ? String(req.body.nombre_completo).trim() : null;
+    // Nombres: se toman los que lleguen y se conservan los demás. Un segundo nombre/apellido
+    // enviado vacío se borra; el primero no puede quedar vacío.
+    const actual = target.rows[0];
+    const traePartes = CAMPOS_NOMBRE.some((c) => Object.prototype.hasOwnProperty.call(req.body, c));
+    let partes: PartesNombre | null = null;
+    if (traePartes) {
+      partes = { ...(actual as PartesNombre) };
+      for (const c of CAMPOS_NOMBRE) {
+        if (Object.prototype.hasOwnProperty.call(req.body, c)) partes[c] = limpiarTexto(req.body[c]);
+      }
+    } else if (req.body.nombre_completo) {
+      partes = partesDesdeCompleto(req.body.nombre_completo);
+    }
+    if (partes) {
+      const errNombre = errorNombres(partes);
+      if (errNombre) {
+        res.status(400).json({ error: 'INVALID_NAME', message: errNombre });
+        return;
+      }
+    }
+    const nombre = partes ? unirNombre(partes) : null;
+    const traeCedula = Object.prototype.hasOwnProperty.call(req.body, 'cedula');
+    const cedula = traeCedula ? normalizarCedula(req.body.cedula) : null;
+    if (traeCedula && !cedulaValida(cedula as string)) {
+      res.status(400).json({ error: 'INVALID_CEDULA', message: 'La cédula debe tener solo números, entre 5 y 12 dígitos.' });
+      return;
+    }
+    // Código de empleado: solo se toca si llega y es distinto del actual.
+    const codigoNuevo = Object.prototype.hasOwnProperty.call(req.body, 'codigo_empleado')
+      ? normalizarCodigo(req.body.codigo_empleado)
+      : null;
+    const cambiaCodigo = codigoNuevo !== null && codigoNuevo !== String(actual.codigo_empleado).toUpperCase();
+    if (cambiaCodigo && !CODIGO_VALIDO.test(codigoNuevo as string)) {
+      res.status(400).json({ error: 'INVALID_CODE', message: MENSAJE_CODIGO });
+      return;
+    }
+    if (cambiaCodigo && (await codigoOcupado(codigoNuevo as string, id))) {
+      res.status(409).json({ error: 'DUPLICATE_CODE', message: await mensajeCodigoRepetido(codigoNuevo as string) });
+      return;
+    }
     const turno = TURNOS.includes(req.body.turno) ? req.body.turno : null;
     const pin = req.body.pin ? String(req.body.pin).trim() : null;
     const rolDestino = target.rows[0].rol;
@@ -187,15 +340,27 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     await pool.query(
       `UPDATE usuarios SET
          nombre_completo = COALESCE($2, nombre_completo),
+         primer_nombre = CASE WHEN $9 THEN $10 ELSE primer_nombre END,
+         segundo_nombre = CASE WHEN $9 THEN $11 ELSE segundo_nombre END,
+         primer_apellido = CASE WHEN $9 THEN $12 ELSE primer_apellido END,
+         segundo_apellido = CASE WHEN $9 THEN $13 ELSE segundo_apellido END,
+         cedula = COALESCE($14, cedula),
          turno = COALESCE($3, turno),
          pin_hash = CASE WHEN $4::text IS NULL THEN pin_hash ELSE crypt($4, gen_salt('bf', 10)) END,
          password_hash = CASE WHEN $5::text IS NULL THEN password_hash ELSE crypt($5, gen_salt('bf', 10)) END,
          linea_asignada_id = CASE WHEN $6 THEN $7::uuid ELSE linea_asignada_id END,
+         codigo_empleado = COALESCE($15, codigo_empleado),
          sesiones_desde = CASE WHEN $8 THEN NOW() ELSE sesiones_desde END,
          updated_at = NOW()
        WHERE id::text = $1;`,
-      // Si otra persona le restablece la clave, sus sesiones abiertas se cierran (las propias no).
-      [id, nombre, turno, pin, password, lineaProvided, lineaId, Boolean(pin || password) && req.user?.id !== id]
+      // Si otra persona le restablece la clave o le cambia el código, sus sesiones abiertas se
+      // cierran (las propias no) para que vuelva a entrar con los datos nuevos.
+      [
+        id, nombre, turno, pin, password, lineaProvided, lineaId, Boolean(pin || password || cambiaCodigo) && req.user?.id !== id,
+        Boolean(partes), partes?.primer_nombre ?? null, partes?.segundo_nombre ?? null,
+        partes?.primer_apellido ?? null, partes?.segundo_apellido ?? null, cedula,
+        cambiaCodigo ? codigoNuevo : null,
+      ]
     );
     const updated = await pool.query(
       `SELECT ${USER_COLUMNS} FROM usuarios u LEFT JOIN lineas_produccion l ON l.id = u.linea_asignada_id WHERE u.id::text = $1;`,
@@ -203,7 +368,17 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
     );
     olvidarUsuarioEnCache(id);
     // Bitácora: qué cambió (nunca el valor de la clave).
-    const codigoDestino = target.rows[0].codigo_empleado;
+    const codigoDestino = cambiaCodigo ? (codigoNuevo as string) : target.rows[0].codigo_empleado;
+    if (cambiaCodigo) {
+      void registrarEvento({
+        evento: 'USUARIO_EDITADO',
+        usuarioId: id,
+        codigo: codigoDestino,
+        actorId: req.user?.id,
+        detalle: `Código: ${actual.codigo_empleado} → ${codigoNuevo}`,
+        req,
+      });
+    }
     const esPropia = req.user?.id === id;
     if (pin || passwordInput) {
       const que = pin && passwordInput ? 'PIN y contraseña' : pin ? 'PIN' : 'Contraseña';
@@ -213,6 +388,16 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
         codigo: codigoDestino,
         actorId: req.user?.id,
         detalle: que,
+        req,
+      });
+    }
+    if (cedula && cedula !== actual.cedula) {
+      void registrarEvento({
+        evento: 'USUARIO_EDITADO',
+        usuarioId: id,
+        codigo: codigoDestino,
+        actorId: req.user?.id,
+        detalle: actual.cedula ? 'Cédula corregida' : 'Cédula registrada',
         req,
       });
     }
@@ -227,7 +412,15 @@ export async function updateUser(req: Request, res: Response): Promise<void> {
       });
     }
     res.json(updated.rows[0]);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '23505' && String(error.constraint ?? '').includes('cedula')) {
+      res.status(409).json({ error: 'DUPLICATE_CEDULA', message: await mensajeCedulaRepetida(normalizarCedula(req.body.cedula)) });
+      return;
+    }
+    if (error?.code === '23505') {
+      res.status(409).json({ error: 'DUPLICATE_CODE', message: await mensajeCodigoRepetido(normalizarCodigo(req.body.codigo_empleado)) });
+      return;
+    }
     console.error('[users] Error al actualizar usuario:', error);
     res.status(500).json({ error: 'INTERNAL_ERROR', message: 'Error al actualizar el usuario.' });
   }

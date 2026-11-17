@@ -632,14 +632,36 @@ export async function normalizeBatchTraceability(
   }
 
   const nombres: unknown[] = Array.isArray(b.operariosIntervinientes) ? b.operariosIntervinientes : [];
+  // Busca al operario por su código; si no aparece (p. ej. el administrador le cambió el código
+  // con el lote abierto), lo busca por su nombre, solo si hay exactamente una persona con ese nombre.
+  // Si el código ya es de otra persona con otro nombre (se liberó y se reasignó), manda el nombre.
   const resolverUsuario = async (codigo: string | null, nombre: string): Promise<string | null> => {
-    const found = await client.query(
-      `SELECT id FROM usuarios
-       WHERE activo = TRUE AND (($1::text IS NOT NULL AND codigo_empleado = $1) OR ($1::text IS NULL AND nombre_completo = $2))
-       LIMIT 1;`,
-      [codigo, nombre]
-    );
-    return found.rows[0]?.id ?? null;
+    const soloNombre = nombre.replace(/\s*\([^()]*\)\s*$/, '').trim();
+    // Devuelve el id si hay una sola persona con ese nombre; 'varios' si hay más de una.
+    const buscarPorNombre = async (): Promise<string | 'varios' | null> => {
+      if (!soloNombre) return null;
+      const porNombre = await client.query(
+        `SELECT id FROM usuarios WHERE activo = TRUE AND nombre_completo = $1 LIMIT 2;`,
+        [soloNombre]
+      );
+      if (porNombre.rows.length > 1) return 'varios';
+      return porNombre.rows[0]?.id ?? null;
+    };
+    if (codigo) {
+      const porCodigo = await client.query(
+        `SELECT id, nombre_completo FROM usuarios WHERE activo = TRUE AND UPPER(codigo_empleado) = UPPER($1) LIMIT 1;`,
+        [codigo]
+      );
+      const hallado = porCodigo.rows[0];
+      if (hallado) {
+        if (!soloNombre || hallado.nombre_completo === soloNombre) return hallado.id;
+        const otro = await buscarPorNombre();
+        if (otro === 'varios') return null; // no se puede saber quién fue: mejor no adivinar
+        return otro ?? hallado.id; // nadie más con ese nombre: le corrigieron el nombre, es él
+      }
+    }
+    const porNombre = await buscarPorNombre();
+    return porNombre === 'varios' ? null : porNombre;
   };
 
   const intervinientes: string[] = [];
@@ -670,7 +692,7 @@ export async function normalizeBatchTraceability(
     const codigo = str(a.codigo);
     const etapa = str(a.etapa);
     if (!codigo || !etapa) continue;
-    const usuarioId = await resolverUsuario(codigo, '');
+    const usuarioId = await resolverUsuario(codigo, str(a.nombre));
     if (!usuarioId) continue;
     const primera = new Date(str(a.primeraAccion));
     const ultima = new Date(str(a.ultimaAccion));

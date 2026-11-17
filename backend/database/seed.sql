@@ -281,9 +281,9 @@ ON CONFLICT DO NOTHING;
 --
 -- Hash bcrypt generado aquí con pgcrypto: crypt(clave, gen_salt('bf', 10)).
 -- ============================================================================
-INSERT INTO usuarios (codigo_empleado, nombre_completo, rol, turno, pin_hash, password_hash, linea_asignada_id)
+INSERT INTO usuarios (codigo_empleado, primer_nombre, primer_apellido, nombre_completo, rol, turno, pin_hash, password_hash, linea_asignada_id)
 VALUES
-    ('SA-001', 'Superadmin QCS', 'superadmin', 'Jornada Continua',
+    ('SA-001', 'Superadmin', 'QCS', 'Superadmin QCS', 'superadmin', 'Jornada Continua',
         crypt('123456', gen_salt('bf', 10)), crypt('123456', gen_salt('bf', 10)), NULL)
 ON CONFLICT DO NOTHING;
 

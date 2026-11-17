@@ -62,25 +62,26 @@ WHERE NOT EXISTS (SELECT 1 FROM sabores_yogur y WHERE LOWER(y.nombre) = LOWER(v.
 --   OP-105    operador       1050   1234
 --   OP-106..108 operadores   1060/1070/1080   1234
 --   (El superadmin SA-001 lo crea seed.sql con la clave temporal 123456.)
-INSERT INTO usuarios (codigo_empleado, nombre_completo, rol, turno, pin_hash, password_hash, linea_asignada_id)
+INSERT INTO usuarios (codigo_empleado, primer_nombre, segundo_nombre, primer_apellido, segundo_apellido,
+                      nombre_completo, cedula, rol, turno, pin_hash, password_hash, linea_asignada_id)
 VALUES
-    ('ADM-901', 'Ing. David Rojas',      'administrador', 'Jornada Continua',
+    ('ADM-901', 'David', NULL, 'Rojas', NULL, 'David Rojas', '1010000901', 'administrador', 'Jornada Continua',
         crypt('9090', gen_salt('bf', 10)), crypt('admin', gen_salt('bf', 10)), NULL),
-    ('OP-104',  'Carlos Mendoza',        'operador',      'Jornada Continua',
+    ('OP-104',  'Carlos', NULL, 'Mendoza', NULL, 'Carlos Mendoza', '1010000104', 'operador', 'Jornada Continua',
         crypt('1040', gen_salt('bf', 10)), crypt('1234',  gen_salt('bf', 10)),
         (SELECT id FROM lineas_produccion WHERE codigo = 'L-HILADA-01')),
-    ('OP-105',  'Luisa Ramírez',         'operador',      'Jornada Continua',
+    ('OP-105',  'Luisa', NULL, 'Ramírez', NULL, 'Luisa Ramírez', '1010000105', 'operador', 'Jornada Continua',
         crypt('1050', gen_salt('bf', 10)), crypt('1234',  gen_salt('bf', 10)),
         (SELECT id FROM lineas_produccion WHERE codigo = 'L-FERMENT-02')),
-    ('ADM-902', 'Ing. Paola Restrepo',   'administrador', 'Jornada Continua',
+    ('ADM-902', 'Paola', NULL, 'Restrepo', NULL, 'Paola Restrepo', '1010000902', 'administrador', 'Jornada Continua',
         crypt('9091', gen_salt('bf', 10)), crypt('admin', gen_salt('bf', 10)), NULL),
-    ('OP-106',  'María Fernanda López',  'operador',      'Mañana',
+    ('OP-106',  'María', 'Fernanda', 'López', NULL, 'María Fernanda López', '1010000106', 'operador', 'Jornada Continua',
         crypt('1060', gen_salt('bf', 10)), crypt('1234',  gen_salt('bf', 10)),
         (SELECT id FROM lineas_produccion WHERE codigo = 'L-HILADA-01')),
-    ('OP-107',  'Andrés Felipe Gómez',   'operador',      'Tarde',
+    ('OP-107',  'Andrés', 'Felipe', 'Gómez', NULL, 'Andrés Felipe Gómez', '1010000107', 'operador', 'Jornada Continua',
         crypt('1070', gen_salt('bf', 10)), crypt('1234',  gen_salt('bf', 10)),
         (SELECT id FROM lineas_produccion WHERE codigo = 'L-FERMENT-02')),
-    ('OP-108',  'Diana Carolina Muñoz',  'operador',      'Noche',
+    ('OP-108',  'Diana', 'Carolina', 'Muñoz', NULL, 'Diana Carolina Muñoz', '1010000108', 'operador', 'Jornada Continua',
         crypt('1080', gen_salt('bf', 10)), crypt('1234',  gen_salt('bf', 10)),
         (SELECT id FROM lineas_produccion WHERE codigo = 'L-FERMENT-02'))
 ON CONFLICT (codigo_empleado) DO NOTHING;

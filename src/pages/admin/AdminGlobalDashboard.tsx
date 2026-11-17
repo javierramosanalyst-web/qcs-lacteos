@@ -13,6 +13,7 @@ import {
 import { InsumosManager } from './InsumosManager';
 import { ExportCenter } from './ExportCenter';
 import { SuperadminPanel } from './SuperadminPanel';
+import { detalleUsuario } from '../../utils/usuarios';
 import { ReactivateUserModal } from './modals/ReactivateUserModal';
 import { loteDeFila } from '../../utils/lote';
 
@@ -136,8 +137,6 @@ const SUPERADMIN_TAB: { key: AdminTab; label: string; icon: string } = {
   icon: 'shield_person',
 };
 
-const rolTexto = (u: UserProfile): string =>
-  u.isSuperAdmin ? 'Superadmin' : u.role === 'administrador' ? 'Administrador' : 'Operador';
 
 export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
   lines,
@@ -392,8 +391,6 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
   );
 
   const filterInput = 'w-full min-w-[64px] rounded-md border border-[#D6DEEA] bg-white px-1.5 py-1 text-[10px] font-normal normal-case text-gray-700 outline-none focus:border-[#1B4E9B]';
-  const lineName = (id?: string) => lines.find((l) => l.id === id)?.name ?? 'Flotante';
-
   return (
     <div className="flex flex-col w-full p-4 lg:p-6 gap-6 bg-[#F2F4F7] min-h-[calc(100vh-4rem)] pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 p-4 sm:p-5 lg:p-6 rounded-2xl shadow-sm bg-gradient-to-r from-[#1B4E9B] to-[#143A73] text-white">
@@ -1164,7 +1161,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                         {u.name} {isSelf && <span className="text-[10px] text-gray-500">(tú)</span>}
                       </div>
                       <div className="text-[10px] text-gray-500 truncate">
-                        {u.code} · {rolTexto(u)} · {lineName(u.assignedLineId)}
+                        {detalleUsuario(u)}
                       </div>
                     </div>
                   </div>
@@ -1216,7 +1213,7 @@ export const AdminGlobalDashboard: React.FC<AdminGlobalDashboardProps> = ({
                   <div className="min-w-0">
                     <div className="font-bold text-gray-700 truncate">{u.name}</div>
                     <div className="text-[10px] text-gray-500 truncate">
-                      {u.code} · {rolTexto(u)}
+                      {detalleUsuario(u)}
                     </div>
                   </div>
                   {u.role === 'administrador' && !isSuper ? (

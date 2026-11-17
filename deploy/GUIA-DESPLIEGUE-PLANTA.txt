@@ -73,8 +73,9 @@ Copie a una USB:
 
 Lleve anotado en papel:
   - Clave del usuario  ubuntu  del servidor (para sudo).
-  - Datos del administrador real: nombre completo, código (ej. ADM-001), PIN y
-    contraseña (mín. 8 caracteres).
+  - Datos del administrador real: primer nombre, segundo nombre (opcional),
+    primer apellido, segundo apellido (opcional), cédula, código (ej. ADM-001),
+    PIN y contraseña (mín. 8 caracteres).
   - Su celular con la hora correcta (se usa para poner la hora del servidor).
 
 
@@ -381,11 +382,15 @@ En el navegador de la tablet:  http://<IP_SERVIDOR>
   [ ] Abre la pantalla de ingreso, con el aviso de datos personales abajo.
   [ ] Ingresar con SA-001 / 123456.
   [ ] Pestaña "Panel Superadmin" visible.
-  [ ] Crear un administrador DE PRUEBA (ej. ADM-PRUEBA, contraseña 8+).
+  [ ] Crear un administrador DE PRUEBA (ej. ADM-PRUEBA, nombres, cédula
+      inventada, contraseña 8+).
   [ ] Salir, entrar con ADM-PRUEBA.
   [ ] Insumos y Lotes: registrar un lote de leche, cultivo, cuajo, sal, azúcar.
   [ ] Registrar un sabor de yogur.
-  [ ] Usuarios: crear un operario DE PRUEBA (ej. OP-PRUEBA, PIN 123).
+  [ ] Usuarios: crear un operario DE PRUEBA (ej. OP-PRUEBA, PIN 123), con
+      primer nombre, primer apellido y cédula. Probar que NO deja guardar sin
+      cédula ni con una cédula repetida.
+  [ ] En la lista de Usuarios se ve "CC <cédula> · desde <fecha de registro>".
   [ ] Salir, entrar con OP-PRUEBA / 123.
   [ ] Iniciar un lote (ej. Yogur), avanzar etapas, envasar y cerrar.
   [ ] Entrar con ADM-PRUEBA: el lote aparece en "Producción de hoy" e historial.

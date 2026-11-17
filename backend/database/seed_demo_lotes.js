@@ -513,20 +513,21 @@ async function main() {
 
     await client.query(`CREATE EXTENSION IF NOT EXISTS pgcrypto;`);
     await client.query(
-      `INSERT INTO usuarios (codigo_empleado, nombre_completo, rol, turno, pin_hash, password_hash, linea_asignada_id)
+      `INSERT INTO usuarios (codigo_empleado, primer_nombre, segundo_nombre, primer_apellido, nombre_completo, cedula,
+                             rol, turno, pin_hash, password_hash, linea_asignada_id)
        VALUES
-         ('ADM-902', 'Ing. Paola Restrepo',  'administrador', 'Jornada Continua',
+         ('ADM-902', 'Paola', NULL, 'Restrepo', 'Paola Restrepo', '1010000902', 'administrador', 'Jornada Continua',
             crypt('9091', gen_salt('bf', 10)), crypt('admin', gen_salt('bf', 10)), NULL),
-         ('OP-106',  'María Fernanda López', 'operador', 'Mañana',
+         ('OP-106', 'María', 'Fernanda', 'López', 'María Fernanda López', '1010000106', 'operador', 'Jornada Continua',
             crypt('1060', gen_salt('bf', 10)), crypt('1234', gen_salt('bf', 10)),
             (SELECT id FROM lineas_produccion WHERE codigo = 'L-HILADA-01')),
-         ('OP-107',  'Andrés Felipe Gómez',  'operador', 'Tarde',
+         ('OP-107', 'Andrés', 'Felipe', 'Gómez', 'Andrés Felipe Gómez', '1010000107', 'operador', 'Jornada Continua',
             crypt('1070', gen_salt('bf', 10)), crypt('1234', gen_salt('bf', 10)),
             (SELECT id FROM lineas_produccion WHERE codigo = 'L-FERMENT-02')),
-         ('OP-108',  'Diana Carolina Muñoz', 'operador', 'Noche',
+         ('OP-108', 'Diana', 'Carolina', 'Muñoz', 'Diana Carolina Muñoz', '1010000108', 'operador', 'Jornada Continua',
             crypt('1080', gen_salt('bf', 10)), crypt('1234', gen_salt('bf', 10)),
             (SELECT id FROM lineas_produccion WHERE codigo = 'L-FERMENT-02'))
-       ON CONFLICT (codigo_empleado) DO NOTHING;`
+       ON CONFLICT DO NOTHING;`
     );
 
     const usuarios = await client.query(`SELECT id, codigo_empleado FROM usuarios;`);

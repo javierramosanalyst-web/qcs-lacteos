@@ -1,6 +1,7 @@
 import React from 'react';
 import { UserProfile } from '../../types';
 import { SecurityLog } from './SecurityLog';
+import { detalleUsuario } from '../../utils/usuarios';
 
 interface SuperadminPanelProps {
   users: UserProfile[];
@@ -15,8 +16,6 @@ interface SuperadminPanelProps {
 
 const card = 'bg-white rounded-2xl border border-[#D6DEEA] shadow-xs';
 
-const rolTexto = (u: UserProfile): string =>
-  u.isSuperAdmin ? 'Superadmin' : u.role === 'administrador' ? 'Administrador' : 'Operador';
 
 /**
  * Panel propio del superadmin: gestión de administradores (crear, editar, dar de baja, reactivar)
@@ -122,7 +121,7 @@ export const SuperadminPanel: React.FC<SuperadminPanelProps> = ({
                       {u.name} {isSelf && <span className="text-[10px] text-gray-500">(tú)</span>}
                     </div>
                     <div className="text-[10px] text-gray-500 truncate">
-                      {u.code} · {rolTexto(u)}
+                      {detalleUsuario(u)}
                     </div>
                   </div>
                 </div>
@@ -164,7 +163,7 @@ export const SuperadminPanel: React.FC<SuperadminPanelProps> = ({
                 <div className="min-w-0">
                   <div className="font-bold text-gray-700 truncate">{u.name}</div>
                   <div className="text-[10px] text-gray-500 truncate">
-                    {u.code} · {rolTexto(u)}
+                    {detalleUsuario(u)}
                   </div>
                 </div>
                 <button

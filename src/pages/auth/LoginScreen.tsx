@@ -9,6 +9,7 @@ interface LoginScreenProps {
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [userCode, setUserCode] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [timeStr, setTimeStr] = useState('');
   const [loading, setLoading] = useState(false);
@@ -121,16 +122,32 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 <div className="relative flex items-center">
                   <span className="material-symbols-outlined absolute left-3 text-[18px] text-gray-400">key</span>
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     autoComplete="current-password"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     onChange={(e) => {
                       setPassword(e.target.value);
                       setErrorMsg('');
                     }}
                     placeholder="•••"
-                    className={inputClass}
+                    className={inputClass.replace('pr-3', 'pr-12')}
                   />
+                  {/* Mostrar / ocultar lo escrito, para revisar el PIN antes de ingresar */}
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? 'Ocultar contraseña o PIN' : 'Mostrar contraseña o PIN'}
+                    aria-pressed={showPassword}
+                    title={showPassword ? 'Ocultar' : 'Mostrar'}
+                    className="absolute right-1 w-10 h-10 rounded-lg flex items-center justify-center text-gray-500 hover:text-[#1B4E9B] hover:bg-[#1B4E9B]/5 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">
+                      {showPassword ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
                 </div>
               </div>
 
