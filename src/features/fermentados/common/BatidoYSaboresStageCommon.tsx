@@ -11,7 +11,7 @@ import {
   Badge,
 } from '../../../components/ui';
 import { ProcessTimerState } from '../../../types';
-import { insumoOptions, saborOptions } from '../../../data/insumoLotes';
+import { claveSabor, insumoOptions, lotesSaborizanteDe, saborDeLote, saborOptions } from '../../../data/insumoLotes';
 import { BatidoYAdicionesYogurState, SaborYogurReceta } from '../../../types/yogur';
 import { BatidoYAdicionesKumisState } from '../../../types/kumis';
 import {
@@ -120,6 +120,15 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
       ''
   );
 
+  // ¿Este lote sin azúcar lleva stevia? Si no, es 100 % natural: no se pide lote ni cantidad
+  // y en el envasado solo salen los envases "Sin Azúcar (Natural)". Lotes antiguos que ya
+  // tenían lote de stevia se consideran con stevia.
+  const [llevaStevia, setLlevaStevia] = useState<boolean>(() => {
+    const a = (state.adiciones as any) || {};
+    if (typeof a.llevaStevia === 'boolean') return a.llevaStevia;
+    return Boolean(a.loteStevia || variedadEsteviaState.loteEstevia);
+  });
+
   const [manualPaso1Stevia, setManualPaso1Stevia] = useState<boolean>(
     Boolean((state.adiciones as any)?.esManualStevia)
   );
@@ -159,6 +168,12 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
     setSabores((prev) => prev.map((s) => (s.id === id ? { ...s, ...cambios } : s)));
   };
 
+  // Al elegir el sabor se ofrecen solo sus lotes de saborizante; si hay uno solo, queda elegido.
+  const handleElegirSabor = (id: string, sabor: string) => {
+    const lotes = lotesSaborizanteDe(sabor);
+    handleCambioSabor(id, { sabor, loteSaborizante: lotes.length === 1 ? lotes[0].value : '' });
+  };
+
   const handleConfirmReceta = () => {
     const incompleto = sabores.find((s) => !s.sabor);
     if (incompleto) {
@@ -166,7 +181,7 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
       return;
     }
     const nombres = sabores.map((s) => s.sabor);
-    if (new Set(nombres).size !== nombres.length) {
+    if (new Set(nombres.map(claveSabor)).size !== nombres.length) {
       showToast('Hay sabores repetidos. Quita el duplicado.', 'warning');
       return;
     }
@@ -176,6 +191,18 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
     );
     if (sinInsumos) {
       showToast(`Registra cantidad y lote de saborizante para ${sinInsumos.sabor}.`, 'warning');
+      return;
+    }
+    // El lote de saborizante tiene que ser del mismo sabor (el sabor lo registró el administrador en el lote).
+    const noCoincide = sabores.find((s) => {
+      const saborLote = saborDeLote(s.loteSaborizante.trim());
+      return saborLote !== '' && claveSabor(saborLote) !== claveSabor(s.sabor);
+    });
+    if (noCoincide) {
+      showToast(
+        `El lote ${noCoincide.loteSaborizante} es de ${saborDeLote(noCoincide.loteSaborizante.trim())}, no de ${noCoincide.sabor}. Elige un lote de ${noCoincide.sabor}.`,
+        'warning'
+      );
       return;
     }
     const sinLoteColor = sabores.find((s) => Number(s.coloranteMl) > 0 && !s.loteColorante.trim());
@@ -261,18 +288,50 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
   // MANEJADORES PASO 01 (ALTERNATIVO): ADICIÓN DE STEVIA
   // =========================================================================
   const handleConfirmStevia = () => {
+    const timeStr = getCurrentTimeString();
+    if (!llevaStevia) {
+      onChange((prev: any) => ({
+        ...prev,
+        adiciones: {
+          ...prev.adiciones,
+          tipoYogur: 'sin_azucar',
+          llevaStevia: false,
+          steviaConfirmada: true,
+          registrado: true,
+          horaRegistro: timeStr,
+          horaAdicionStevia: timeStr,
+          horaPreparacionReceta: timeStr,
+          gramosStevia: 0,
+          loteStevia: '',
+          variedadEstevia: {
+            ...(prev.adiciones?.variedadEstevia || {}),
+            litrosBase: litrosLecheBase,
+            gramosEstevia: 0,
+            loteEstevia: '',
+            registrado: true,
+            horaAdicion: timeStr,
+          },
+        },
+      }));
+      showToast(`✓ Lote 100 % natural, sin stevia (${timeStr}). Paso de batido habilitado.`, 'success');
+      return;
+    }
     if (!loteStevia.trim()) {
       showToast('Selecciona el lote de Stevia antes de confirmar.', 'warning');
       return;
     }
-    const timeStr = getCurrentTimeString();
     const numStevia = cantidadStevia === '' ? 0 : Number(cantidadStevia);
+    if (!(numStevia > 0)) {
+      showToast('Escribe la cantidad de Stevia (g) que agregaste.', 'warning');
+      return;
+    }
 
     onChange((prev: any) => ({
       ...prev,
       adiciones: {
         ...prev.adiciones,
         tipoYogur: 'con_estevia',
+        llevaStevia: true,
         steviaConfirmada: true,
         registrado: true,
         horaRegistro: timeStr,
@@ -394,10 +453,12 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
                     <select
                       value={s.sabor}
                       disabled={isRecetaConfirmada}
-                      onChange={(e) => handleCambioSabor(s.id, { sabor: e.target.value })}
+                      onChange={(e) => handleElegirSabor(s.id, e.target.value)}
                       className="w-full bg-white px-3 py-2.5 rounded-xl border border-[#D6DEEA] font-bold text-sm text-[#191C1E] outline-none shadow-2xs disabled:opacity-70"
                     >
-                      <option value="">Selecciona sabor</option>
+                      <option value="">
+                        {saborOptions().length === 0 ? 'No hay lotes de saborizante registrados' : 'Selecciona sabor'}
+                      </option>
                       {conActual(saborOptions(), s.sabor).map((o) => (
                         <option key={o.value} value={o.value}>
                           {o.value}
@@ -421,8 +482,9 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
                   <SelectField
                     label="Lote de Saborizante"
                     icon="qr_code"
-                    options={conActual(insumoOptions('saborizante'), s.loteSaborizante)}
-                    disabled={isRecetaConfirmada}
+                    options={conActual(lotesSaborizanteDe(s.sabor), s.loteSaborizante)}
+                    disabled={isRecetaConfirmada || !s.sabor}
+                    hint={s.sabor ? `Lotes de saborizante de ${s.sabor}` : 'Primero elige el sabor'}
                     value={s.loteSaborizante}
                     onChange={(e) => handleCambioSabor(s.id, { loteSaborizante: e.target.value })}
                   />
@@ -474,13 +536,15 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
         /* PASO 01 ALTERNATIVO (SIN AZÚCAR): ¡ADICIÓN DE STEVIA! */
         <Card
           stepBadge="Paso 01"
-          title="¡Adición de Stevia!"
+          title="Stevia (opcional)"
           icon="eco"
           tone={isSteviaConfirmada ? 'completed' : 'active'}
           statusBadge={
             isSteviaConfirmada
               ? {
-                  label: `Stevia Agregada (${horaSteviaDisplay || 'Confirmada'}) ✓`,
+                  label: (state.adiciones as any)?.llevaStevia === false
+                    ? `Sin stevia · 100 % natural (${horaSteviaDisplay || 'Confirmado'}) ✓`
+                    : `Stevia Agregada (${horaSteviaDisplay || 'Confirmada'}) ✓`,
                   variant: 'success',
                 }
               : { label: 'Por Agregar', variant: 'warning' }
@@ -498,7 +562,29 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
           }
         >
           <div className="space-y-4">
+            <label
+              className={`flex items-center gap-3 p-3.5 rounded-xl border-2 ${
+                llevaStevia ? 'border-emerald-300 bg-emerald-50/60' : 'border-[#D6DEEA] bg-[#F7F9FC]'
+              } cursor-pointer`}
+            >
+              <input
+                type="checkbox"
+                className="w-5 h-5 accent-emerald-700"
+                checked={llevaStevia}
+                onChange={(e) => setLlevaStevia(e.target.checked)}
+              />
+              <span className="flex flex-col">
+                <span className="text-sm font-black text-[#191C1E]">Este lote lleva stevia</span>
+                <span className="text-[11px] text-[#6B7280]">
+                  {llevaStevia
+                    ? 'Se registran cantidad y lote, y en el envasado salen también los envases "Con Stevia".'
+                    : 'Sin marcar: yogur 100 % natural. En el envasado solo salen los envases "Sin Azúcar (Natural)".'}
+                </span>
+              </span>
+            </label>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {llevaStevia && (<>
               {/* Insumo 1: Cantidad de Stevia (g) */}
               <InputField
                 label="Cantidad de Stevia (g)"
@@ -522,11 +608,12 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
                 onChange={(e) => setLoteStevia(e.target.value)}
                 hint="Selecciona el lote del insumo edulcorante"
               />
+              </>)}
 
               {/* Resumen / Estado de Adición */}
               <div className="p-3.5 bg-[#FFFFFF] rounded-xl border border-[#D6DEEA] flex flex-col justify-between">
                 <span className="text-[11px] uppercase font-bold text-[#4A5263]">
-                  Hora de Adición
+                  {llevaStevia ? 'Hora de Adición' : 'Hora de Confirmación'}
                 </span>
                 <div className="text-xl font-black font-mono text-[#191C1E] mt-1">
                   {horaSteviaDisplay || '--:--:--'}
@@ -575,9 +662,13 @@ export const BatidoYSaboresStageCommon: React.FC<BatidoYSaboresStageCommonProps>
                   : 'font-bold shadow-sm'
               }
             >
-              {isSteviaConfirmada
-                ? `✓ ¡Ya agregué la stevia! (${horaSteviaDisplay || 'OK'})`
-                : '¡Ya agregué la stevia!'}
+              {llevaStevia
+                ? isSteviaConfirmada
+                  ? `✓ ¡Ya agregué la stevia! (${horaSteviaDisplay || 'OK'})`
+                  : '¡Ya agregué la stevia!'
+                : isSteviaConfirmada
+                ? `✓ Sin stevia: 100 % natural (${horaSteviaDisplay || 'OK'})`
+                : 'Confirmar: este lote va sin stevia (100 % natural)'}
             </Button>
           </div>
         </Card>

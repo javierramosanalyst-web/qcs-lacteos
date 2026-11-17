@@ -198,6 +198,10 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
     ? pasteurizacion.llevaAzucar
     : true;
 
+  // Yogur sin azúcar: los envases "Con Stevia" solo salen si en "Receta y Sabores" se marcó
+  // que el lote lleva stevia (los lotes antiguos, sin esa marca, los siguen mostrando).
+  const llevaStevia = (batch as any).batidoYAdiciones?.adiciones?.llevaStevia !== false;
+
   const allActiveConfigs = useMemo(() => {
     if (isKumis) {
       return FORMAT_CONFIGS_KUMIS_CON_AZUCAR;
@@ -205,8 +209,8 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
     if (isConAzucar) {
       return FORMAT_CONFIGS_YOGUR_CON_AZUCAR;
     }
-    return ALL_FORMAT_CONFIGS_SIN_AZUCAR;
-  }, [isConAzucar, isKumis]);
+    return llevaStevia ? ALL_FORMAT_CONFIGS_SIN_AZUCAR : FORMAT_CONFIGS_SIN_AZUCAR_NATURAL;
+  }, [isConAzucar, isKumis, llevaStevia]);
 
   // =========================================================================
   // PASO 01: CONTEO DE ENVASES Y EDICIÓN MANUAL
@@ -265,6 +269,12 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
       const v = cantidades[fmt.key];
       updatedFormatos[fmt.key] = typeof v === 'number' ? v : 0;
     });
+    // Si el lote quedó sin stevia, ningún envase "Con Stevia" puede quedar contado.
+    if (!isConAzucar && !llevaStevia) {
+      FORMAT_CONFIGS_CON_STEVIA.forEach((fmt) => {
+        updatedFormatos[fmt.key] = 0;
+      });
+    }
 
     onChange((prev: any) => ({
       ...prev,
@@ -297,19 +307,21 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
 
   // Subtotales Categoría 2: Con Stevia
   const subtotalUnidadesStevia = useMemo(() => {
+    if (!llevaStevia) return 0;
     return FORMAT_CONFIGS_CON_STEVIA.reduce((acc, fmt) => {
       const count = typeof cantidades[fmt.key] === 'number' ? (cantidades[fmt.key] as number) : 0;
       return acc + count;
     }, 0);
-  }, [cantidades]);
+  }, [cantidades, llevaStevia]);
 
   const subtotalLitrosStevia = useMemo(() => {
+    if (!llevaStevia) return 0;
     const sum = FORMAT_CONFIGS_CON_STEVIA.reduce((acc, fmt) => {
       const count = typeof cantidades[fmt.key] === 'number' ? (cantidades[fmt.key] as number) : 0;
       return acc + count * fmt.litrosPorUnidad;
     }, 0);
     return Number(sum.toFixed(2));
-  }, [cantidades]);
+  }, [cantidades, llevaStevia]);
 
   // Totales y cálculos matemáticos (sumando absolutamente TODOS los envases de ambas categorías)
   const totalUnidades = useMemo(() => {
@@ -437,7 +449,7 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
         totalStages={isKumis ? 3 : 5}
         lineName={
           isYogur
-            ? `Línea de Fermentados · Yogur (${isConAzucar ? 'Con Azúcar' : 'Sin Azúcar - Stevia'})`
+            ? `Línea de Fermentados · Yogur (${isConAzucar ? 'Con Azúcar' : llevaStevia ? 'Sin Azúcar - Stevia' : 'Sin Azúcar - Natural'})`
             : 'Línea de Fermentados · Kumis Tradicional'
         }
         title={isKumis ? '3. Envasar y Guardar' : '5. Guardar'}
@@ -468,7 +480,9 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
         title={
           isConAzucar
             ? 'Conteo de Envases y Presentaciones'
-            : 'Conteo de Envases y Presentaciones (Sin Azúcar / Stevia)'
+            : llevaStevia
+            ? 'Conteo de Envases y Presentaciones (Sin Azúcar / Stevia)'
+            : 'Conteo de Envases y Presentaciones (Sin Azúcar · 100 % Natural)'
         }
         icon="format_list_numbered"
         tone={hasInitialSaved ? 'completed' : 'default'}
@@ -511,8 +525,9 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
             </div>
 
             {/* ========================================================================= */}
-            {/* CATEGORÍA 2: ENVASES "CON STEVIA" - 5 CAMPOS                              */}
+            {/* CATEGORÍA 2: ENVASES "CON STEVIA" - 5 CAMPOS (solo si el lote lleva stevia) */}
             {/* ========================================================================= */}
+            {llevaStevia && (
             <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/40 border-2 border-emerald-200/90 shadow-2xs flex flex-col gap-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-emerald-200 gap-2">
                 <div className="flex items-center gap-2.5">
@@ -540,6 +555,7 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
                 {FORMAT_CONFIGS_CON_STEVIA.map((fmt) => renderFormatCard(fmt))}
               </div>
             </div>
+            )}
           </div>
         ) : (
           <div
@@ -623,8 +639,10 @@ export const EnvasadoStageCommon: React.FC<EnvasadoStageCommonProps> = ({
               {totalLitrosEnvasados.toFixed(2)} L
             </div>
             <span className="text-[11px] text-amber-800 mt-1 block">
-              {!isConAzucar
+              {!isConAzucar && llevaStevia
                 ? `Sin Azúcar (${subtotalLitrosSinAzucar.toFixed(1)} L) + Stevia (${subtotalLitrosStevia.toFixed(1)} L)`
+                : !isConAzucar
+                ? `Sin Azúcar · 100 % natural (${totalUnidades} u.)`
                 : `Suma de todas las presentaciones (${totalUnidades} u.)`}
             </span>
           </div>

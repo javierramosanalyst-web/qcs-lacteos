@@ -370,7 +370,7 @@ export const construirHojas = (rep: ReporteProduccion, filtros: DescripcionFiltr
       { key: 'kg', label: 'Producido (kg) *' },
       { key: 'unidades', label: 'Unidades *' },
       { key: 'rend', label: 'Rendimiento promedio (%) *', format: 'decimal' },
-      { key: 'duracion', label: 'Duración promedio (h:mm) *', format: 'duracion' },
+      { key: 'duracion', label: 'Duración promedio (h:mm:ss) *', format: 'duracion' },
     ],
     rows: filasResumen,
     extra: [
@@ -419,7 +419,7 @@ export const construirHojas = (rep: ReporteProduccion, filtros: DescripcionFiltr
       { key: 'horaInicio', label: 'Hora de inicio', format: 'hora' },
       { key: 'fechaFin', label: 'Fecha de cierre', format: 'fecha' },
       { key: 'horaFin', label: 'Hora de cierre', format: 'hora' },
-      { key: 'duracion', label: 'Duración (h:mm)', format: 'duracion' },
+      { key: 'duracion', label: 'Duración (h:mm:ss)', format: 'duracion' },
       { key: 'leche', label: 'Leche (L)' },
       { key: 'kg', label: 'Producido (kg)' },
       { key: 'unidades', label: 'Unidades' },
@@ -511,8 +511,12 @@ const fmtDuracion = (seg: number | null | undefined): string => {
 const fechaHoraTexto = (iso: string | null | undefined) => (iso ? `${fmtDate(iso)} ${fmtTime(iso)}` : '');
 const duracionCorta = (seg: number | null | undefined) => {
   if (seg === null || seg === undefined || seg <= 0) return '';
-  const min = Math.round(seg / 60);
-  return min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`;
+  const total = Math.round(seg);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor(total / 60) % 60;
+  const s = total % 60;
+  if (h > 0) return `${h} h ${String(m).padStart(2, '0')} min ${String(s).padStart(2, '0')} s`;
+  return m > 0 ? `${m} min ${String(s).padStart(2, '0')} s` : `${s} s`;
 };
 
 /**

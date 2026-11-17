@@ -144,14 +144,8 @@ CREATE TABLE insumos_catalogo (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Sabores de yogur que registra el administrador (se eligen en el batido).
-CREATE TABLE sabores_yogur (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nombre VARCHAR(80) NOT NULL,
-    activo BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE UNIQUE INDEX uq_sabores_yogur_nombre ON sabores_yogur (LOWER(nombre));
+-- Sabores de yogur: no tienen tabla propia. El sabor es la descripción de cada lote de
+-- saborizante (insumos_lotes.descripcion), y es lo que el operario elige en "Receta y Sabores".
 
 -- Lotes de insumo recibidos (bultos, frascos). Permite trazabilidad hacia atrás.
 CREATE TABLE insumos_lotes (

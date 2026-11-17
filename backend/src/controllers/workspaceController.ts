@@ -947,9 +947,34 @@ export async function rectifyBatchField(req: Request, res: Response): Promise<vo
     unit,
     reasonCategory,
     justification,
+    extras,
+    textoAnterior,
+    textoNuevo,
   } = req.body;
 
   const justificacion = String(justification ?? '').trim();
+  // Datos que cambian junto con el corregido (duraciones recalculadas, totales, copias del dato).
+  const RUTA_VALIDA = /^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/;
+  const vinculados: { path: string; value: unknown }[] = Array.isArray(extras) ? extras : [];
+  if (
+    vinculados.length > 60 ||
+    vinculados.some(
+      (x) =>
+        !x ||
+        typeof x.path !== 'string' ||
+        !RUTA_VALIDA.test(x.path) ||
+        /(^|\.)(__proto__|constructor|prototype)(\.|$)/.test(x.path) ||
+        !(x.value === null || typeof x.value === 'string' || (typeof x.value === 'number' && Number.isFinite(x.value)))
+    )
+  ) {
+    res.status(400).json({ error: 'INVALID_EXTRAS', message: 'Los datos vinculados de la corrección no son válidos.' });
+    return;
+  }
+  // Ningún dato del lote puede quedar negativo.
+  if ((typeof newValue === 'number' && newValue < 0) || vinculados.some((x) => typeof x.value === 'number' && x.value < 0)) {
+    res.status(400).json({ error: 'NEGATIVE_VALUE', message: 'El valor no puede ser negativo.' });
+    return;
+  }
   if (!codigoLote || !fieldKey || newValue === undefined || estado === undefined) {
     res.status(400).json({ error: 'MISSING_FIELDS', message: 'Faltan datos de la rectificación.' });
     return;
@@ -990,6 +1015,12 @@ export async function rectifyBatchField(req: Request, res: Response): Promise<vo
         let nc: any = next.batch;
         for (let i = 0; i < keys.length - 1; i += 1) nc = nc[keys[i]];
         nc[last] = newValue;
+        for (const x of vinculados) {
+          const k = x.path.split('.');
+          let c: any = next.batch;
+          for (let i = 0; i < k.length - 1 && c !== undefined && c !== null; i += 1) c = c[k[i]];
+          if (c !== undefined && c !== null && typeof c === 'object' && k[k.length - 1] in c) c[k[k.length - 1]] = x.value;
+        }
         // Recalcula los totales que dependen del conteo corregido (peso y número de moldes, alias del griego).
         sincronizarTotalesTrasCorreccion(next.batch, String(fieldKey));
         estadoFinal = next;
@@ -1028,8 +1059,8 @@ export async function rectifyBatchField(req: Request, res: Response): Promise<vo
         stageLabel ?? null,
         String(fieldKey),
         String(fieldLabel ?? fieldKey),
-        String(valorAnterior ?? ''),
-        String(newValue),
+        (typeof textoAnterior === 'string' && textoAnterior.trim() ? textoAnterior.trim() : String(valorAnterior ?? '')).slice(0, 255),
+        (typeof textoNuevo === 'string' && textoNuevo.trim() ? textoNuevo.trim() : String(newValue)).slice(0, 255),
         unit ?? null,
         String(reasonCategory ?? 'Ajuste operativo'),
         justificacion,

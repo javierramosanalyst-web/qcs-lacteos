@@ -62,7 +62,7 @@ psql -U postgres -d qcs_lacteos -f backend/database/seed.sql
 
 Con eso la base queda completa y lista: no hace falta nada más. `seed.sql` solo crea los catálogos y el superadmin `SA-001`.
 
-**Solo en tu PC de desarrollo**, para tener usuarios, insumos y sabores de prueba:
+**Solo en tu PC de desarrollo**, para tener usuarios e insumos de prueba (con saborizantes de Fresa, Melocotón y Mora):
 
 ```powershell
 psql -U postgres -d qcs_lacteos -f backend/database/seed_demo.sql
@@ -153,7 +153,7 @@ Al reactivar un administrador, el superadmin le asigna un PIN y una contraseña 
 | --- | --- | --- | --- |
 | `SA-001` | Superadmin | `123456` | `123456` (temporal) |
 
-Al entrar por primera vez, cambia el PIN y la contraseña en **Panel Superadmin → Mi cuenta** y registra al administrador de la planta. Él registra a los operarios, los lotes de insumos y los sabores.
+Al entrar por primera vez, cambia el PIN y la contraseña en **Panel Superadmin → Mi cuenta** y registra al administrador de la planta. Él registra a los operarios y los lotes de insumos. Los sabores de yogur salen de los lotes de saborizante: al registrar cada uno se escribe su sabor (Fresa, Mora...), y eso es lo que el operario elige en "Receta y Sabores".
 
 ### Datos de cada usuario
 

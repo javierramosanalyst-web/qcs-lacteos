@@ -42,6 +42,32 @@ function parseBody(body: any) {
   };
 }
 
+// Saborizante: el sabor (descripción) es obligatorio y es lo que el operario elige en "Receta y Sabores".
+// Se guarda con la misma escritura que ya tenga ese sabor en otro lote ("fresa" -> "Fresa"),
+// así todos los lotes de un sabor quedan agrupados.
+const SABOR_VALIDO = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]{2,40}$/;
+const claveSabor = (s: string): string =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+const capitalizar = (s: string): string =>
+  s
+    .toLocaleLowerCase('es')
+    .split(' ')
+    .map((p) => (p ? p.charAt(0).toLocaleUpperCase('es') + p.slice(1) : p))
+    .join(' ');
+
+async function normalizarSabor(sabor: string | null, excluirId: string | null): Promise<string | null> {
+  const limpio = String(sabor ?? '').replace(/\s+/g, ' ').trim();
+  if (!SABOR_VALIDO.test(limpio)) return null;
+  const { rows } = await pool.query(
+    `SELECT DISTINCT il.descripcion FROM insumos_lotes il JOIN insumos_catalogo ic ON ic.id = il.insumo_id
+     WHERE ic.tipo_insumo = 'saborizante' AND il.descripcion IS NOT NULL AND ($1::text IS NULL OR il.id::text <> $1);`,
+    [excluirId]
+  );
+  const igual = rows.find((r: any) => claveSabor(String(r.descripcion)) === claveSabor(limpio));
+  return igual ? String(igual.descripcion).trim() : capitalizar(limpio);
+}
+const MENSAJE_SABOR = 'Escribe el sabor del saborizante (ej. Fresa, Mora): solo letras, sin códigos ni referencias.';
+
 function invalid(res: Response, message: string) {
   res.status(400).json({ error: 'INVALID_INPUT', message });
 }
@@ -92,6 +118,11 @@ export async function createInsumoLote(req: Request, res: Response): Promise<voi
   try {
     const t = await tipoGestionable(tipo);
     if (!t) return invalid(res, 'Tipo de insumo no válido.');
+    if (t.codigo === 'saborizante') {
+      const sabor = await normalizarSabor(b.descripcion, null);
+      if (!sabor) return invalid(res, MENSAJE_SABOR);
+      b.descripcion = sabor;
+    }
     const insumoId = await catalogoId(t);
     const { rows } = await pool.query(
       `INSERT INTO insumos_lotes (insumo_id, codigo_lote, descripcion, proveedor, fecha_vencimiento, cantidad_recibida)
@@ -115,6 +146,15 @@ export async function updateInsumoLote(req: Request, res: Response): Promise<voi
   if (!b.codigo) return invalid(res, 'El código del lote es obligatorio.');
   if (b.cantidad !== null && (!Number.isFinite(b.cantidad) || b.cantidad < 0)) return invalid(res, 'La cantidad recibida no es válida.');
   try {
+    const actual = await pool.query(
+      `SELECT ic.tipo_insumo FROM insumos_lotes il JOIN insumos_catalogo ic ON ic.id = il.insumo_id WHERE il.id::text = $1;`,
+      [req.params.id]
+    );
+    if (actual.rows[0]?.tipo_insumo === 'saborizante') {
+      const sabor = await normalizarSabor(b.descripcion, req.params.id);
+      if (!sabor) return invalid(res, MENSAJE_SABOR);
+      b.descripcion = sabor;
+    }
     const { rowCount } = await pool.query(
       `UPDATE insumos_lotes SET codigo_lote = $2, descripcion = $3, proveedor = $4, fecha_vencimiento = $5, cantidad_recibida = $6
        WHERE id = $1;`,

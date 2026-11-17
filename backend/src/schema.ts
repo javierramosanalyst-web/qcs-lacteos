@@ -142,13 +142,8 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_insumos_catalogo_tipo ON insumos_catalogo(tipo_insumo);
 CREATE INDEX IF NOT EXISTS idx_insumos_utilizados_tipo ON lote_insumos_utilizados(tipo_insumo);
 
-CREATE TABLE IF NOT EXISTS sabores_yogur (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    nombre VARCHAR(80) NOT NULL,
-    activo BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_sabores_yogur_nombre ON sabores_yogur (LOWER(nombre));
+-- (La antigua tabla sabores_yogur ya no se usa: el sabor sale del lote de saborizante.
+--  En bases que la tengan se deja quieta; no se borra nada.)
 
 -- Yogur Griego: Bolsa de 4 L (natural y con stevia). Se mide en kg como el resto del Griego.
 INSERT INTO formatos_envase (codigo, descripcion, tipo_linea, categoria_variedad, capacidad_unitaria, unidad_medida) VALUES

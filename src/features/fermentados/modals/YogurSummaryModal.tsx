@@ -115,7 +115,7 @@ export const YogurSummaryModal: React.FC<YogurSummaryModalProps> = ({
     (batidoYAdiciones.adiciones as any)?.cantidadSteviaGramos ??
     0;
   const isSteviaUtilizada = Boolean(
-    !llevaAzucar && (
+    !llevaAzucar && (batidoYAdiciones.adiciones as any)?.llevaStevia !== false && (
       (batidoYAdiciones.adiciones as any)?.steviaConfirmada ||
       (batidoYAdiciones.adiciones as any)?.horaAdicionStevia ||
       batidoYAdiciones.adiciones?.variedadEstevia?.horaAdicion ||
@@ -194,6 +194,23 @@ export const YogurSummaryModal: React.FC<YogurSummaryModalProps> = ({
   const tiempoAfueraCF = salidaCF && ingresoCF ? computeDurationBetweenTimes(salidaCF, ingresoCF).human : '--';
   const saboresLote = (batidoYAdiciones.lotesSabor || []).map((l) => l.sabor).join(', ');
 
+  // Receta por sabor: cada sabor con su lote y cantidad de saborizante y de colorante.
+  const recetaPorSabor: {
+    sabor: string;
+    loteSaborizante: string;
+    saborizanteMl: number;
+    loteColorante: string;
+    coloranteMl: number;
+  }[] = llevaAzucar
+    ? ((rawAdiciones?.sabores as any[]) || []).map((s: any) => ({
+        sabor: String(s?.sabor || 'Sin sabor'),
+        loteSaborizante: String(s?.loteSaborizante || ''),
+        saborizanteMl: Number(s?.saborizanteMl) || 0,
+        loteColorante: String(s?.loteColorante || ''),
+        coloranteMl: Number(s?.coloranteMl) || 0,
+      }))
+    : [];
+
   return (
     <ProductionSummaryModal
       isOpen={isOpen}
@@ -247,7 +264,14 @@ export const YogurSummaryModal: React.FC<YogurSummaryModalProps> = ({
           items: [
             { label: 'Azúcar', value: hasAzucar ? `${gramosAzucar} g (${loteAzucar || '--'})` : 'Sin azúcar' },
             { label: 'Stevia', value: hasEstevia ? `${gramosEstevia} g (${loteEstevia || '--'})` : 'No aplica' },
-            { label: 'Saborizante', value: hasSaborizante ? `${saborNombre} · ${cantidadSaborizante} ml` : 'Natural' },
+            ...(recetaPorSabor.length > 0
+              ? recetaPorSabor.map((r) => ({
+                  label: r.sabor,
+                  value: `Saborizante ${r.saborizanteMl} ml (${r.loteSaborizante || '--'})${
+                    r.coloranteMl > 0 ? ` · Colorante ${r.coloranteMl} ml (${r.loteColorante || '--'})` : ' · Sin colorante'
+                  }`,
+                }))
+              : [{ label: 'Saborizante', value: hasSaborizante ? `${saborNombre} · ${cantidadSaborizante} ml` : 'Natural' }]),
             { label: 'Masa formulada', value: `${totalFormuladoKg.toFixed(2)} kg` },
           ],
         },
@@ -477,7 +501,11 @@ export const YogurSummaryModal: React.FC<YogurSummaryModalProps> = ({
                     hasSaborizante ? 'text-rose-950' : 'text-gray-400'
                   }`}
                 >
-                  {hasSaborizante ? (loteSaborizante || '--') : 'N/A'}
+                  {hasSaborizante
+                    ? recetaPorSabor.length > 1
+                      ? `${recetaPorSabor.length} sabores (ver detalle abajo)`
+                      : loteSaborizante || '--'
+                    : 'N/A'}
                 </span>
                 <div
                   className={`mt-1 pt-1 border-t flex items-center justify-between ${
@@ -502,6 +530,40 @@ export const YogurSummaryModal: React.FC<YogurSummaryModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* 2b. SECCIÓN: Receta por sabor (lote y cantidad de saborizante y colorante de cada sabor) */}
+          {recetaPorSabor.length > 0 && (
+            <div className="bg-[#FFFFFF] p-3.5 rounded-xl border border-rose-200 flex flex-col gap-2.5 shadow-2xs">
+              <span className="text-xs font-bold text-[#191c1e] flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[18px] text-rose-700">local_florist</span>
+                Receta por sabor ({recetaPorSabor.length})
+              </span>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[520px] text-xs">
+                  <thead>
+                    <tr className="text-left text-[10px] uppercase text-gray-500 border-b border-rose-100">
+                      <th className="py-1.5 pr-3">Sabor</th>
+                      <th className="pr-3">Lote saborizante</th>
+                      <th className="pr-3 text-right">Saborizante</th>
+                      <th className="pr-3">Lote colorante</th>
+                      <th className="text-right">Colorante</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recetaPorSabor.map((r, i) => (
+                      <tr key={`${r.sabor}-${i}`} className="border-b border-rose-50">
+                        <td className="py-1.5 pr-3 font-bold text-rose-900">{r.sabor}</td>
+                        <td className="pr-3 font-mono font-bold">{r.loteSaborizante || '--'}</td>
+                        <td className="pr-3 text-right font-mono">{r.saborizanteMl} ml</td>
+                        <td className="pr-3 font-mono font-bold">{r.coloranteMl > 0 ? r.loteColorante || '--' : '—'}</td>
+                        <td className="text-right font-mono">{r.coloranteMl > 0 ? `${r.coloranteMl} ml` : 'Sin colorante'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* 3. SECCIÓN: "Resumen de Producción y Variedades (Yogur)" */}
           <div className="bg-[#FFFFFF] p-3.5 rounded-xl border border-purple-200 flex flex-col gap-2.5 shadow-2xs">

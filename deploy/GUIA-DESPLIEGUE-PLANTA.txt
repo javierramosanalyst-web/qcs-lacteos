@@ -386,7 +386,8 @@ En el navegador de la tablet:  http://<IP_SERVIDOR>
       inventada, contraseña 8+).
   [ ] Salir, entrar con ADM-PRUEBA.
   [ ] Insumos y Lotes: registrar un lote de leche, cultivo, cuajo, sal, azúcar.
-  [ ] Registrar un sabor de yogur.
+  [ ] Registrar un lote de saborizante con su sabor (ej. Fresa) y ver que
+      aparece en Yogur > Receta y Sabores.
   [ ] Usuarios: crear un operario DE PRUEBA (ej. OP-PRUEBA, PIN 123), con
       primer nombre, primer apellido y cédula. Probar que NO deja guardar sin
       cédula ni con una cédula repetida.
@@ -479,8 +480,8 @@ FASE F — DEJAR TODO LIMPIO PARA PRODUCCIÓN
 Verificar (todo debe estar vacío salvo catálogos y SA-001):
   $ psql "$URL" -Atc "select codigo_empleado from usuarios"
     Debe salir SOLO: SA-001
-  $ psql "$URL" -Atc "select (select count(*) from lotes_produccion), (select count(*) from insumos_lotes), (select count(*) from sabores_yogur), (select count(*) from auditoria_rectificaciones), (select count(*) from eventos_seguridad)"
-    Debe salir: 0|0|0|0|0
+  $ psql "$URL" -Atc "select (select count(*) from lotes_produccion), (select count(*) from insumos_lotes), (select count(*) from auditoria_rectificaciones), (select count(*) from eventos_seguridad)"
+    Debe salir: 0|0|0|0
 
 --- PASO 19. Borrar las copias de seguridad de las pruebas ---------------------
 
@@ -592,7 +593,8 @@ FASE H — ENTREGA
   [ ] ~/respaldo-anterior guardado (versión vieja, por si acaso).
   [ ] Paquete y .tar.gz viejos borrados del servidor.
   [ ] Claves del superadmin y del servidor anotadas y guardadas en lugar seguro.
-  [ ] El administrador sabe: registrar operarios, insumos y sabores; que las
+  [ ] El administrador sabe: registrar operarios e insumos (el sabor va en
+      cada lote de saborizante); que las
       copias son automáticas; y que si el servidor falla se usa papel.
 
 Recomendaciones de operación (dígaselas al administrador):

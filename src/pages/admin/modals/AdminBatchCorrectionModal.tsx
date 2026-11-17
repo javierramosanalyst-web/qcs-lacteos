@@ -1,12 +1,24 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal } from '../../../components/ui';
+import {
+  CambioVinculado,
+  CampoCorregible,
+  camposCorregibles,
+  cambiosDeCorreccion,
+  lotesUsados,
+} from '../../../utils/camposCorreccion';
 
 export interface BatchCorrectionPayload {
   path: string;
   stageLabel: string;
   label: string;
-  oldValue: number;
-  newValue: number;
+  oldValue: number | string;
+  newValue: number | string;
+  unit: string;
+  /** Todos los datos que cambian (el campo y los que dependen de él). */
+  cambios: CambioVinculado[];
+  textoAnterior: string;
+  textoNuevo: string;
   reasonCategory: string;
   justification: string;
 }
@@ -21,15 +33,6 @@ interface AdminBatchCorrectionModalProps {
   onApply: (payload: BatchCorrectionPayload) => Promise<string | null>;
 }
 
-interface FlatField {
-  path: string;
-  stageLabel: string;
-  label: string;
-  value: number;
-}
-
-const SKIP_KEY = /(timer|timestamp|fecha|hora|time|At$|Ms$|^id$|version|elapsed|segundos|startedAt|endedAt)/i;
-
 const REASON_CATEGORIES = [
   'Error de lectura de instrumento / sensor descalibrado',
   'Corrección de muestra analizada en laboratorio de calidad',
@@ -37,150 +40,8 @@ const REASON_CATEGORIES = [
   'Ajuste por tara o calibración de báscula de piso',
   'Desviación técnica justificada por Jefe de Turno',
   'Falla en sensor PT-100 / caudalímetro reemplazado',
+  'Corte de energía o falla de la tableta: se registra la hora real',
 ];
-
-const humanize = (key: string): string =>
-  key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/^\w/, (c) => c.toUpperCase());
-
-const STAGE_ORDER = [
-  'acidificar',
-  'calentar y cuajar',
-  'desuerar',
-  'hilar',
-  'moldear',
-  'pasteurizacion',
-  'inoculacion',
-  'maduracion frio',
-  'batido y adiciones',
-  'envasado',
-];
-
-const stageRank = (label: string): number => {
-  const norm = label
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const idx = STAGE_ORDER.findIndex((s) => norm === s || norm.startsWith(s));
-  return idx === -1 ? STAGE_ORDER.length : idx;
-};
-
-type ProductScope = 'kumis' | 'yogur' | 'griego' | 'otro';
-
-const SCOPE_LABEL: Record<ProductScope, string> = {
-  kumis: 'Kumis',
-  yogur: 'Yogur',
-  griego: 'Yogur Griego',
-  otro: '',
-};
-
-const resolveScope = (productId?: string): ProductScope => {
-  if (productId === 'prod-kumis') return 'kumis';
-  if (productId === 'prod-yogur') return 'yogur';
-  if (productId === 'prod-yogur-griego') return 'griego';
-  return 'otro';
-};
-
-const KUMIS_FIELD = /(^|\.)(litrosKumis|litrosKumisDestinados|formatosKumis|kumis[A-Z][A-Za-z0-9]*)(\.|$)/;
-const GRIEGO_FIELD =
-  /(^|\.)(litrosYogurGriego|extraccionGriego|formatosSinEstevia|formatosConEstevia|variedadSinEstevia|variedadConEstevia)(\.|$)/;
-const YOGUR_SIN_AZUCAR = /(^|\.)(litrosYogurSinAzucar|variedadSinAzucar|sinAzucar_[A-Za-z0-9]+)(\.|$)/;
-const YOGUR_ESTEVIA = /(^|\.)(variedadEstevia|stevia_[A-Za-z0-9]+|botella120ml)(\.|$)/;
-const YOGUR_AZUCAR = /(^|\.)(litrosYogurConAzucar|variedadAzucar)(\.|$)/;
-const YOGUR_FORMATOS = /(^|\.)formatos\.(botella200ml|botella1000g|botella500g|vaso200g|vaso150g)(\.|$)/;
-const YOGUR_ADICIONES_EXTRA =
-  /(^|\.)(sabor|saborizanteMl|loteSaborizante|coloranteMl|loteColorante|kilosSaborizante)(\.|$)/;
-
-const yogurVariedades = (batch: any) => {
-  const adiciones = batch?.batidoYAdiciones?.adiciones ?? {};
-  const division = batch?.pasteurizacion?.divisionLeche ?? {};
-  return {
-    sinAzucar: adiciones.tipoYogur === 'sin_azucar' || Number(division.litrosYogurSinAzucar) > 0,
-    estevia: adiciones.tipoYogur === 'con_estevia' || Number(adiciones.variedadEstevia?.litrosBase) > 0,
-    azucar: adiciones.tipoYogur === 'con_azucar' || Number(division.litrosYogurConAzucar) > 0,
-  };
-};
-
-const loteIncluyeKumis = (batch: any): boolean =>
-  Boolean(batch?.pasteurizacion?.incluyeKumis) ||
-  Number(batch?.pasteurizacion?.litrosKumisDestinados) > 0 ||
-  Number(batch?.pasteurizacion?.divisionLeche?.litrosKumis) > 0;
-
-const isForeignField = (path: string, scope: ProductScope, batch: any): boolean => {
-  if (scope === 'otro') return false;
-
-  if (scope === 'kumis') {
-    return (
-      /(^|\.)(litrosYogurConAzucar|litrosYogurSinAzucar|litrosYogurGriego|litrosKumisDestinados)(\.|$)/.test(path) ||
-      GRIEGO_FIELD.test(path) ||
-      /(^|\.)formatosKumis(\.|$)/.test(path) ||
-      /(^|\.)(variedadSinAzucar|variedadEstevia|variedadNatural)(\.|$)/.test(path) ||
-      /(^|\.)(sinAzucar_[A-Za-z0-9]+|stevia_[A-Za-z0-9]+)(\.|$)/.test(path) ||
-      YOGUR_FORMATOS.test(path) ||
-      YOGUR_ADICIONES_EXTRA.test(path)
-    );
-  }
-
-  if (scope === 'yogur') {
-    if (GRIEGO_FIELD.test(path)) return true;
-    if (/(^|\.)formatosKumis(\.|$)/.test(path)) return true;
-    if (/(^|\.)formulacion(\.|$)/.test(path)) return true;
-    if (/(^|\.)temperaturaIncubacion(\.|$)/.test(path)) return true;
-    if (
-      /(^|\.)variedadNatural(\.|$)/.test(path) &&
-      Number(batch?.batidoYAdiciones?.adiciones?.variedadNatural?.litrosBase) <= 0
-    ) {
-      return true;
-    }
-    if (KUMIS_FIELD.test(path) && !loteIncluyeKumis(batch)) return true;
-    const variedades = yogurVariedades(batch);
-    if (!variedades.sinAzucar && YOGUR_SIN_AZUCAR.test(path)) return true;
-    if (!variedades.estevia && YOGUR_ESTEVIA.test(path)) return true;
-    if (!variedades.azucar && YOGUR_AZUCAR.test(path)) return true;
-    return false;
-  }
-
-  return (
-    /(^|\.)(litrosYogurConAzucar|litrosYogurSinAzucar|litrosKumis|litrosKumisDestinados)(\.|$)/.test(path) ||
-    /(^|\.)(kumis[A-Z][A-Za-z0-9]*|formatosKumis|extraccionKumis)(\.|$)/.test(path) ||
-    /(^|\.)(variedadSinAzucar|variedadAzucar|variedadEstevia|variedadNatural)(\.|$)/.test(path) ||
-    /(^|\.)(sinAzucar_[A-Za-z0-9]+|stevia_[A-Za-z0-9]+)(\.|$)/.test(path) ||
-    /(^|\.)adiciones(\.|$)/.test(path) ||
-    YOGUR_FORMATOS.test(path)
-  );
-};
-
-const flatten = (node: any, trail: string[], out: FlatField[]) => {
-  if (node === null || node === undefined) return;
-  if (typeof node === 'number') {
-    if (!Number.isFinite(node) || Math.abs(node) > 1e11) return;
-    const labels = trail.map((t) => (/^\d+$/.test(t) ? `#${Number(t) + 1}` : humanize(t)));
-    out.push({
-      path: trail.join('.'),
-      stageLabel: labels[0] ?? 'Lote',
-      label: labels.slice(1).join(' › ') || labels[0] || 'Valor',
-      value: node,
-    });
-    return;
-  }
-  if (Array.isArray(node)) {
-    node.forEach((item, i) => flatten(item, [...trail, String(i)], out));
-    return;
-  }
-  if (typeof node === 'object') {
-    Object.keys(node).forEach((k) => {
-      if (SKIP_KEY.test(k)) return;
-      flatten(node[k], [...trail, k], out);
-    });
-  }
-};
 
 export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps> = ({
   isOpen,
@@ -191,31 +52,19 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
   productId,
   onApply,
 }) => {
-  const scope = resolveScope(productId);
-
-  const fields = useMemo(() => {
-    const out: FlatField[] = [];
-    flatten(batch, [], out);
-    return out.filter((f) => !isForeignField(f.path, scope, batch));
-  }, [batch, scope]);
+  const fields = useMemo(() => camposCorregibles(batch, productId ?? ''), [batch, productId]);
+  const lotes = useMemo(() => lotesUsados(batch, productId ?? ''), [batch, productId]);
 
   const stageGroups = useMemo(() => {
-    const order: string[] = [];
-    const map = new Map<string, FlatField[]>();
+    const map = new Map<string, CampoCorregible[]>();
     fields.forEach((f) => {
-      if (!map.has(f.stageLabel)) {
-        map.set(f.stageLabel, []);
-        order.push(f.stageLabel);
-      }
-      map.get(f.stageLabel)!.push(f);
+      if (!map.has(f.etapaLabel)) map.set(f.etapaLabel, []);
+      map.get(f.etapaLabel)!.push(f);
     });
-    return order
-      .map((label, idx) => ({ label, index: idx + 1, items: map.get(label)! }))
-      .sort((a, b) => stageRank(a.label) - stageRank(b.label))
-      .map((g, idx) => ({ ...g, index: idx + 1 }));
+    return Array.from(map, ([label, items]) => ({ label, items }));
   }, [fields]);
 
-  const [selectedPath, setSelectedPath] = useState('');
+  const [selectedId, setSelectedId] = useState('');
   const [newValueInput, setNewValueInput] = useState('');
   const [reasonCategory, setReasonCategory] = useState(REASON_CATEGORIES[0]);
   const [justification, setJustification] = useState('');
@@ -223,12 +72,12 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
   const [saving, setSaving] = useState(false);
   const valueInputRef = useRef<HTMLInputElement>(null);
 
-  const current = fields.find((f) => f.path === selectedPath) ?? fields[0];
+  const current = fields.find((f) => f.id === selectedId) ?? fields[0];
 
   useEffect(() => {
     if (!isOpen) return;
-    setSelectedPath(fields[0]?.path ?? '');
-    setNewValueInput(fields[0] ? String(fields[0].value) : '');
+    setSelectedId(fields[0]?.id ?? '');
+    setNewValueInput(fields[0] ? String(fields[0].valor) : '');
     setJustification('');
     setErrorMsg('');
   }, [isOpen, fields]);
@@ -237,10 +86,10 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
 
   const justificationValid = justification.trim().length >= 15;
 
-  const handleSelect = (path: string) => {
-    setSelectedPath(path);
-    const f = fields.find((x) => x.path === path);
-    setNewValueInput(f ? String(f.value) : '');
+  const handleSelect = (id: string) => {
+    setSelectedId(id);
+    const f = fields.find((x) => x.id === id);
+    setNewValueInput(f ? String(f.valor) : '');
     setErrorMsg('');
     requestAnimationFrame(() => {
       if (window.matchMedia('(max-width: 1023px)').matches) {
@@ -253,32 +102,56 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!current) return;
-    const parsed = parseFloat(newValueInput);
-    if (isNaN(parsed)) {
-      setErrorMsg('Ingresa un valor numérico válido.');
-      return;
-    }
-    if (parsed === current.value) {
-      setErrorMsg('El nuevo valor debe ser diferente del valor registrado.');
-      return;
+    let nuevo: number | string;
+    let textoNuevo: string;
+    if (current.tipo === 'numero') {
+      const parsed = parseFloat(newValueInput.replace(',', '.'));
+      if (isNaN(parsed)) {
+        setErrorMsg('Ingresa un valor numérico válido.');
+        return;
+      }
+      if (parsed === current.valor) {
+        setErrorMsg('El nuevo valor debe ser diferente del valor registrado.');
+        return;
+      }
+      nuevo = parsed;
+      textoNuevo = `${parsed}${current.unidad && current.unidad !== 'unid' ? ` ${current.unidad}` : ''}`;
+    } else {
+      const h = newValueInput.length === 5 ? `${newValueInput}:00` : newValueInput;
+      if (h === current.valor) {
+        setErrorMsg('La nueva hora debe ser diferente de la registrada.');
+        return;
+      }
+      nuevo = h;
+      textoNuevo = h;
     }
     if (!justificationValid) {
       setErrorMsg('La justificación debe tener al menos 15 caracteres.');
       return;
     }
+    const { cambios, error } = cambiosDeCorreccion(batch, productId ?? '', current, nuevo);
+    if (error) {
+      setErrorMsg(error);
+      return;
+    }
+    const principal = cambios.find((c) => c.path === current.path);
     setSaving(true);
-    const error = await onApply({
+    const result = await onApply({
       path: current.path,
-      stageLabel: current.stageLabel,
+      stageLabel: current.etapaLabel,
       label: current.label,
-      oldValue: current.value,
-      newValue: parsed,
+      oldValue: current.valor,
+      newValue: (principal?.value as number | string) ?? nuevo,
+      unit: current.unidad,
+      cambios,
+      textoAnterior: current.texto,
+      textoNuevo: current.tipo === 'hora' ? String(principal?.value ?? textoNuevo) : textoNuevo,
       reasonCategory,
       justification: justification.trim(),
     });
     setSaving(false);
-    if (error) {
-      setErrorMsg(error);
+    if (result) {
+      setErrorMsg(result);
       return;
     }
     onClose();
@@ -303,7 +176,7 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
         {fields.length === 0 ? (
           <div className="w-full p-5 sm:p-6 flex flex-col gap-4">
             <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-xs font-bold text-amber-900">
-              Este lote no tiene variables numéricas registradas para corregir.
+              Este lote todavía no tiene datos registrados que se puedan corregir.
             </div>
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#D6DEEA]">
               <button
@@ -320,41 +193,55 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
             <div className="lg:w-[54%] lg:min-w-0 lg:overflow-y-auto p-5 sm:p-6 flex flex-col gap-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <label className="text-xs font-bold text-gray-800">
-                  1. ETAPA Y VARIABLE A CORREGIR
+                  1. ETAPA Y DATO A CORREGIR
                 </label>
-                <span className="flex flex-wrap items-center gap-2">
-                  {scope !== 'otro' && (
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-full">
-                      Solo variables de {SCOPE_LABEL[scope]}
-                    </span>
-                  )}
-                  <span className="text-[11px] font-bold text-[#1B4E9B]">
-                    {stageGroups.length} etapa(s) · {fields.length} variable(s)
-                  </span>
+                <span className="text-[11px] font-bold text-[#1B4E9B]">
+                  {stageGroups.length} etapa(s) · {fields.length} dato(s)
                 </span>
               </div>
+              <p className="text-[11px] text-gray-500 -mt-1">
+                Cantidades, mediciones y horas que registró el operario. Al corregir una hora se recalculan
+                solas las duraciones que dependen de ella.
+              </p>
+              {lotes.length > 0 && (
+                <details className="p-3 rounded-2xl bg-[#F7F9FC] border border-[#D6DEEA]">
+                  <summary className="text-xs font-black text-gray-800 cursor-pointer">
+                    Lotes de insumos usados ({lotes.length}) · solo consulta
+                  </summary>
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {lotes.map((l) => (
+                      <div key={`${l.label}-${l.codigo}`} className="px-2.5 py-1.5 rounded-xl bg-white border border-[#E6EBF3]">
+                        <span className="block text-[10px] uppercase font-bold text-gray-500 leading-tight">
+                          {l.etapaLabel} › {l.label}
+                        </span>
+                        <span className="block text-xs font-black font-mono text-gray-800 break-all">{l.codigo}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
               <div className="space-y-3">
-                {stageGroups.map((stage) => (
+                {stageGroups.map((stage, idx) => (
                   <div key={stage.label} className="p-3 sm:p-4 bg-white rounded-2xl border border-[#D6DEEA]">
                     <h4 className="font-black text-gray-900 text-sm mb-2 flex flex-wrap items-center justify-between gap-2">
                       <span className="flex items-center gap-2">
                         <span className="w-6 h-6 rounded-full bg-[#1B4E9B] text-white text-[11px] font-black flex items-center justify-center shrink-0">
-                          {stage.index}
+                          {idx + 1}
                         </span>
                         <span>{stage.label}</span>
                       </span>
                       <span className="text-[10px] font-bold uppercase text-gray-500">
-                        {stage.items.length} variable(s)
+                        {stage.items.length} dato(s)
                       </span>
                     </h4>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                       {stage.items.map((f) => {
-                        const selected = current?.path === f.path;
+                        const selected = current?.id === f.id;
                         return (
                           <button
-                            key={f.path}
+                            key={f.id}
                             type="button"
-                            onClick={() => handleSelect(f.path)}
+                            onClick={() => handleSelect(f.id)}
                             aria-pressed={selected}
                             className={`text-left rounded-xl px-2.5 py-2 border transition-all cursor-pointer ${
                               selected
@@ -363,6 +250,9 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
                             }`}
                           >
                             <span className="block text-[10px] uppercase font-bold text-gray-500 leading-tight">
+                              {f.tipo === 'hora' && (
+                                <span className="material-symbols-outlined text-[12px] align-[-2px] mr-0.5">schedule</span>
+                              )}
                               {f.label}
                             </span>
                             <span
@@ -370,7 +260,7 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
                                 selected ? 'text-red-800' : 'text-gray-800'
                               }`}
                             >
-                              {f.value}
+                              {f.texto}
                             </span>
                           </button>
                         );
@@ -387,27 +277,31 @@ export const AdminBatchCorrectionModal: React.FC<AdminBatchCorrectionModalProps>
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs font-bold text-gray-800">2. RECTIFICACIÓN DEL DATO</span>
                 <span className="text-[11px] font-bold text-red-800 break-words">
-                  {current ? `${current.stageLabel} › ${current.label}` : '—'}
+                  {current ? `${current.etapaLabel} › ${current.label}` : '—'}
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
                 <div className="p-4 rounded-2xl bg-gray-50 border border-gray-300 flex flex-col justify-between">
                   <span className="text-[10px] uppercase font-bold text-gray-500">Valor actual registrado</span>
-                  <span className="mt-2 text-3xl font-black font-mono text-gray-700">{current?.value}</span>
+                  <span className="mt-2 text-3xl font-black font-mono text-gray-700">{current?.texto}</span>
                 </div>
                 <div className="p-4 rounded-2xl bg-red-50 border border-red-300 flex flex-col justify-between">
                   <label
                     htmlFor="batch-correction-new-value"
                     className="text-[10px] uppercase font-bold text-red-800"
                   >
-                    Nuevo valor rectificado
+                    {current?.tipo === 'hora'
+                      ? 'Nueva hora'
+                      : `Nuevo valor${current?.unidad && current.unidad !== 'unid' ? ` (${current.unidad})` : ''}`}
                   </label>
                   <input
                     id="batch-correction-new-value"
                     ref={valueInputRef}
-                    type="number"
-                    step="any"
+                    type={current?.tipo === 'hora' ? 'time' : 'number'}
+                    step={current?.tipo === 'hora' ? 1 : 'any'}
+                    min={current?.tipo === 'hora' ? undefined : 0}
+                    max={current?.esPh ? 14 : undefined}
                     value={newValueInput}
                     onChange={(e) => {
                       setNewValueInput(e.target.value);

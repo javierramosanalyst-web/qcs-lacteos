@@ -7,7 +7,7 @@
 --     formatos de envase)
 --   - UN usuario superadmin con clave TEMPORAL (ver sección 6)
 -- Todo lo demás lo registra el administrador desde la aplicación: operarios, lotes de
--- insumos y sabores de yogur. Para pruebas en desarrollo: seed_demo.sql.
+-- insumos (los sabores de yogur salen de los lotes de saborizante). Para pruebas: seed_demo.sql.
 --
 -- USO:
 --   psql -U <usuario> -d <base> -f backend/database/seed.sql
@@ -277,7 +277,7 @@ ON CONFLICT DO NOTHING;
 --
 -- !! Al entrar por primera vez, cambie el PIN y la contraseña en
 -- !! Panel Superadmin -> Mi cuenta. Después registre al administrador de la planta;
--- !! él registra a los operarios, los lotes de insumos y los sabores.
+-- !! él registra a los operarios y los lotes de insumos (el sabor va en cada saborizante).
 --
 -- Hash bcrypt generado aquí con pgcrypto: crypt(clave, gen_salt('bf', 10)).
 -- ============================================================================

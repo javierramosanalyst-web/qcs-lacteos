@@ -11,7 +11,6 @@ import {
   updateInsumoLoteRequest,
 } from '../../api/client';
 import { InsumoLoteRow, InsumoTipo, setInsumoLotes } from '../../data/insumoLotes';
-import { SaboresManager } from './SaboresManager';
 
 const card = 'bg-white rounded-2xl border border-[#D6DEEA] shadow-xs';
 const inputClass =
@@ -23,7 +22,7 @@ const TIPOS: { key: InsumoTipo; label: string; icon: string; unidad: string; hin
   { key: 'cuajo', label: 'Cuajo (coagulante)', icon: 'science', unidad: 'ml', hint: 'Ej. CJ-2026-09A', descLabel: 'Tipo / referencia' },
   { key: 'sal', label: 'Sal', icon: 'grain', unidad: 'kg', hint: 'Ej. SAL-2026-44B', descLabel: 'Referencia' },
   { key: 'azucar', label: 'Azúcar (fermentados)', icon: 'cookie', unidad: 'kg', hint: 'Ej. AZU-2026-10A', descLabel: 'Ingenio / referencia' },
-  { key: 'saborizante', label: 'Saborizante (yogur)', icon: 'water_drop', unidad: 'ml', hint: 'Ej. SAB-2026-10A', descLabel: 'Sabor / referencia' },
+  { key: 'saborizante', label: 'Saborizante (yogur)', icon: 'water_drop', unidad: 'ml', hint: 'Ej. SAB-2026-10A', descLabel: 'Sabor' },
   { key: 'colorante', label: 'Colorante (yogur)', icon: 'palette', unidad: 'ml', hint: 'Ej. COL-2026-10A', descLabel: 'Color / referencia' },
   { key: 'estevia', label: 'Stevia (yogur y griego)', icon: 'eco', unidad: 'g', hint: 'Ej. EST-2026-10A', descLabel: 'Pureza / referencia' },
   { key: 'acido_acetico', label: 'Ácido acético (pasta hilada)', icon: 'colorize', unidad: 'ml', hint: 'Ej. AA-2026-01A', descLabel: 'Proveedor / concentración' },
@@ -70,6 +69,10 @@ export const InsumosManager: React.FC = () => {
   }, [load]);
 
   const meta = TIPOS.find((t) => t.key === tipo)!;
+  // Sabores ya usados en lotes de saborizante: se sugieren para escribirlos siempre igual.
+  const saboresRegistrados = Array.from(
+    new Set<string>(rows.filter((r) => r.tipo === 'saborizante' && r.descripcion).map((r) => String(r.descripcion).trim()))
+  ).sort((a, b) => a.localeCompare(b, 'es'));
   const list = rows.filter((r) => r.tipo === tipo);
 
   const reset = () => {
@@ -94,6 +97,10 @@ export const InsumosManager: React.FC = () => {
     }
     if (tipo === 'especia' && !form.descripcion.trim()) {
       setError('Debes seleccionar el tipo de especia (Ají Picante, Pimienta o Finas Hierbas).');
+      return;
+    }
+    if (tipo === 'saborizante' && !/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ ]{2,40}$/.test(form.descripcion.replace(/\s+/g, ' ').trim())) {
+      setError('Escribe el sabor del saborizante (ej. Fresa, Mora): solo letras, sin códigos ni referencias. Es el sabor que verá el operario.');
       return;
     }
     setSaving(true);
@@ -276,7 +283,7 @@ export const InsumosManager: React.FC = () => {
             <input className={inputClass} value={form.codigo_lote} onChange={set('codigo_lote')} placeholder={meta.hint} />
           </label>
           <label className="flex flex-col gap-1 text-[11px] font-bold text-gray-600 uppercase">
-            {meta.descLabel} {tipo === 'especia' ? '*' : ''}
+            {meta.descLabel} {tipo === 'especia' || tipo === 'saborizante' ? '*' : ''}
             {tipo === 'especia' ? (
               <select
                 className={inputClass}
@@ -288,6 +295,22 @@ export const InsumosManager: React.FC = () => {
                 <option value="Pimienta">Pimienta (Queso Mexicano)</option>
                 <option value="Finas Hierbas">Mezcla Finas Hierbas (Queso Finas Hierbas)</option>
               </select>
+            ) : tipo === 'saborizante' ? (
+              <>
+                <input
+                  className={inputClass}
+                  value={form.descripcion}
+                  onChange={set('descripcion')}
+                  list="sabores-registrados"
+                  maxLength={40}
+                  placeholder="Ej. Fresa"
+                />
+                <datalist id="sabores-registrados">
+                  {saboresRegistrados.map((n) => (
+                    <option key={n} value={n} />
+                  ))}
+                </datalist>
+              </>
             ) : (
               <input className={inputClass} value={form.descripcion} onChange={set('descripcion')} />
             )}
@@ -366,7 +389,6 @@ export const InsumosManager: React.FC = () => {
         )}
       </div>
       </>)}
-      <SaboresManager />
     </div>
   );
 };
